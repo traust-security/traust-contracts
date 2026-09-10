@@ -44,6 +44,20 @@
             "items": {
               "type": "string"
             }
+          },
+          "keep_env_heads": {
+            "description": "Segment head basenames that receive keep_env/extra_env; empty or absent = every segment.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "curl_allowed_hosts": {
+            "description": "Hostnames curl may contact under this profile (exact match, case-insensitive; no globs).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }

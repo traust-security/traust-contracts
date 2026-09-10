@@ -2,6 +2,12 @@
 
 All notable changes to traust-contracts are documented here.
 
+## [0.2.0]
+
+Add two optional per-profile fields to the safe-exec profiles config
+schema: `keep_env_heads` and `curl_allowed_hosts`. Additive; existing
+configs validate unchanged.
+
 ## [0.1.1]
 
 ## Changes
