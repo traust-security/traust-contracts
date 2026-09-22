@@ -17,12 +17,14 @@ from referencing import Registry, Resource
 
 from traust_contracts.paths import schema_dir, storage_dir
 from traust_contracts.v1.storage.sql import (
+    BASELINE_ID,
     CONTRACT_VERSION,
     REVISION,
     Dialect,
     bootstrap_files,
     bootstrap_statements,
     query,
+    reserved_objects,
 )
 
 SQLValue = str | int | float | bytes | None
@@ -584,19 +586,47 @@ class Store:
         try:
             if self.dialect == "postgres":
                 self._execute(query(self.dialect, "traust_storage_meta.lock.sql"))
+            else:
+                reserved = reserved_objects("sqlite")
+                if any(
+                    name.lower() in reserved or table.lower() in reserved
+                    for name, table in self._execute(
+                        "SELECT name, tbl_name FROM temp.sqlite_schema"
+                    ).fetchall()
+                ):
+                    raise IngestError("temporary storage objects; explicit migration required")
             exists = self._execute(query(self.dialect, "traust_storage_meta.exists.sql")).fetchone()
             row = (
                 self._execute(query(self.dialect, "traust_storage_meta.get.sql")).fetchone()
                 if exists and exists[0]
                 else None
             )
-            if row and (row[0] != CONTRACT_VERSION or row[1] != REVISION):
+            if exists and exists[0] and not row:
+                raise IngestError("empty storage metadata; explicit migration required")
+            if row and tuple(row) != (CONTRACT_VERSION, REVISION, BASELINE_ID):
                 raise IngestError(
                     f"database storage {row[0]} revision {row[1]}; "
                     f"package {CONTRACT_VERSION} revision {REVISION}: "
                     "explicit migration required; automatic upgrades/downgrades are not supported"
                 )
             if not row:
+                if self.dialect == "postgres":
+                    occupied = self._execute(
+                        "SELECT 1 FROM pg_catalog.pg_class c "
+                        "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
+                        "WHERE n.nspname = 'traust_storage' LIMIT 1"
+                    ).fetchone()
+                else:
+                    reserved = reserved_objects("sqlite")
+                    occupied = any(
+                        name.lower() in reserved or table.lower() in reserved
+                        for name, table in self._execute(
+                            "SELECT name, tbl_name FROM main.sqlite_schema "
+                            "UNION ALL SELECT name, tbl_name FROM temp.sqlite_schema"
+                        ).fetchall()
+                    )
+                if occupied:
+                    raise IngestError("unstamped storage objects; explicit migration required")
                 for path in bootstrap_files(self.dialect):
                     for statement in bootstrap_statements(self.dialect, path):
                         self._execute(statement)
@@ -605,6 +635,7 @@ class Store:
                     {
                         "contract_version": CONTRACT_VERSION,
                         "revision": REVISION,
+                        "baseline_id": BASELINE_ID,
                         "applied_at": datetime.now(UTC).isoformat(),
                     },
                 )

@@ -1,5 +1,7 @@
 """Read authored SQL in deterministic table-then-view bootstrap order."""
 
+import json
+import re
 import sqlite3
 from collections.abc import Iterator
 from functools import cache
@@ -9,7 +11,38 @@ from typing import Literal
 from traust_contracts.paths import storage_dir
 
 Dialect = Literal["postgres", "sqlite"]
-CONTRACT_VERSION = "v1"
+
+
+def metadata_object(pairs: list[tuple[str, object]]) -> dict:
+    values = {}
+    for key, value in pairs:
+        if key in values:
+            raise ValueError("duplicate storage metadata key")
+        values[key] = value
+    return values
+
+
+def load_metadata() -> dict[str, str | int]:
+    metadata = json.loads(
+        (storage_dir() / "metadata.json").read_text(encoding="utf-8"),
+        object_pairs_hook=metadata_object,
+    )
+    if (
+        not isinstance(metadata, dict)
+        or set(metadata) != {"contract_version", "revision", "baseline_id"}
+        or metadata["contract_version"] != "v1"
+        or type(metadata["revision"]) is not int
+        or metadata["revision"] < 1
+        or not isinstance(metadata["baseline_id"], str)
+        or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,127}", metadata["baseline_id"])
+    ):
+        raise ValueError("invalid storage metadata")
+    return metadata
+
+
+METADATA = load_metadata()
+CONTRACT_VERSION = METADATA["contract_version"]
+BASELINE_ID = METADATA["baseline_id"]
 #: 3 (2026-09-19): ownership_current. Views are CREATE ... IF NOT EXISTS,
 #: so an existing store keeps the definitions it was built with -- and the
 #: pre-3 ones join subject_ownership raw, which double-counts every finding
@@ -66,7 +99,7 @@ CONTRACT_VERSION = "v1"
 #: gains category, cwes and effective_severity so a pattern rollup does not
 #: re-join the finding tables. A store on 14 has neither the tables nor the
 #: views, so every one of those consumers returns nothing.
-REVISION = 15
+REVISION = METADATA["revision"]
 
 
 @cache
@@ -119,6 +152,19 @@ def bootstrap_files(dialect: Dialect) -> list[Path]:
         *ordered,
         *sorted(views.values()),
     ]
+
+
+def reserved_objects(dialect: Dialect) -> set[str]:
+    pattern = re.compile(
+        r"CREATE\s+(?:UNIQUE\s+)?(?:TABLE|VIEW|INDEX)\s+"
+        r"(?:IF\s+NOT\s+EXISTS\s+)?([a-z_][a-z0-9_]*)",
+        re.IGNORECASE,
+    )
+    return {
+        name
+        for path in bootstrap_files(dialect)
+        for name in pattern.findall(path.read_text(encoding="utf-8"))
+    }
 
 
 def bootstrap_statements(dialect: Dialect, path: Path) -> Iterator[str]:

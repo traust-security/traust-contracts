@@ -120,6 +120,40 @@ def test_postgres_storage_does_not_collide_with_application_tables(
     conn.commit()
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "UPDATE traust_storage_meta SET baseline_id='old-baseline'",
+        "DELETE FROM traust_storage_meta",
+        "DROP TABLE traust_storage_meta",
+        "ALTER TABLE traust_storage_meta DROP COLUMN baseline_id",
+    ],
+)
+def test_postgres_baseline_rejection(database: tuple[Any, str], mutation: str) -> None:
+    conn, _ = database
+    store = Store(conn)
+    store.init()
+    conn.execute(mutation)
+    conn.commit()
+    with pytest.raises(IngestError):
+        store.init()
+    assert conn.execute("SELECT count(*) FROM artifact_evidence").fetchone() == (0,)
+    conn.commit()
+
+
+def test_postgres_unstamped_namespace_rejected(database: tuple[Any, str]) -> None:
+    conn, _ = database
+    conn.execute("CREATE SCHEMA traust_storage")
+    conn.execute("CREATE TABLE traust_storage.old_report (id TEXT)")
+    conn.commit()
+    with pytest.raises(IngestError, match="unstamped"):
+        Store(conn).init()
+    assert conn.execute("SELECT to_regclass('traust_storage.traust_storage_meta')").fetchone() == (
+        None,
+    )
+    conn.commit()
+
+
 @pytest.mark.parametrize("number", [1, 1.0, 1e3])
 def test_postgres_integral_projection(database: tuple[Any, str], number: int | float) -> None:
     conn, _ = database
