@@ -2,6 +2,19 @@
 
 All notable changes to traust-contracts are documented here.
 
+## [0.36.0]
+
+### Changed
+
+- Reset storage numbering to revision 1 under the new `traust-storage-20260922`
+  baseline. Canonical packaged metadata supplies the format, revision and baseline
+  to Python and SDK generators; artifact schemas are unchanged.
+- Existing stores require an explicit rebuild or reviewed migration. Initialization
+  rejects legacy/mismatched metadata, empty stamps, and unstamped storage objects
+  without rewriting them. Bootstrap metadata is insert-only.
+- This is a pre-GA compatibility boundary, not an automatic reset. Fence old clients
+  before recreating storage; see storage/v1/README.md for the coordinated procedure.
+
 ## [0.9.0]
 
 ## Changes

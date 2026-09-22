@@ -18,6 +18,30 @@ flowchart LR
     P --> V[Scoped live views]
 ```
 
+## Revision-one baseline reset
+
+`metadata.json` is the shared source for storage format, revision and baseline ID.
+The new baseline is `traust-storage-20260922`, format `v1`, revision `1`.
+The earlier numbered revisions are retired; package versions continue forward.
+This is a clean-store boundary, not an automatic migration or a GA product release.
+
+Python and generated SDK initialization compare all three values. Legacy metadata
+without a baseline ID, a mismatched baseline/revision, an empty metadata table,
+or storage objects without metadata are refused. Initialization never drops data
+or relabels an existing database. PostgreSQL may share a database with application
+tables outside `traust_storage`; SQLite may share unrelated object names, but a
+dedicated file is recommended. Temporary SQLite objects cannot shadow storage names.
+
+Stop old clients and revoke their credentials before the reset: older binaries
+cannot enforce the new baseline check. Back up or export evidence, explicitly
+recreate only the approved storage namespace/file, initialize with matching
+contracts/SDK versions, and re-import through the validated write APIs. Never
+set the revision to 1 manually or delete metadata to bypass compatibility checks.
+
+The baseline ID is a compatibility epoch, not an integrity proof or a full live
+schema attestation. Do not reuse it for another numbering reset. Future DDL changes
+must increment the revision and provide an explicit upgrade/rebuild procedure.
+
 ## Identity model
 
 | Identity | Meaning |

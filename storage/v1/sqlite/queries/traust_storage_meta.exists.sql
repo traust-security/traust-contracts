@@ -1,3 +1,3 @@
 SELECT name
-FROM sqlite_master
-WHERE type = 'table' AND name = 'traust_storage_meta';
+FROM main.sqlite_schema
+WHERE type = 'table' AND lower(name) = 'traust_storage_meta';
