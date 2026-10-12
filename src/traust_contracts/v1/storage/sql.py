@@ -17,7 +17,8 @@ CONTRACT_VERSION = "v1"
 #: and every earlier change are part of revision 1. Databases created under any
 #: earlier schema are recreated, not migrated.
 #: Each later step adds migrations/NNN_to_NNN+1.sql; Store.migrate() runs them.
-REVISION = 1
+#: 2: cached Portfolio forge observations (XWING-2214).
+REVISION = 2
 
 
 @cache

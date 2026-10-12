@@ -1,4 +1,1 @@
--- Placeholder for storage v1 revision 1 -> 2.
---
--- Deltas only (ALTER / DROP / data UPDATE). New tables, indexes and views
--- belong in schema/ and views/; Store.migrate() re-runs those files.
+-- Revision 2 adds portfolio_forge_facts through schema bootstrap; no existing rows change.

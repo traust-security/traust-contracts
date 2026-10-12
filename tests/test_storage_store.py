@@ -38,6 +38,7 @@ from traust_contracts.v1.storage.store import _threat_score
 TABLES = [
     *REGISTRY_TABLES,
     *INVENTORY_TABLES,
+    "portfolio_forge_facts",
     "artifact_binding",
     "artifact_evidence",
     "artifact_location",
@@ -121,7 +122,7 @@ def test_init_revision_and_dependency_shape(store: Store) -> None:
     store.init()
     assert conn.execute("SELECT * FROM traust_storage_meta").fetchall() == original
     conn.execute("ALTER TABLE report_finding DROP COLUMN blocked_external")
-    conn.execute("UPDATE traust_storage_meta SET revision=?", (2,))
+    conn.execute("UPDATE traust_storage_meta SET revision=?", (REVISION + 1,))
     conn.commit()
     legacy_dump = tuple(conn.iterdump())
     with pytest.raises(IngestError, match=r"explicit migration"):

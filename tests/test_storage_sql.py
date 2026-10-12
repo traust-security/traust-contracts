@@ -25,6 +25,7 @@ TABLES = {
     "artifact_binding",
     "artifact_location",
     "traust_storage_meta",
+    "portfolio_forge_facts",
     *PROJECTION_TABLES.values(),
     *ALL_SECONDARY_PROJECTION_TABLES,
 }
@@ -35,7 +36,7 @@ def test_storage_revision_matches_migration_placeholder() -> None:
     # Revision 1 is the rebaselined schema (0.50.0). Every later step needs a
     # delta file so Store.migrate() can build up to REVISION; the next step's
     # file exists as a placeholder.
-    assert REVISION == 1
+    assert REVISION == 2
     for dialect in ("sqlite", "postgres"):
         migrations = storage_dir() / dialect / "migrations"
         assert sorted(p.name for p in migrations.glob("*.sql")) == [

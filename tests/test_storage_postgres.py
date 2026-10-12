@@ -33,6 +33,7 @@ from traust_contracts.v1.storage import Binding, IngestError, Store
 from traust_contracts.v1.storage.sql import REVISION
 
 TABLES = {
+    "portfolio_forge_facts",
     *REGISTRY_TABLES,
     *INVENTORY_TABLES,
     "artifact_binding",

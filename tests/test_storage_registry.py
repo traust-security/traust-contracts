@@ -331,12 +331,12 @@ def test_migrate_runs_a_step_through_its_delta_file(monkeypatch: pytest.MonkeyPa
     conn.execute("CREATE VIEW current_binding AS SELECT binding_id FROM artifact_binding")
     conn.commit()
     for module in ("traust_contracts.v1.storage.store", "traust_contracts.v1.storage.sql"):
-        monkeypatch.setattr(f"{module}.REVISION", 2)
+        monkeypatch.setattr(f"{module}.REVISION", REVISION + 1)
     with pytest.raises(IngestError, match="explicit migration"):
         store.init()
-    assert store.migrate() == 1
+    assert store.migrate() == REVISION
     store.init()
-    assert conn.execute("SELECT revision FROM traust_storage_meta").fetchone() == (2,)
+    assert conn.execute("SELECT revision FROM traust_storage_meta").fetchone() == (REVISION + 1,)
     assert _schema(conn) == _schema(_fresh())
     assert store.find_product_repo("rhacm", ACM_CLI) == owner
 
