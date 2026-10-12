@@ -394,31 +394,14 @@ database are available; otherwise they warn and skip.
 
 ## Portfolio forge observations
 
-`portfolio_forge_facts` caches the latest slow/rate-limited forge observation.
-Core supplies a canonical URL identity (`url:...`), or a filing identity (`key:...`)
-when no supported URL exists. This is an observation lookup key, not a replacement
-for the registered repository/CodeLine UUID model. Missing-URL filings remain distinct.
-The audited SHA, audit date and audit-presence flag record the comparison context;
-Core must reject reuse when that context changes. Unknown measurements stay NULL.
+`portfolio_forge_facts` stores the latest forge observation, keyed by canonical URL
+(`url:...`) or filing key (`key:...`) when no supported URL exists. Missing-URL
+filings remain distinct; these lookup keys do not replace repository/CodeLine UUIDs.
+The audited SHA, audit date and audit-presence flag identify the comparison
+baseline; Core rejects reuse when it changes. Unknown measurements stay NULL.
+Core derives age, churn, finding counts, risk and exposure on read; `RepoState`
+is not stored.
 
-Audit age, churn ratio, live finding counts, risk tier, exposure and `RepoState`
-are deliberately absent: Core derives them from their owning domains on each read.
-There is no new database-file location. The table belongs in the configured storage.
-
-Storage revision 2 adds this table. Back up an existing revision-1 database and
-invoke the existing `Store.migrate()` operation explicitly; `Store.init()` refuses
-an older revision. The migration creates the table and preserves existing data.
-No conversion of the unmerged traust PR #58 `security_repo_state` table is shipped.
-
-Sources for this move from [traust#58](https://github.com/traust-security/traust/pull/58):
-- [XWING-2214, ownership table and acceptance criteria 4–5](https://redhat.atlassian.net/browse/XWING-2214):
-  Contracts owns forge-facts DDL; RepoState must never be stored.
-- [XWING-2205, Where code goes](https://redhat.atlassian.net/browse/XWING-2205):
-  all table definitions belong in Contracts, domain rules in Core.
-- [Shaun's PR review](https://github.com/traust-security/traust/pull/58#issuecomment-6069412172):
-  move the pack's storage to Core/Contracts. The newer 2214 requirements narrow
-  this to forge facts rather than moving the old whole-state table unchanged.
-
-The lookup-key encoding, baseline guards, table/column names and revision migration
-are implementation choices for review, not names prescribed by those sources.
-Comparison-status vocabulary remains in Core for now, as 2214 explicitly requires.
+Storage revision 2 adds this table to the configured database. For existing
+revision-1 storage, back up and explicitly call `Store.migrate()`; `Store.init()`
+refuses older revisions. See [Migrations](#migrations).

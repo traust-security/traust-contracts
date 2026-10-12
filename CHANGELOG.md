@@ -7,10 +7,9 @@ All notable changes to traust-contracts are documented here.
 ### Added
 
 - Storage revision 2: `portfolio_forge_facts` in SQLite and PostgreSQL, with
-  an explicit revision-1 migration that preserves existing records. Caches
-  forge observations and their audit-baseline context for XWING-2214; derived
-  repository state is never stored. See storage/v1/README.md for sources and
-  migration instructions.
+  an explicit revision-1 migration that preserves existing records. Stores forge
+  observations and their audit-baseline context; derived repository state is not
+  stored. See [migration instructions](storage/v1/README.md#migrations).
 
 ## [0.53.0]
 
