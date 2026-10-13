@@ -272,6 +272,36 @@ def test_read_queries_exist_in_both_dialects_and_target_views() -> None:
         )
 
 
+def test_search_queries_exist_in_both_dialects_with_matching_parameters() -> None:
+    """Registry enumeration reads (`.search.sql`) must land on both dialects.
+
+    `.list.sql` parity is gated for scoped views; the registry `search` reads
+    target tables (not views), so they need their own gate: a query that only
+    one database can serve breaks SDK generation and any database adopter
+    silently.
+    """
+    per_dialect = {
+        dialect: {path.name for path in (storage_dir() / dialect / "queries").glob("*.search.sql")}
+        for dialect in DIALECTS
+    }
+    assert per_dialect["sqlite"], "no search queries found"
+    assert per_dialect["sqlite"] == per_dialect["postgres"], (
+        f"search queries differ: {per_dialect['sqlite'] ^ per_dialect['postgres']}"
+    )
+    placeholder = {"postgres": re.compile(r"%\((\w+)\)s"), "sqlite": re.compile(r":(\w+)\b")}
+    for name in per_dialect["sqlite"]:
+        params = {}
+        for dialect in DIALECTS:
+            sql = (storage_dir() / dialect / "queries" / name).read_text(encoding="utf-8")
+            params[dialect] = placeholder[dialect].findall(sql)
+        assert params["postgres"] == params["sqlite"], (
+            f"{name}: placeholders differ between dialects"
+        )
+        assert len(set(params["postgres"])) == len(params["postgres"]), (
+            f"{name}: a placeholder is used more than once"
+        )
+
+
 def test_sqlite_bootstrap_statements_execute_and_reexecute() -> None:
     conn = sqlite3.connect(":memory:")
     conn.execute("PRAGMA foreign_keys = ON")
