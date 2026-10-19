@@ -6,6 +6,12 @@ All notable changes to traust-contracts are documented here.
 
 ### Added
 
+- **`product_scope.get.sql`: the canonical source for the Go SDK's
+  `GetProductScopes`.** The SDK had hand-edited these bindings into its
+  generated `queries.go`, so regenerating from contracts dropped them and
+  the drift gate could not pass. The keyed multi-row read now lives here on
+  both dialects, named per the `.get.sql` convention for keyed reads that
+  return several rows.
 - **`current_finding_detail` view: every current finding at listing grain.**
   The spine plus the two correlations a cross-repo findings worklist needs
   and cannot derive from it: the triage verdict and triage-assessed severity
