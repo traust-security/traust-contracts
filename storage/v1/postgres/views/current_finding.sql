@@ -14,13 +14,16 @@
 --      neither finding table.
 --
 --
--- category, cwes and effective_severity ride the spine as of REVISION 15.
--- They are the axes a pattern rollup groups by, and a view above this one
--- should not have to re-join the finding tables to reach them. A policy
+-- category, cwes, effective_severity and cvss_score ride the spine.
+-- They are the axes a pattern rollup groups by and a findings listing
+-- sorts by, and a view above this one should not have to re-join the
+-- finding tables to reach them. A policy
 -- finding declares a single `cwe` rather than a list, so it is wrapped into
 -- a one-element array: one column, one meaning, whichever family a row came
 -- from. effective_severity is the severity AFTER disposition -- reading
 -- `severity` alone reports a downgraded finding at its original rating.
+-- cvss_score is lifted out of the report finding's cvss object; a policy
+-- finding declares none, so the column is NULL for that family.
 -- Deliberately UNFILTERED on disposition: open/hardening are policy and
 -- belong in the views above, not in the spine.
 CREATE OR REPLACE VIEW traust_storage.current_finding AS
@@ -41,7 +44,8 @@ SELECT binding.scope_id,
        owner.ownership,
        owner.business_unit,
        owner.tree,
-       owner.is_branch_audit
+       owner.is_branch_audit,
+       (f.cvss ->> 'score')::double precision AS cvss_score
 FROM traust_storage.report_finding f
 JOIN traust_storage.report_current current_report
   ON current_report.binding_id = f.binding_id
@@ -67,7 +71,8 @@ SELECT binding.scope_id,
        owner.ownership,
        owner.business_unit,
        owner.tree,
-       owner.is_branch_audit
+       owner.is_branch_audit,
+       NULL::double precision AS cvss_score
 FROM traust_storage.cloud_config_finding f
 JOIN traust_storage.current_binding binding
   ON binding.binding_id = f.binding_id

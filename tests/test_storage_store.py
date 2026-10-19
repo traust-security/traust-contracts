@@ -15,8 +15,10 @@ import pytest
 from conftest import (
     FINDINGS_SUMMARY_ROWS,
     FINDINGS_SUMMARY_SCOPE,
+    current_finding_detail_rows,
     report_with_external_blocking,
     report_with_findings,
+    seed_current_finding_detail,
     seed_findings_summary,
 )
 from storage_samples import (
@@ -96,6 +98,7 @@ def test_init_revision_and_dependency_shape(store: Store) -> None:
         "census_population",
         "current_binding",
         "current_finding",
+        "current_finding_detail",
         "distinct_exposure",
         "exposure_trend",
         "finding_first_seen",
@@ -339,6 +342,70 @@ def test_findings_summary_joins_same_run_and_optional_layer_repo(store: Store) -
     seed_findings_summary(store)
     assert store.query_findings_summary([FINDINGS_SUMMARY_SCOPE]) == FINDINGS_SUMMARY_ROWS
     assert store.query_findings_summary(["other"]) == []
+
+
+def test_current_finding_detail_classifies_and_joins_triage(store: Store) -> None:
+    """The SQLite half of the cross-dialect parity pair.
+
+    Fixture and expectation are shared with
+    `test_storage_postgres.py::test_postgres_current_finding_detail_classifies_and_joins_triage`
+    so the two views cannot drift behind separately-authored setups.
+    """
+    seed_current_finding_detail(store)
+    assert store.query_current_finding_detail([FINDINGS_SUMMARY_SCOPE]) == (
+        current_finding_detail_rows(is_branch_audit=0, render_cwes=json.dumps)
+    )
+    assert store.query_current_finding_detail(["other"]) == []
+
+
+def test_current_finding_detail_reads_the_newest_triage(store: Store) -> None:
+    """Two independent triages of one context must not fan a finding out.
+
+    The newest binding wins (bound_at DESC, binding_id DESC), so the row
+    count stays one per finding and the verdict follows the latest triage.
+    """
+    seed_current_finding_detail(store)
+    later = {
+        "triage_completed": "2026-01-04",
+        "triage_context": {
+            "environment": "Synthetic test environment",
+            "votes_per_finding": 1,
+            "repo": "repo",
+            "harness_version": "0.1.0",
+        },
+        "summary": {
+            "input_count": 1,
+            "true_positives": 0,
+            "hardening": 0,
+            "false_positives": 0,
+            "undetermined": 1,
+            "duplicates": 0,
+            "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 1},
+        },
+        "findings": [
+            {
+                "id": "f201",
+                "title": "Re-adjudicated",
+                "orig_id": "FIND-001",
+                "verdict": "undetermined",
+                "severity": "low",
+            }
+        ],
+    }
+    context = Binding(
+        FINDINGS_SUMMARY_SCOPE,
+        "sci:inventory-item:42",
+        "sci:scan-result:7",
+    )
+    result = store.ingest("triage", encode(later), context)
+    rows = {row[3]: row for row in store.query_current_finding_detail([FINDINGS_SUMMARY_SCOPE])}
+    assert len(rows) == 6, "a second triage must not duplicate findings"
+    assert rows["FIND-001"][19] == "undetermined"
+    assert rows["FIND-001"][20] == "low"
+    # The newest triage is the context's triage: a finding it does not cover
+    # reads as untriaged, the same rule SCI's own latest-triage matching
+    # applies, rather than mixing verdicts across triage generations.
+    assert rows["FIND-003"][19] is None
 
 
 def test_projection_failure_rolls_back_evidence_and_binding(store: Store) -> None:

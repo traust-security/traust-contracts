@@ -169,6 +169,7 @@ def test_view_names_are_read_from_the_sql_not_the_filename() -> None:
             "census_population",
             "current_binding",
             "current_finding",
+            "current_finding_detail",
             "distinct_exposure",
             "exposure_trend",
             "finding_first_seen",
@@ -406,6 +407,7 @@ def test_storage_package_resources() -> None:
             "census_exposure",
             "census_population",
             "current_finding",
+            "current_finding_detail",
             "distinct_exposure",
             "exposure_trend",
             "finding_first_seen",
@@ -466,6 +468,17 @@ def test_dashboard_view_filters_match_the_contract_enums() -> None:
         )
         assert f"'{Validity.HARDENING.value}'" in hardening
 
+        # current_finding_detail restates the census classification per row,
+        # so its hard-coded values are gated the same way. 'triage' is the
+        # artifact name its triage join matches and 'closed' is the census's
+        # derived class name; neither is a disposition enum member.
+        detail = _uncommented(
+            (storage_dir() / dialect / "views" / "current_finding_detail.sql").read_text()
+        )
+        detail_quoted = set(re.findall(r"'([a-z_]+)'", detail))
+        detail_known = known | {"triage", "closed"}
+        assert detail_quoted <= detail_known, f"{dialect}: unknown value(s) {detail_quoted - detail_known}"
+
 
 def test_the_spine_unions_both_finding_families() -> None:
     """A view reading only report_finding omits every policy finding --
@@ -505,7 +518,12 @@ def test_views_are_created_in_dependency_order() -> None:
         names = [p.name for p in bootstrap_files(dialect) if "/views/" in str(p)]
         assert names.index("report_current.sql") < names.index("current_finding.sql")
         assert names.index("binding_current.sql") < names.index("report_current.sql")
-        for dependent in ("open_findings.sql", "hardening_findings.sql", "distinct_exposure.sql"):
+        for dependent in (
+            "open_findings.sql",
+            "hardening_findings.sql",
+            "distinct_exposure.sql",
+            "current_finding_detail.sql",
+        ):
             assert names.index("current_finding.sql") < names.index(dependent)
 
 

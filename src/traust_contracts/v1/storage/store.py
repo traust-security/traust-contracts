@@ -1125,6 +1125,15 @@ class Store:
         """Posture debt, kept out of open exposure so the two never blend."""
         return self._query_view("hardening_findings", scope_ids)
 
+    def query_current_finding_detail(self, scope_ids: Sequence[str]) -> list[tuple[Any, ...]]:
+        """Every current finding at listing grain, classified once.
+
+        The spine plus the triage verdict of the newest triage for the same
+        context and the census exposure class, so a cross-repo findings
+        worklist filters rather than restates the disposition policy.
+        """
+        return self._query_view("current_finding_detail", scope_ids)
+
     def query_distinct_exposure(self, scope_ids: Sequence[str]) -> list[tuple[Any, ...]]:
         """Lens 2: distinct problems over owned HEAD audits, not row counts."""
         return self._query_view("distinct_exposure", scope_ids)

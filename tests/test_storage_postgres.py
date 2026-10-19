@@ -14,8 +14,10 @@ import pytest
 from conftest import (
     FINDINGS_SUMMARY_ROWS,
     FINDINGS_SUMMARY_SCOPE,
+    current_finding_detail_rows,
     report_with_external_blocking,
     report_with_findings,
+    seed_current_finding_detail,
     seed_findings_summary,
 )
 from storage_samples import (
@@ -162,6 +164,26 @@ def test_postgres_findings_summary_uses_json_scope_and_same_run(
     conn.execute("SELECT set_config('traust.scope_ids', %s, true)", ('["local"]',))
     assert conn.execute("SELECT count(*) FROM findings_summary").fetchone() == (2,)
     conn.execute("ROLLBACK")
+
+
+def test_postgres_current_finding_detail_classifies_and_joins_triage(
+    database: tuple[Any, str],
+) -> None:
+    """The PostgreSQL half of the cross-dialect parity pair.
+
+    Fixture and expectation are shared with
+    `test_storage_store.py::test_current_finding_detail_classifies_and_joins_triage`
+    so the two views cannot drift behind separately-authored setups.
+    """
+    conn, _ = database
+    store = Store(conn)
+    store.init()
+    seed_current_finding_detail(store)
+    assert store.query_current_finding_detail([FINDINGS_SUMMARY_SCOPE]) == (
+        current_finding_detail_rows(is_branch_audit=False, render_cwes=lambda ids: ids)
+    )
+    assert store.query_current_finding_detail(["other"]) == []
+    conn.commit()
 
 
 def test_postgres_atomic_projection_failure(database: tuple[Any, str]) -> None:

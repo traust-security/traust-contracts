@@ -2,6 +2,24 @@
 
 All notable changes to traust-contracts are documented here.
 
+## [0.61.0]
+
+### Added
+
+- **`current_finding_detail` view: every current finding at listing grain.**
+  The spine plus the two correlations a cross-repo findings worklist needs
+  and cannot derive from it: the triage verdict and triage-assessed severity
+  of the newest triage bound to the same scope, subject and run (matched per
+  finding through `source_finding_id`, newest binding winning so two
+  independent triages cannot fan a finding out), and the census
+  `exposure_class` expressed per row so a listing consumer filters rather
+  than restates the disposition policy. `Store.query_current_finding_detail`
+  and a `.list.sql` per dialect read it.
+- **`current_finding` (the spine) now carries `cvss_score`**, lifted out of
+  the report finding's `cvss` object; a policy finding declares none, so the
+  column is NULL for that family. Appended after `is_branch_audit`, the
+  position `CREATE OR REPLACE VIEW` can extend in place.
+
 ## [0.60.0]
 
 ### Added
