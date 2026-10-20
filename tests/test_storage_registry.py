@@ -367,3 +367,37 @@ def test_migration_files_hold_deltas_only() -> None:
                 if not line.lstrip().startswith("--")
             )
             assert "CREATE " not in code.upper(), f"{dialect}/{path.name} creates; edit schema/"
+
+
+def test_migrate_syncs_the_revision_five_views() -> None:
+    """A revision-4 database must pick the new views up by migrating.
+
+    Revision 5 changes only views (the current_finding_detail view and the
+    spine's cvss_score column), and Store.init() verifies a revision
+    without syncing files: the revision bump is what makes an existing
+    database re-run the bootstrap files at all. Build a revision-4 shape
+    (old spine without cvss_score, no detail view), then migrate and
+    compare against a fresh init.
+    """
+    conn = _fresh()
+    conn.execute("DROP VIEW current_finding_detail")
+    conn.execute("DROP VIEW current_finding")
+    conn.execute(
+        "CREATE VIEW current_finding AS "
+        "SELECT scope_id, subject_id, run_id, finding_id FROM report_finding"
+    )
+    conn.execute("UPDATE traust_storage_meta SET revision = 4")
+    conn.commit()
+
+    # init() refuses the older revision rather than silently syncing.
+    with pytest.raises(IngestError, match="explicit migration"):
+        Store(conn).init()
+
+    assert Store(conn).migrate() == 4
+    Store(conn).init()
+    assert conn.execute("SELECT revision FROM traust_storage_meta").fetchone() == (REVISION,)
+    assert _schema(conn) == _schema(_fresh())
+    # The migrated database carries the revision-5 shape: the spine's new
+    # column is queryable and the detail view exists.
+    conn.execute("SELECT cvss_score FROM current_finding LIMIT 0")
+    conn.execute("SELECT count(*) FROM current_finding_detail")

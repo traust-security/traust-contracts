@@ -12,6 +12,13 @@ All notable changes to traust-contracts are documented here.
   the drift gate could not pass. The keyed multi-row read now lives here on
   both dialects, named per the `.get.sql` convention for keyed reads that
   return several rows.
+- **REVISION 4 -> 5 so existing databases sync the new views.**
+  `Store.init()` verifies a revision without re-running files, so a
+  view-only change never reaches an existing database until
+  `Store.migrate()` has a step to run. The 004_to_005 delta holds nothing
+  (views come from the bootstrap re-run migrate performs); migration
+  parity tests on both dialects build a revision-4 shape and verify the
+  bump repairs it.
 - **`current_finding_detail` view: every current finding at listing grain.**
   The spine plus the two correlations a cross-repo findings worklist needs
   and cannot derive from it: the triage verdict and triage-assessed severity

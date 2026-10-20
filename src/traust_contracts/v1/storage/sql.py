@@ -18,7 +18,7 @@ CONTRACT_VERSION = "v1"
 #: earlier schema are recreated, not migrated.
 #: Each later step adds migrations/NNN_to_NNN+1.sql; Store.migrate() runs them.
 #: 2: cached Portfolio forge observations (XWING-2214).
-REVISION = 4
+REVISION = 5
 
 
 @cache
