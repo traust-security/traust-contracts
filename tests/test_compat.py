@@ -1,7 +1,12 @@
 """Compatibility gates for schema versioning.
 
 Breaking-change gate: property/required guards, finite-domain narrowing,
-and restrictions on previously open values versus the previous git tag.
+and restrictions on previously open values versus the change's base on main:
+the merge-base with origin/main on a branch, the previous commit on main
+itself, or any ref named by CONTRACTS_COMPAT_BASE. It used to compare against
+the latest git tag; tags stopped at v0.48.1 when CI moved off GitLab, so every
+approved change since then read as "breaking" and the gate was bypassed on
+every push (2026-10-22).
 
 The vector-hash gate that pinned the golden-vector suite to a deterministic
 digest was removed with the suite itself on 2026-08-18 (only the harness computes
@@ -27,19 +32,38 @@ class TestBreakingChangeDetection:
     """Detect schema evolution breaking backward compatibility."""
 
     @staticmethod
-    def _get_latest_tag() -> str:
-        """Return the latest git tag (e.g., 'v0.1.0')."""
+    def _git(*args: str) -> str | None:
         try:
             result = subprocess.run(
-                ["git", "describe", "--tags", "--abbrev=0"],
-                cwd=REPO_ROOT,
-                capture_output=True,
-                text=True,
-                check=True,
+                ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=True
             )
-            return result.stdout.strip()
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return None
+        return result.stdout.strip() or None
+
+    @classmethod
+    def _compat_base(cls) -> tuple[str | None, str]:
+        """(git ref, how it was chosen) that the gate compares against.
+
+        - CONTRACTS_COMPAT_BASE, when set: any ref (a tag, a SHA, a branch).
+        - On a branch: the merge-base with origin/main (or main), so the gate
+          reports only what this change introduces.
+        - On main itself: the previous commit (first parent), so a post-merge
+          run checks the change that just landed.
+        """
+        override = os.getenv("CONTRACTS_COMPAT_BASE")
+        if override:
+            return override, f"CONTRACTS_COMPAT_BASE={override}"
+        head = cls._git("rev-parse", "HEAD")
+        for upstream in ("origin/main", "main"):
+            base = cls._git("merge-base", "HEAD", upstream)
+            if not base:
+                continue
+            if base != head:
+                return base, f"merge-base with {upstream}"
+            parent = cls._git("rev-parse", "--verify", "--quiet", "HEAD^1")
+            return parent, "the previous commit on main"
+        return None, "no main branch to compare against"
 
     @staticmethod
     def _extract_json_pointer_path(path_list: list) -> str:
@@ -399,8 +423,8 @@ class TestBreakingChangeDetection:
         os.getenv("CONTRACTS_ALLOW_BREAKING") == "1",
         reason="Skipped when CONTRACTS_ALLOW_BREAKING=1",
     )
-    def test_no_breaking_changes_vs_previous_tag(self):
-        """Detect restrictions or review-required changes versus the previous tag.
+    def test_no_breaking_changes_vs_base(self):
+        """Detect restrictions or review-required changes versus the change's base.
 
         Breaking changes (require MAJOR version bump):
         - Removing a property from a 'properties' object
@@ -415,17 +439,18 @@ class TestBreakingChangeDetection:
         - Removing from required
         - Documentation changes
 
-        If this fails: you have a breaking change. Bump VERSION to the next MAJOR
-        and tag accordingly.
+        If this fails, this change breaks the contract. For an intentional
+        break, bump VERSION to the next MAJOR and run with
+        CONTRACTS_ALLOW_BREAKING=1.
         """
-        latest_tag = self._get_latest_tag()
-        if not latest_tag:
-            pytest.skip("No prior git tag found")
+        base, chosen = self._compat_base()
+        if not base:
+            pytest.skip(f"No base to compare against ({chosen})")
 
         breaking_changes = []
 
         for schema_file in sorted(SCHEMA_DIR.glob("*.schema.json")):
-            # Fetch schema from the previous tag. Try the current (versioned) path first;
+            # Fetch schema from the base. Try the current (versioned) path first;
             # fall back to the pre-v1 unversioned path so the one-time schemas/ -> schemas/v1/
             # move doesn't make every schema look "new" and silently skip the gate.
             candidate_paths = [
@@ -436,7 +461,7 @@ class TestBreakingChangeDetection:
             for candidate in candidate_paths:
                 try:
                     result = subprocess.run(
-                        ["git", "show", f"{latest_tag}:{candidate}"],
+                        ["git", "show", f"{base}:{candidate}"],
                         cwd=REPO_ROOT,
                         capture_output=True,
                         text=True,
@@ -447,7 +472,7 @@ class TestBreakingChangeDetection:
                 except subprocess.CalledProcessError:
                     continue
             if old_schema is None:
-                # Schema didn't exist in previous tag under any known path — not a breaking change
+                # Schema didn't exist at the base under any known path — not a breaking change
                 continue
 
             # Load current schema
@@ -689,3 +714,56 @@ class TestCompatibilityVerdicts:
             self._reject(old, current, value)
         else:
             self._accept(old, current, value)
+
+
+class TestCompatBase:
+    """The gate compares against the change's base on main, never a stale tag."""
+
+    def _with_git(self, monkeypatch, answers: dict):
+        monkeypatch.delenv("CONTRACTS_COMPAT_BASE", raising=False)
+        monkeypatch.setattr(
+            TestBreakingChangeDetection, "_git", staticmethod(lambda *a: answers.get(a))
+        )
+
+    def test_a_branch_compares_against_its_merge_base(self, monkeypatch):
+        self._with_git(
+            monkeypatch,
+            {("rev-parse", "HEAD"): "head1", ("merge-base", "HEAD", "origin/main"): "base0"},
+        )
+        assert TestBreakingChangeDetection._compat_base() == (
+            "base0",
+            "merge-base with origin/main",
+        )
+
+    def test_main_itself_compares_against_the_previous_commit(self, monkeypatch):
+        self._with_git(
+            monkeypatch,
+            {
+                ("rev-parse", "HEAD"): "head1",
+                ("merge-base", "HEAD", "origin/main"): "head1",
+                ("rev-parse", "--verify", "--quiet", "HEAD^1"): "parent0",
+            },
+        )
+        assert TestBreakingChangeDetection._compat_base() == (
+            "parent0",
+            "the previous commit on main",
+        )
+
+    def test_falls_back_to_a_local_main(self, monkeypatch):
+        self._with_git(
+            monkeypatch,
+            {("rev-parse", "HEAD"): "head1", ("merge-base", "HEAD", "main"): "base0"},
+        )
+        assert TestBreakingChangeDetection._compat_base()[0] == "base0"
+
+    def test_an_explicit_base_wins(self, monkeypatch):
+        self._with_git(monkeypatch, {})
+        monkeypatch.setenv("CONTRACTS_COMPAT_BASE", "v0.48.1")
+        assert TestBreakingChangeDetection._compat_base() == (
+            "v0.48.1",
+            "CONTRACTS_COMPAT_BASE=v0.48.1",
+        )
+
+    def test_no_main_means_no_base(self, monkeypatch):
+        self._with_git(monkeypatch, {("rev-parse", "HEAD"): "head1"})
+        assert TestBreakingChangeDetection._compat_base()[0] is None

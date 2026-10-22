@@ -2,6 +2,35 @@
 
 All notable changes to traust-contracts are documented here.
 
+## [0.62.1]
+
+### Fixed
+
+- **The breaking-change gate compares against the change's base, not a
+  stale tag.**
+  - **What was wrong:** `test_compat.py` compared every schema with the
+    latest git tag. Tags stopped at `v0.48.1` (2026-10-02), when CI stopped
+    tagging on merge. Every approved change since then (38 merges, 13
+    entries) read as "breaking", so every push needed
+    `CONTRACTS_ALLOW_BREAKING=1` and the gate checked nothing.
+  - **The new baseline:**
+    - on a branch, the merge-base with `origin/main` (falling back to
+      `main`), so the gate reports only what this change introduces;
+    - on `main`, the previous commit, so a post-merge run checks the change
+      that just landed;
+    - any other ref with `CONTRACTS_COMPAT_BASE=<ref>`.
+
+    An intended break still uses `CONTRACTS_ALLOW_BREAKING=1` with a MAJOR
+    bump.
+  - **Checked:**
+    - this branch passes with no override;
+    - an injected new required field fails;
+    - `CONTRACTS_COMPAT_BASE=v0.48.1` reproduces the 13 stale entries.
+
+    New unit tests cover how the base is chosen.
+  - **Docs:** README, CONTRIBUTING (which still said CI tags on merge) and
+    AGENTS describe the new baseline.
+
 ## [0.62.0]
 
 ### Added
