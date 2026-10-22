@@ -2012,6 +2012,7 @@ class Store:
                     "locations": _json_or_none(finding.get("locations")),
                     "asvs_references": _json_or_none(finding.get("asvs_references")),
                     "peach_references": _json_or_none(finding.get("peach_references")),
+                    "owasp_llm_references": _json_or_none(finding.get("owasp_llm_references")),
                     "capec": _json_or_none(finding.get("capec")),
                     "attack_pattern": finding.get("attack_pattern"),
                     "cvss": _json_or_none(finding.get("cvss")),

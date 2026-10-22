@@ -21,6 +21,7 @@ def test_revision_one_upgrade_adds_facts_without_changing_existing_rows():
     for name in reversed(view_names("sqlite")):  # migrate() recreates them
         conn.execute(f"DROP VIEW IF EXISTS {name}")
     conn.execute("ALTER TABLE threat DROP COLUMN review_surfaces")
+    conn.execute("ALTER TABLE report_finding DROP COLUMN owasp_llm_references")  # revision 6
     conn.execute("UPDATE traust_storage_meta SET revision = 1")
     conn.commit()
     with pytest.raises(IngestError, match="migration"):

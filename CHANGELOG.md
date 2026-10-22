@@ -2,6 +2,30 @@
 
 All notable changes to traust-contracts are documented here.
 
+## [0.62.0]
+
+### Added
+
+- **`owasp_llm_references` on report findings** (owner decision 2026-10-22).
+  - It holds the OWASP Top 10 for LLM Applications (2025) category IDs a
+    finding falls under, `LLM01` to `LLM10` (pattern
+    `^LLM(0[1-9]|10)$`, unique).
+  - It is set on findings about LLM, agent or MCP application code, which
+    traust's LLM application review checklist produces. The ID is cited,
+    never OWASP text.
+  - It is shaped like `asvs_references` and `peach_references`, and the
+    finding model carries it too.
+- **Storage revision 5 -> 6: `report_finding.owasp_llm_references`** on both
+  dialects (TEXT with a JSON check on SQLite, JSONB on PostgreSQL). It is
+  in the table DDL, the upsert queries and the store mapping, so storage
+  keeps every field the report schema declares on a finding.
+  - `005_to_006.sql` adds the column to existing databases (PostgreSQL
+    with `IF NOT EXISTS`). `006_to_007.sql` is the next placeholder.
+  - The earlier-revision migration tests drop the column when they build
+    an older shape, as they do for the columns revisions 3 and 4 added. A
+    new test migrates a revision-5 database and compares it with a fresh
+    one.
+
 ## [0.61.0]
 
 ### Added

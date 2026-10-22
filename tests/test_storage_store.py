@@ -397,7 +397,7 @@ def test_current_finding_detail_reads_the_newest_triage(store: Store) -> None:
         "sci:inventory-item:42",
         "sci:scan-result:7",
     )
-    result = store.ingest("triage", encode(later), context)
+    store.ingest("triage", encode(later), context)
     rows = {row[3]: row for row in store.query_current_finding_detail([FINDINGS_SUMMARY_SCOPE])}
     assert len(rows) == 6, "a second triage must not duplicate findings"
     assert rows["FIND-001"][19] == "undetermined"

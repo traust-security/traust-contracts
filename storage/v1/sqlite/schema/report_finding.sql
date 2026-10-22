@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS report_finding (
     locations TEXT CHECK (locations IS NULL OR json_valid(locations)),
     asvs_references TEXT CHECK (asvs_references IS NULL OR json_valid(asvs_references)),
     peach_references TEXT CHECK (peach_references IS NULL OR json_valid(peach_references)),
+    owasp_llm_references TEXT CHECK (owasp_llm_references IS NULL OR json_valid(owasp_llm_references)),
     capec TEXT CHECK (capec IS NULL OR json_valid(capec)),
     attack_pattern TEXT,
     cvss TEXT CHECK (cvss IS NULL OR json_valid(cvss)),

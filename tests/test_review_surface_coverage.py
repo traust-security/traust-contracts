@@ -125,6 +125,7 @@ def test_migrating_from_revision_two_adds_the_column():
     for name in reversed(view_names("sqlite")):  # migrate() recreates them
         conn.execute(f"DROP VIEW IF EXISTS {name}")
     conn.execute("ALTER TABLE threat DROP COLUMN review_surfaces")
+    conn.execute("ALTER TABLE report_finding DROP COLUMN owasp_llm_references")  # revision 6
     conn.execute("UPDATE traust_storage_meta SET revision = 2")
     conn.commit()
     store.migrate()
