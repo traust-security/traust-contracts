@@ -14,7 +14,7 @@ from storage_samples import REGISTRY_TABLES, encode, sample
 
 from traust_contracts.paths import storage_dir
 from traust_contracts.v1.storage import Binding, IngestError, Store, binding_id
-from traust_contracts.v1.storage.sql import REVISION
+from traust_contracts.v1.storage.sql import REVISION, view_names
 
 ACM_CLI = "https://github.com/stolostron/acm-cli"
 UNREGISTERED = "00000000-0000-0000-0000-000000000000"
@@ -382,6 +382,10 @@ def test_migrate_syncs_the_revision_five_views() -> None:
     conn = _fresh()
     conn.execute("DROP VIEW current_finding_detail")
     conn.execute("DROP VIEW current_finding")
+    # revision 6 added this column; a revision-4 database predates it
+    for view in reversed(view_names("sqlite")):
+        conn.execute(f"DROP VIEW IF EXISTS {view}")
+    conn.execute("ALTER TABLE report_finding DROP COLUMN owasp_llm_references")
     conn.execute(
         "CREATE VIEW current_finding AS "
         "SELECT scope_id, subject_id, run_id, finding_id FROM report_finding"
@@ -401,3 +405,22 @@ def test_migrate_syncs_the_revision_five_views() -> None:
     # column is queryable and the detail view exists.
     conn.execute("SELECT cvss_score FROM current_finding LIMIT 0")
     conn.execute("SELECT count(*) FROM current_finding_detail")
+
+
+def test_migrate_adds_the_revision_six_column() -> None:
+    """Revision 6 adds report_finding.owasp_llm_references for existing databases."""
+    conn = _fresh()
+    for view in reversed(view_names("sqlite")):
+        conn.execute(f"DROP VIEW IF EXISTS {view}")
+    conn.execute("ALTER TABLE report_finding DROP COLUMN owasp_llm_references")
+    conn.execute("UPDATE traust_storage_meta SET revision = 5")
+    conn.commit()
+
+    with pytest.raises(IngestError, match="explicit migration"):
+        Store(conn).init()
+
+    assert Store(conn).migrate() == 5
+    Store(conn).init()
+    assert conn.execute("SELECT revision FROM traust_storage_meta").fetchone() == (REVISION,)
+    assert _schema(conn) == _schema(_fresh())
+    conn.execute("SELECT owasp_llm_references FROM report_finding LIMIT 0")

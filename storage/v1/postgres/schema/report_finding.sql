@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS traust_storage.report_finding (
     locations JSONB,
     asvs_references JSONB,
     peach_references JSONB,
+    owasp_llm_references JSONB,
     capec JSONB,
     attack_pattern TEXT,
     cvss JSONB,

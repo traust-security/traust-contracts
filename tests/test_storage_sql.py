@@ -36,7 +36,7 @@ def test_storage_revision_matches_migration_placeholder() -> None:
     # Revision 1 is the rebaselined schema (0.50.0). Every later step needs a
     # delta file so Store.migrate() can build up to REVISION; the next step's
     # file exists as a placeholder.
-    assert REVISION == 5
+    assert REVISION == 6
     for dialect in ("sqlite", "postgres"):
         migrations = storage_dir() / dialect / "migrations"
         assert sorted(p.name for p in migrations.glob("*.sql")) == [
@@ -477,7 +477,9 @@ def test_dashboard_view_filters_match_the_contract_enums() -> None:
         )
         detail_quoted = set(re.findall(r"'([a-z_]+)'", detail))
         detail_known = known | {"triage", "closed"}
-        assert detail_quoted <= detail_known, f"{dialect}: unknown value(s) {detail_quoted - detail_known}"
+        assert detail_quoted <= detail_known, (
+            f"{dialect}: unknown value(s) {detail_quoted - detail_known}"
+        )
 
 
 def test_the_spine_unions_both_finding_families() -> None:

@@ -568,6 +568,16 @@
             "pattern": "^PEACH-[PEACH]$"
           }
         },
+        "owasp_llm_references": {
+          "description": "OWASP Top 10 for LLM Applications (2025) category IDs this finding falls under (LLM01-LLM10). Set on findings about LLM, agent or MCP application code; the category ID is cited, never OWASP text.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^LLM(0[1-9]|10)$"
+          }
+        },
         "cvss": {
           "type": "object",
           "required": [
