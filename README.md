@@ -228,7 +228,9 @@ make test     # includes PG storage + ledger schema tests
 make db-down
 ```
 
-`tests/test_compat.py` gates breaking JSON Schema changes against the previous tag.
+`tests/test_compat.py` gates breaking JSON Schema changes against the change's base on
+`main` (the merge-base on a branch, the previous commit on `main`; override with
+`CONTRACTS_COMPAT_BASE=<ref>`).
 PostgreSQL tests run automatically when `psycopg` and the database are available;
 otherwise they skip.
 

@@ -43,11 +43,14 @@ git add VERSION pyproject.toml CHANGELOG.md uv.lock
 git commit -m "chore: release X.Y.Z"
 ```
 
-Run `uv lock` when changing dependencies. CI validates on MR. On merge to main, CI tags automatically.
+Run `uv lock` when changing dependencies. Consumers pin contracts by commit SHA.
 
 ## Compatibility tests
 
-`tests/test_compat.py` gates breaking JSON Schema changes. For intentional major bumps:
+`tests/test_compat.py` gates breaking JSON Schema changes against the change's base
+on `main`: the merge-base with `origin/main` on a branch, the previous commit on
+`main` itself. `CONTRACTS_COMPAT_BASE=<ref>` compares against any other ref. For
+intentional major bumps:
 
 ```bash
 CONTRACTS_ALLOW_BREAKING=1 uv run pytest tests/ -q
