@@ -57,6 +57,11 @@ Two independent axes:
 (`v1` today). Pin to `traust_contracts.v1.*` directly if the shape must
 never move under you.
 
+`adapter-result` contains scanner observations, not authored audit findings.
+Its own finding definition allows unreported CWEs/description/remediation while
+retaining shared value constraints and opaque native IDs. Unknown observations
+are not invented conclusions. The authored report schema remains unchanged.
+
 ## Storage contract
 
 New here? Start with the diagrams in [docs/data-model.md](docs/data-model.md):

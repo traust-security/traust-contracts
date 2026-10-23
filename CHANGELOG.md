@@ -2,6 +2,17 @@
 
 All notable changes to traust-contracts are documented here.
 
+## [0.62.2]
+
+### Fixed
+
+- Validate adapter results as scanner observations rather than authored audit
+  findings. Unreported CWEs/description/remediation and opaque native IDs stay
+  truthful; supplied classifier, identity, location and dependency constraints
+  remain enforced. Authored report constraints are unchanged.
+- Omit only absent, still-empty optional nonempty lists during finding DTO
+  serialization, and retain the declared fingerprint algorithm.
+
 ## [0.62.1]
 
 ### Fixed
