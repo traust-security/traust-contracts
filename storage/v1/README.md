@@ -423,5 +423,11 @@ revision-2 storage, back up and explicitly call `Store.migrate()`; see
 the cumulative builder merges it into the repo's cumulative report, which is
 stored in `report.review_surface_coverage`.
 
+`threat_current` appends `review_surfaces` after `risk_rating`, `severity`,
+`likelihood_score`, `likelihood_level`, `impact_score`, `impact_level` and
+`impact_basis`. Existing columns keep their positions; the rating is not a
+row-tail contract. An untagged threat returns NULL for `review_surfaces`.
+JSON fields are JSON text on SQLite and decoded JSONB on PostgreSQL.
+
 Storage revision 4 adds both columns (`migrations/003_to_004.sql`). For existing
 revision-3 storage, back up and explicitly call `Store.migrate()`.
