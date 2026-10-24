@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from typing import Any
+
+from pydantic import Field, SerializerFunctionWrapHandler, model_serializer
 
 from traust_contracts.v1.enums import Assurance, DispositionResolution, Severity, Validity
 from traust_contracts.v1.models._base import ContractModel
@@ -96,6 +98,16 @@ class Finding(ContractModel):
     isolation_boundary: str | None = None
     disposition: Disposition | None = None
     fingerprint: str | None = None
+    fingerprint_algo: str | None = None
     effective_severity: Severity | None = None
     passes: list[int] = Field(default_factory=list)
     dependency: DependencyProvenance | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = handler(self)
+        # Optional nonempty arrays must not appear merely because the DTO defaults them.
+        for field in ("peach_references", "owasp_llm_references", "isolation_dimensions"):
+            if field not in self.model_fields_set and not getattr(self, field):
+                data.pop(field, None)
+        return data
