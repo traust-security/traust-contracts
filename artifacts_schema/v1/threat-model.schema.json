@@ -261,7 +261,7 @@
           "enum": ["yes", "partial", "no"],
           "description": "`no` is worthwhile defence in depth that does not close the class -- recorded rather than dropped."
         },
-        "effort": { "enum": ["XS", "S", "M", "L", "xs", "s", "m", "l", "xl"] },
+        "effort": { "enum": ["XS", "S", "M", "L", "xs", "s", "m", "l", "xl", null] },
         "blocked_external": { "type": "boolean" }
       }
     },
@@ -375,7 +375,7 @@
       }
     },
     "canonical_write": {
-      "description": "Opt-in known-size mitigations; effort remains required.",
+      "description": "Opt-in canonical mitigation sizes or null for unknown size; effort remains required.",
       "allOf": [
         { "$ref": "#" },
         {

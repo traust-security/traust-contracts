@@ -487,5 +487,33 @@
         ]
       }
     }
+  },
+  "$defs": {
+    "canonical_write": {
+      "description": "Opt-in reuse of the existing framework-id and compliance-verdict domains; historical result text remains readable by default.",
+      "allOf": [
+        { "$ref": "#" },
+        {
+          "properties": {
+            "results": {
+              "items": {
+                "properties": {
+                  "framework": {
+                    "$ref": "#/properties/metadata/properties/frameworks/items/properties/id"
+                  },
+                  "override": {
+                    "properties": {
+                      "overridden_check_verdict": {
+                        "$ref": "#/properties/results/items/properties/verdict"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
   }
 }

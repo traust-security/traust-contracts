@@ -607,6 +607,10 @@
           "type": "string",
           "$comment": "Recommended vocabulary (kebab-case; validator strict mode warns off-vocabulary for harness >= 0.15.0): injection, authentication, authorization, secrets-management, supply-chain, insecure-workload-config, network-exposure, cryptography, input-validation, path-traversal, cross-site-scripting, ssrf, resource-management, logging-monitoring, data-exposure, tenant-isolation."
         },
+        "kind": {
+          "enum": ["vulnerability", "weakness"],
+          "description": "The finding kind, independent of validity. Historical findings may omit it."
+        },
         "validation_status": {
           "type": "string",
           "enum": [
@@ -614,7 +618,9 @@
             "corrected",
             "false_positive",
             "not_verified",
-            "hardening"
+            "hardening",
+            "not_affected",
+            "true_positive"
           ],
           "$comment": "Semantics: 'not_verified' = default for audit-stage findings (static review, no execution); 'confirmed' = verified by execution evidence (a fuzz crash, PoC, failing test, or a validations-pipeline report per validation.schema.json), by a human reviewer, or (harness >= 0.27.0) by an adversarial N-vote triage confirmation recorded in the disposition layer; 'corrected' = finding revised after initial write-up; 'hardening' (harness >= 0.27.0) = accurately-described defense-in-depth/benchmark gap with no concrete exploit path (triage rule 13) \u2014 real and risk-bearing, never a false positive; 'false_positive' = requires an identity-provider-verified human determination recorded in the disposition layer, EXCEPT auto-accept-tier machine FPs (unanimous, lint-clean, confidence >= 8, low/informational-claimed \u2014 see layer.schema.json auto_accept_tier); other machine refutation evidence surfaces as refuted_awaiting_signoff without setting this value. Execution-verified evidence outranks human static determinations, which outrank machine static verdicts (evidence-class precedence, the cumulative builder). Required on every finding for harness >= 0.15.0 (validator-enforced)."
         },
@@ -650,7 +656,7 @@
           "$comment": "Optional (harness >= 0.84.0): PQC relevance of this finding, assigned by table lookup against the PQC reference tables (ir8547-mapping, pqc-readiness-decision-tree) \u2014 never free-authored. Only set on PQC-relevant findings; absent elsewhere."
         },
         "remediation_effort": {
-          "type": "string",
+          "type": ["string", "null"],
           "enum": [
             "trivial",
             "moderate",
@@ -660,7 +666,8 @@
             "s",
             "m",
             "l",
-            "xl"
+            "xl",
+            null
           ],
           "$comment": "Legacy effort labels remain valid for historical artifacts. Sizes xs–xl are added; canonical_write rejects legacy labels without inventing a size mapping. Blocking is independent."
         },
@@ -819,7 +826,9 @@
             "corrected",
             "false_positive",
             "not_verified",
-            "hardening"
+            "hardening",
+            "not_affected",
+            "true_positive"
           ]
         },
         "resolution": {
@@ -850,6 +859,9 @@
             "execution_proven"
           ],
           "description": "Highest evidence class that has spoken on this finding's validity: execution_proven (reproducing exploit/crash), human_reviewed (identity-provider-verified human), machine_verified (triage/audit machine verdict), claimed (audit only)."
+        },
+        "evidence_grade": {
+          "$ref": "layer.schema.json#/$defs/event/properties/evidence_grade"
         },
         "fp_overridden": {
           "type": "boolean",
@@ -989,6 +1001,14 @@
               "type": "integer",
               "minimum": 0
             },
+            "not_affected": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "true_positive": {
+              "type": "integer",
+              "minimum": 0
+            },
             "hardening": {
               "type": "integer",
               "minimum": 0
@@ -1102,7 +1122,7 @@
           }
         },
         "effort": {
-          "type": "string"
+          "type": ["string", "null"]
         },
         "blocked_external": {
           "type": "boolean"
@@ -1440,9 +1460,9 @@
       }
     },
     "effort": {
-      "type": "string",
-      "enum": ["xs", "s", "m", "l", "xl"],
-      "description": "Ordered effort-size labels; no duration thresholds are defined."
+      "type": ["string", "null"],
+      "enum": ["xs", "s", "m", "l", "xl", null],
+      "description": "Ordered effort-size labels; null means unknown size. Blocking is independent, and no duration thresholds are defined."
     },
     "roadmap_priority": {
       "type": "string",
@@ -1461,7 +1481,7 @@
       ]
     },
     "canonical_write": {
-      "description": "Opt-in known-size write contract. Default historical validation is unchanged.",
+      "description": "Opt-in canonical effort sizes or null for unknown size. Default historical validation is unchanged.",
       "allOf": [
         { "$ref": "#" },
         {
@@ -1475,6 +1495,22 @@
                   "priority": { "$ref": "#/$defs/roadmap_priority" },
                   "effort": { "$ref": "#/$defs/effort" },
                   "blocked_external": { "type": "boolean" }
+                }
+              }
+            },
+            "disposition_summary": {
+              "properties": {
+                "severity_overrides": {
+                  "items": {
+                    "properties": {
+                      "from": {
+                        "anyOf": [
+                          { "$ref": "#/$defs/severity_level" },
+                          { "type": "null" }
+                        ]
+                      }
+                    }
+                  }
                 }
               }
             }

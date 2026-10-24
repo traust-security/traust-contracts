@@ -1,0 +1,139 @@
+{
+  "name": "assessment_kind",
+  "source_schema": "",
+  "description": "Assessment.kind: the producing assessment, also the classifier source kind. Rebaseline and restatement are operations, not kinds of evidence.",
+  "values": [
+    "secure_code",
+    "container",
+    "rpm",
+    "cloud_config",
+    "vuln_scan",
+    "scanner",
+    "tool_scan",
+    "threat_model",
+    "isolation_review",
+    "priv_profile",
+    "pqc_readiness",
+    "fuzz",
+    "repo_state",
+    "audit",
+    "triage",
+    "validation",
+    "verification",
+    "impact",
+    "compliance",
+    "benchmark_audit",
+    "remediation",
+    "fleet_fix",
+    "secure-code",
+    "cloud-config",
+    "vuln-scan",
+    "threat-model",
+    "isolation-review",
+    "priv-profile",
+    "pqc-readiness",
+    "repo-state"
+  ],
+  "definitions": {
+    "secure_code": "A secure-code security assessment.",
+    "container": "A container security assessment.",
+    "rpm": "An RPM package security assessment.",
+    "cloud_config": "A cloud-configuration security assessment.",
+    "vuln_scan": "A vulnerability scan assessment.",
+    "scanner": "An imported third-party scanner assessment.",
+    "tool_scan": "A deterministic tool assessment producing recorded code facts.",
+    "threat_model": "A threat-model assessment.",
+    "isolation_review": "An isolation review assessment.",
+    "priv_profile": "A privilege-profile assessment.",
+    "pqc_readiness": "A post-quantum cryptography readiness assessment.",
+    "fuzz": "A fuzzing assessment.",
+    "repo_state": "A forge or repository-state observation assessment.",
+    "audit": "An audit assessment.",
+    "triage": "A finding triage assessment.",
+    "validation": "An exploit or finding validation assessment.",
+    "verification": "A remediation verification assessment.",
+    "impact": "A dependency impact assessment.",
+    "compliance": "A compliance assessment.",
+    "benchmark_audit": "A recall-benchmark audit of a target's pinned ref.",
+    "remediation": "A remediation report assessment.",
+    "fleet_fix": "A fleet-fix specification applied to a repository commit.",
+    "secure-code": "Historical spelling of secure_code.",
+    "cloud-config": "Historical spelling of cloud_config.",
+    "vuln-scan": "Historical spelling of vuln_scan.",
+    "threat-model": "Historical spelling of threat_model.",
+    "isolation-review": "Historical spelling of isolation_review.",
+    "priv-profile": "Historical spelling of priv_profile.",
+    "pqc-readiness": "Historical spelling of pqc_readiness.",
+    "repo-state": "Historical spelling of repo_state."
+  },
+  "deprecated": {
+    "secure-code": {
+      "replaced_by": [
+        {
+          "enum": "assessment_kind",
+          "value": "secure_code"
+        }
+      ]
+    },
+    "cloud-config": {
+      "replaced_by": [
+        {
+          "enum": "assessment_kind",
+          "value": "cloud_config"
+        }
+      ]
+    },
+    "vuln-scan": {
+      "replaced_by": [
+        {
+          "enum": "assessment_kind",
+          "value": "vuln_scan"
+        }
+      ]
+    },
+    "threat-model": {
+      "replaced_by": [
+        {
+          "enum": "assessment_kind",
+          "value": "threat_model"
+        }
+      ]
+    },
+    "isolation-review": {
+      "replaced_by": [
+        {
+          "enum": "assessment_kind",
+          "value": "isolation_review"
+        }
+      ]
+    },
+    "priv-profile": {
+      "replaced_by": [
+        {
+          "enum": "assessment_kind",
+          "value": "priv_profile"
+        }
+      ]
+    },
+    "pqc-readiness": {
+      "replaced_by": [
+        {
+          "enum": "assessment_kind",
+          "value": "pqc_readiness"
+        }
+      ]
+    },
+    "repo-state": {
+      "replaced_by": [
+        {
+          "enum": "assessment_kind",
+          "value": "repo_state"
+        }
+      ]
+    }
+  },
+  "used_in_schemas": [],
+  "standard": {
+    "none": "Project-defined vocabulary owned by the existing data model."
+  }
+}

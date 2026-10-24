@@ -47,11 +47,14 @@ moves between fields, belong in the code or schema change that needs them.
   --check     exit 1 when any registered file's metadata is wrong
   --write     rewrite `used_in_schemas` in every registered file
   --enforce   with --check, also exit 1 when any site is unregistered
+  --sheet PATH  generate the deterministic registry review CSV; "-" writes stdout
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import sys
 from dataclasses import dataclass
@@ -122,10 +125,15 @@ def iter_sites(schemas: dict[str, dict]) -> list[Site]:
 
 
 def resolve(schemas: dict[str, dict], ref: str, base: str) -> tuple[str, dict] | None:
-    """Resolve a `$ref` (relative file + JSON pointer) to (schema name, node)."""
+    """Resolve a schema basename or canonical `$id` plus JSON pointer."""
     file_part, _, fragment = ref.partition("#")
     target = file_part or base
     node = schemas.get(target)
+    if node is None:
+        for name, schema in schemas.items():
+            if schema.get("$id") == target:
+                target, node = name, schema
+                break
     if node is None:
         return None
     for segment in (s for s in fragment.split("/") if s):
@@ -360,13 +368,69 @@ def write(schemas: dict[str, dict]) -> int:
     return changed
 
 
+def review_sheet(registry: dict[str, dict]) -> str:
+    """Render every current and retained retired value without interpreting replacement rules."""
+    stream = io.StringIO(newline="")
+    fields = (
+        "enum",
+        "value",
+        "status",
+        "definition",
+        "description",
+        "standard",
+        "replaced_by",
+        "deprecation_note",
+        "source_schema",
+        "schema_enforced",
+        "used_in_schemas",
+    )
+    writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
+    writer.writeheader()
+    for entry in sorted(registry.values(), key=lambda item: item["name"]):
+        deprecated = entry.get("deprecated", {})
+        values = set(entry["values"]) | set(deprecated)
+        for value in sorted(values):
+            metadata = deprecated.get(value)
+            status = "current"
+            if metadata is not None:
+                status = "retired" if metadata.get("retired", False) else "deprecated"
+            replacements = None if metadata is None else metadata["replaced_by"]
+            if replacements is not None:
+                replacements = sorted(replacements, key=lambda item: (item["enum"], item["value"]))
+            writer.writerow(
+                {
+                    "enum": entry["name"],
+                    "value": value,
+                    "status": status,
+                    "definition": entry.get("definitions", {}).get(value, ""),
+                    "description": entry.get("description", ""),
+                    "standard": json.dumps(entry.get("standard"), sort_keys=True),
+                    "replaced_by": json.dumps(replacements, sort_keys=True),
+                    "deprecation_note": "" if metadata is None else metadata.get("note", ""),
+                    "source_schema": entry.get("source_schema", ""),
+                    "schema_enforced": json.dumps(entry.get("schema_enforced", True)),
+                    "used_in_schemas": json.dumps(sorted(entry.get("used_in_schemas", []))),
+                }
+            )
+    return stream.getvalue()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--write", action="store_true")
+    mode.add_argument("--sheet", type=Path, metavar="PATH")
     parser.add_argument("--enforce", action="store_true")
     args = parser.parse_args(argv)
+
+    if args.sheet is not None:
+        sheet = review_sheet(load_registry())
+        if args.sheet == Path("-"):
+            sys.stdout.write(sheet)
+        else:
+            args.sheet.write_text(sheet, encoding="utf-8")
+        return 0
 
     schemas = load_schemas()
     if args.write:

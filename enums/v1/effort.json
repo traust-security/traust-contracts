@@ -1,7 +1,7 @@
 {
   "name": "effort",
   "source_schema": "report.schema.json#/$defs/effort",
-  "description": "Canonical effort-size labels for explicitly selected future-write contracts.",
+  "description": "Canonical effort-size labels for explicitly selected future-write contracts. Null means unknown size; blocked_external is an independent boolean and never implies a size.",
   "values": ["xs", "s", "m", "l", "xl"],
   "definitions": {
     "xs": "Extra-small effort-size label, ordered before s; no duration threshold is defined.",

@@ -1,13 +1,33 @@
 {
   "name": "review_item_status",
   "source_schema": "layer.schema.json#/$defs/review_item/properties/status",
-  "description": "Queue state.",
+  "description": "Review queue workflow status, independent of finding validity.",
   "values": [
     "pending",
     "confirmed",
-    "rejected"
+    "rejected",
+    "accepted",
+    "closed_unreviewed"
   ],
   "used_in_schemas": [
     "layer.schema.json"
-  ]
+  ],
+  "definitions": {
+    "pending": "Awaiting review.",
+    "confirmed": "Deprecated spelling of accepted, retained for historical payloads.",
+    "rejected": "Rejected by an actual review, not an administrative bulk closure.",
+    "accepted": "Accepted by an actual review; this is not a finding validity value.",
+    "closed_unreviewed": "Closed administratively without an acceptance or rejection from a review."
+  },
+  "deprecated": {
+    "confirmed": {
+      "replaced_by": [
+        {
+          "enum": "review_item_status",
+          "value": "accepted"
+        }
+      ],
+      "note": "Readers interpret historical confirmed as accepted. New writers switch only after core enforcement and reader compatibility are ready."
+    }
+  }
 }

@@ -269,7 +269,7 @@
           "$comment": "Reuses report.schema.json's pqc_classification vocabulary verbatim \u2014 do not extend here without extending there."
         },
         "remediation_effort": {
-          "type": "string",
+          "type": ["string", "null"],
           "enum": [
             "trivial",
             "moderate",
@@ -279,14 +279,15 @@
             "s",
             "m",
             "l",
-            "xl"
+            "xl",
+            null
           ]
         },
         "blocked_external": {}
       }
     },
     "canonical_write": {
-      "description": "Opt-in known-size write contract; open historical extras remain readable.",
+      "description": "Opt-in canonical effort sizes or null for unknown size; open historical extras remain readable.",
       "allOf": [
         { "$ref": "#" },
         {

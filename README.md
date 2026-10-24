@@ -58,6 +58,19 @@ Two axes:
 (`v1` today). Pin to `traust_contracts.v1.*` directly if the shape must
 never move under you.
 
+Finding DTO serialization preserves schema-valid classifier aliases, dependency
+provenance and `fingerprint_algo`. Absent, empty defaults for the optional
+nonempty-only isolation/PEACH lists stay omitted; explicit values remain
+available to the final schema gate, including invalid explicit nulls. These
+models are not a new-write admission policy: core validates the final artifact
+bytes and owns canonical persistence.
+
+`adapter-result` carries scanner observations, not authored audit findings.
+Its adapter-local finding schema preserves shared field validation while
+allowing unreported CWEs, description and remediation, and opaque native IDs.
+It does not invent classifications or verdicts. `report.schema.json` keeps its
+full authored-finding requirements unchanged.
+
 ## Pack spec
 
 `config/v1/pack.schema.json` is the shape of a workload pack's `assets.yaml` (the

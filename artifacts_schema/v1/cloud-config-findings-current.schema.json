@@ -222,6 +222,9 @@
             "type": "string",
             "pattern": "^CCA-[A-Za-z0-9-]+-[0-9]{3}$"
           },
+          "kind": {
+            "$ref": "report.schema.json#/$defs/finding/properties/kind"
+          },
           "fact_ids": {
             "type": "array",
             "minItems": 1,
@@ -366,7 +369,9 @@
                   "corrected",
                   "false_positive",
                   "not_verified",
-                  "hardening"
+                  "hardening",
+                  "not_affected",
+                  "true_positive"
                 ]
               },
               "resolution": {
@@ -386,6 +391,9 @@
                   "machine_verified",
                   "claimed"
                 ]
+              },
+              "evidence_grade": {
+                "$ref": "layer.schema.json#/$defs/event/properties/evidence_grade"
               },
               "last_updated": {
                 "type": "string"
@@ -445,7 +453,9 @@
               "corrected",
               "false_positive",
               "not_verified",
-              "hardening"
+              "hardening",
+              "not_affected",
+              "true_positive"
             ],
             "description": "mirrors disposition.validity (cross-checked by the validator)"
           },
@@ -576,6 +586,34 @@
           "minimum": 0
         }
       }
+    }
+  },
+  "$defs": {
+    "canonical_write": {
+      "description": "Opt-in original override severity from the existing severity vocabulary; default historical text remains readable.",
+      "allOf": [
+        { "$ref": "#" },
+        {
+          "properties": {
+            "disposition_summary": {
+              "properties": {
+                "severity_overrides": {
+                  "items": {
+                    "properties": {
+                      "from": {
+                        "anyOf": [
+                          { "$ref": "report.schema.json#/$defs/severity_level" },
+                          { "type": "null" }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

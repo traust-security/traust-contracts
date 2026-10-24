@@ -1,7 +1,7 @@
 {
   "name": "evidence_grade",
   "source_schema": "layer.schema.json#/$defs/event/properties/evidence_grade",
-  "description": "P4 evidence grade carried from the validation report; E2/E3 demote the event to machine-static class regardless of source type.",
+  "description": "The single evidence-strength scale, E0 strongest through E3 weakest. An absent or null grade is ungraded; a bare claim or human approval does not supply a grade.",
   "values": [
     "E0",
     "E1",
@@ -9,7 +9,17 @@
     "E3"
   ],
   "used_in_schemas": [
+    "adapter-result.schema.json",
+    "cloud-config-findings-current.schema.json",
     "layer.schema.json",
+    "report.schema.json",
     "validation.schema.json"
-  ]
+  ],
+  "definitions": {
+    "E0": "Strongest evidence: an observed effect artifact.",
+    "E1": "An authenticated success response to the exploit action itself.",
+    "E2": "Strong inference, with configuration and a reachable path shown separately.",
+    "E3": "Weakest evidence: error-message or behavioral inference only."
+  },
+  "note": "No source type, historical assurance label or actor identity implies an evidence grade. Retain unknown legacy grades as null."
 }

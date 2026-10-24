@@ -50,8 +50,9 @@ created under it are recreated, not migrated.
 Landed in `views/` (both dialects), load-ordered by `VIEW_ORDER`:
 
 - `decision_at` — each decision with the commit and line it judged
-- `current_decision` — per finding: latest non-null validity, severity,
-  evidence grade (null = no answer, never "cleared")
+- `current_decision` — per finding: active, recognized validity and severity,
+  ranked by explicit E0–E3 strength then occurred/created time, plus the
+  strongest active explicit evidence grade; null means no answer
 - `current_resolution` — per finding and line: latest resolution and fix ref
 - `unowned` — repositories with no current owner
 - `ownership_current` — the open ownership row per repository
@@ -59,6 +60,33 @@ Landed in `views/` (both dialects), load-ordered by `VIEW_ORDER`:
 - `finding_clock` — first/last seen, first decided, closed per finding
 - `finding_primary_cwe` — primary CWE (drop prohibited/discouraged, most
   specific abstraction, lowest number)
+
+`current_decision` excludes any decision restated by another decision in the
+same finding. Historical `true_positive` / `hardening` read as `confirmed`;
+`not_verified`, `corrected`, and unknown validity values do not answer.
+Unknown or absent grades rank below E3; no strength comes from actor or source.
+Only an exact lowercase `human:` actor or `auto_accept_tier` makes an FP
+eligible. When the strongest/latest non-FP answer is E0 `confirmed`, it stays
+confirmed until two distinct human actors have active E0 FP statements
+strictly after that proof. A newer E0 confirmed proof resets that interval;
+auto-accepted machine statements do not count as human signatures.
+
+### Explicit view refresh on an existing database
+
+Updating a contracts dependency alone does **not** upgrade an already-created
+view. Before the next validity write against such a database, explicitly apply
+the dialect's `views/current_decision.sql` using `bootstrap_statements` inside
+one transaction, then commit. Do not rewrite decisions, ledger events, or Merkle
+history. This file preserves the existing view columns and dependent views.
+
+PostgreSQL retains `CREATE OR REPLACE VIEW`. SQLite uses `DROP VIEW IF EXISTS`
+followed by `CREATE VIEW`: executing only the create statement, or retaining an
+old `CREATE VIEW IF NOT EXISTS` definition, cannot refresh the projection.
+The existing bootstrap loader already yields both SQLite statements in order,
+so fresh bootstrap and an explicit in-place refresh use the same authored file;
+no loader/order change or automatic live migration is needed. The transaction
+is required to avoid exposing a dropped view if replacement fails, and permits
+rolling the refresh back without changing any stored statement.
 
 Everything else a dashboard needs is service-oriented, not a view:
 artifact-lane reads through `assessment` → `artifact` (threat, PQC,

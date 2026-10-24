@@ -1,0 +1,22 @@
+{
+  "name": "finding_kind",
+  "source_schema": "report.schema.json#/$defs/finding/properties/kind",
+  "description": "Finding.kind in the authoritative findings model; independent of whether the finding is real.",
+  "values": [
+    "vulnerability",
+    "weakness"
+  ],
+  "definitions": {
+    "vulnerability": "A finding that reports a security vulnerability.",
+    "weakness": "A hardening or defense-in-depth weakness; validity separately answers whether the claim is real."
+  },
+  "used_in_schemas": [
+    "adapter-result.schema.json",
+    "cloud-config-findings-current.schema.json",
+    "report.schema.json",
+    "validation.schema.json"
+  ],
+  "standard": {
+    "none": "Project-defined vocabulary owned by the existing data model."
+  }
+}

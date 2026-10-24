@@ -52,7 +52,7 @@ class TriageFinding(ContractModel):
     file: str | None = None
     line: int | None = None
     category: str | None = None
-    claimed_severity: str | None = None
+    claimed_severity: Severity | str | None = None
     verify_verdict: str | None = None
     confidence: float | None = None
     severity: Severity | None = None

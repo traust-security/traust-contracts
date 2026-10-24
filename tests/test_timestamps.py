@@ -96,13 +96,14 @@ def _event(**overrides: object) -> dict:
     }
 
 
-def _review_item(recorded_at: object) -> dict:
+def _review_item(queued_at: object) -> dict:
     return {
-        "finding_ref": "FIND-001",
+        "queued_at": queued_at,
+        "source_ref": "probe-comment-001",
+        "quote": "Please review the reported finding.",
+        "author": "fixture-author",
         "queue_reason": "undetermined_finding",
-        "status": "open",
-        "recorded_at": recorded_at,
-        "source": _event()["source"],
+        "status": "pending",
     }
 
 
@@ -142,8 +143,8 @@ class TestModelGate:
         data["submitted_by"] = {"kind": "machine", "identity": "fixture-submitter"}
         assert ReviewItem.model_validate(data).to_dict()["submitted_by"] == data["submitted_by"]
 
-    def test_review_item_recorded_at_is_gated(self) -> None:
-        assert ReviewItem.model_validate(_review_item(RFC3339[0])).recorded_at == RFC3339[0]
+    def test_review_item_queued_at_is_gated(self) -> None:
+        assert ReviewItem.model_validate(_review_item(RFC3339[0])).queued_at == RFC3339[0]
         with pytest.raises(ValidationError):
             ReviewItem.model_validate(_review_item("TrueT00:00:00+00:00"))
 

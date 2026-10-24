@@ -63,6 +63,8 @@ class SeverityCountEntry(ContractModel):
 
 
 class RoadmapItem(ContractModel):
+    explicit_null_fields = frozenset({"effort"})
+
     priority: str
     action: str
     addresses: list[str] = Field(default_factory=list)
@@ -85,6 +87,8 @@ class ValidityCounts(ContractModel):
     false_positive: int = 0
     not_verified: int = 0
     hardening: int = 0
+    not_affected: int = 0
+    true_positive: int = 0
 
 
 class DispositionSummary(ContractModel):
@@ -92,6 +96,7 @@ class DispositionSummary(ContractModel):
     generated_at: str
     by_resolution: ResolutionCounts
     by_validity: ValidityCounts
+    severity_overrides: list[dict[str, Any]] | None = None
 
 
 class NegativeResult(ContractModel):

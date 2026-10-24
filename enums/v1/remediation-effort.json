@@ -32,5 +32,14 @@
     "l": "Large effort-size label, ordered between m and xl; no duration threshold is defined.",
     "xl": "Extra-large effort-size label, ordered after l; no duration threshold is defined."
   },
+  "deprecated": {
+    "trivial": { "replaced_by": [], "note": "No unconditional canonical size mapping is established." },
+    "moderate": { "replaced_by": [], "note": "No unconditional canonical size mapping is established." },
+    "significant": { "replaced_by": [], "note": "No unconditional canonical size mapping is established." },
+    "blocked-external": {
+      "replaced_by": [],
+      "note": "The importer preserves blocked_external independently; unknown effort size is null."
+    }
+  },
   "standard": { "none": "Project-defined effort labels; no external standard is adopted." }
 }

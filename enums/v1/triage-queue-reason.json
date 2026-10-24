@@ -1,7 +1,7 @@
 {
   "name": "triage_queue_reason",
   "source_schema": "",
-  "description": "Forward vocabulary for triage/remediation queue reasons. Not yet bound in triage.schema.json.",
+  "description": "Historical forward triage/remediation reasons. The merged review_reason vocabulary retains every code and meaning.",
   "values": [
     "new_discovery",
     "severity_upgrade",
@@ -18,5 +18,40 @@
     "patch_available",
     "analyst_review"
   ],
-  "used_in_schemas": []
+  "used_in_schemas": [],
+  "definitions": {
+    "new_discovery": "A newly discovered finding requires review.",
+    "severity_upgrade": "A severity increase requires review.",
+    "regression_detected": "A detected regression requires review.",
+    "evidence_available": "New evidence is available for review.",
+    "remediation_ready": "Remediation is ready for review.",
+    "remediation_due": "Remediation is due and requires review.",
+    "false_positive_dispute": "A false-positive determination is disputed.",
+    "scope_change": "A scope change requires review.",
+    "revalidation_required": "The finding requires another validation.",
+    "sla_escalation": "A service-level deadline requires escalation.",
+    "manual_queue": "The finding was explicitly queued for manual review.",
+    "dependency_update": "A dependency update requires review.",
+    "patch_available": "An available patch requires review.",
+    "analyst_review": "An analyst review was requested."
+  },
+  "standard": {
+    "none": "Project-defined classifier vocabulary; existing meanings are retained."
+  },
+  "deprecated": {
+    "new_discovery": { "replaced_by": [{ "enum": "review_reason", "value": "new_discovery" }] },
+    "severity_upgrade": { "replaced_by": [{ "enum": "review_reason", "value": "severity_upgrade" }] },
+    "regression_detected": { "replaced_by": [{ "enum": "review_reason", "value": "regression_detected" }] },
+    "evidence_available": { "replaced_by": [{ "enum": "review_reason", "value": "evidence_available" }] },
+    "remediation_ready": { "replaced_by": [{ "enum": "review_reason", "value": "remediation_ready" }] },
+    "remediation_due": { "replaced_by": [{ "enum": "review_reason", "value": "remediation_due" }] },
+    "false_positive_dispute": { "replaced_by": [{ "enum": "review_reason", "value": "false_positive_dispute" }] },
+    "scope_change": { "replaced_by": [{ "enum": "review_reason", "value": "scope_change" }] },
+    "revalidation_required": { "replaced_by": [{ "enum": "review_reason", "value": "revalidation_required" }] },
+    "sla_escalation": { "replaced_by": [{ "enum": "review_reason", "value": "sla_escalation" }] },
+    "manual_queue": { "replaced_by": [{ "enum": "review_reason", "value": "manual_queue" }] },
+    "dependency_update": { "replaced_by": [{ "enum": "review_reason", "value": "dependency_update" }] },
+    "patch_available": { "replaced_by": [{ "enum": "review_reason", "value": "patch_available" }] },
+    "analyst_review": { "replaced_by": [{ "enum": "review_reason", "value": "analyst_review" }] }
+  }
 }

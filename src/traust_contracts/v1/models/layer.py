@@ -9,9 +9,10 @@ from pydantic import Field
 from traust_contracts.v1.enums import (
     DispositionEmbargo,
     DispositionResolution,
-    LayerReviewQueueReason,
+    EvidenceGrade,
     RestatementReason,
     RestatementTarget,
+    ReviewReason,
     Severity,
     Validity,
 )
@@ -100,7 +101,7 @@ class LayerEvent(ContractModel):
     occurred_at: IsoTimestamp | None = None
     harness_version: str | None = None
     auto_accept_tier: bool | None = None
-    evidence_grade: str | None = None
+    evidence_grade: EvidenceGrade | str | None = None
     # Stamped by the ledger write path. Declared here as well as in the schema
     # because ContractModel ignores unknown keys: without these fields a
     # from_dict/to_dict round-trip silently drops the identity stamp.
@@ -112,15 +113,18 @@ class LayerEvent(ContractModel):
 
 
 class ReviewItem(ContractModel):
-    finding_ref: str
-    queue_reason: LayerReviewQueueReason
+    """A queued statement in the layer artifact, not the core review-item row."""
+
+    queued_at: IsoTimestamp
+    source_ref: str = Field(min_length=1)
+    quote: str = Field(min_length=1)
+    author: str = Field(min_length=1)
     status: str
-    recorded_at: IsoTimestamp
-    source: LayerSource
     submitted_by: LayerActor | None = None
-    disposition: LayerDisposition | None = None
+    suggested_finding_ref: str | None = None
+    suggested_disposition: LayerDisposition | None = None
+    queue_reason: ReviewReason | None = None
     resolution_note: str | None = None
-    rationale: str | None = None
 
 
 class LayerMetadata(ContractModel):

@@ -2,7 +2,7 @@
   "$id": "https://example.com/traust-contracts/artifacts_schema/v1/adapter-result.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Adapter Scan Result",
-  "description": "Common typed output of engine-lib scanner adapters (scan() return value). Distinct from vuln-findings.schema.json ScanResult which is skill-level output with repo_slug, baseline, etc.",
+  "description": "Common typed observations from engine-lib scanner adapters (scan() return value), not authored audit findings or validity verdicts. Distinct from vuln-findings.schema.json ScanResult which is skill-level output with repo_slug, baseline, etc.",
   "type": "object",
   "required": [
     "target",
@@ -25,7 +25,7 @@
     "findings": {
       "type": "array",
       "items": {
-        "$ref": "report.schema.json#/$defs/finding"
+        "$ref": "#/$defs/adapter_finding"
       }
     },
     "summary": {
@@ -40,6 +40,116 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "adapter_finding": {
+      "description": "Scanner-reported observation using the Finding DTO layout. Empty CWEs, description or remediation mean unreported; downstream authors supply audit conclusions.",
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "severity",
+        "cwes",
+        "locations",
+        "description",
+        "remediation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "$ref": "report.schema.json#/$defs/finding/properties/severity"
+        },
+        "cwes": {
+          "type": "array",
+          "items": {
+            "$ref": "report.schema.json#/$defs/finding/properties/cwes/items"
+          }
+        },
+        "locations": {
+          "$ref": "report.schema.json#/$defs/finding/properties/locations"
+        },
+        "description": {
+          "type": "string",
+          "description": "Scanner-supplied description; empty means unreported."
+        },
+        "remediation": {
+          "type": "string",
+          "description": "Scanner-supplied remediation; empty means unreported."
+        },
+        "asvs_references": {
+          "$ref": "report.schema.json#/$defs/finding/properties/asvs_references"
+        },
+        "peach_references": {
+          "$ref": "report.schema.json#/$defs/finding/properties/peach_references"
+        },
+        "cvss": {
+          "$ref": "report.schema.json#/$defs/finding/properties/cvss"
+        },
+        "capec": {
+          "$ref": "report.schema.json#/$defs/finding/properties/capec"
+        },
+        "evidence": {
+          "$ref": "report.schema.json#/$defs/finding/properties/evidence"
+        },
+        "attack_pattern": {
+          "$ref": "report.schema.json#/$defs/finding/properties/attack_pattern"
+        },
+        "category": {
+          "$ref": "report.schema.json#/$defs/finding/properties/category"
+        },
+        "kind": {
+          "$ref": "report.schema.json#/$defs/finding/properties/kind"
+        },
+        "validation_status": {
+          "$ref": "report.schema.json#/$defs/finding/properties/validation_status"
+        },
+        "source_findings": {
+          "$ref": "report.schema.json#/$defs/finding/properties/source_findings"
+        },
+        "origin": {
+          "$ref": "report.schema.json#/$defs/finding/properties/origin"
+        },
+        "pqc_classification": {
+          "$ref": "report.schema.json#/$defs/finding/properties/pqc_classification"
+        },
+        "remediation_effort": {
+          "$ref": "report.schema.json#/$defs/finding/properties/remediation_effort"
+        },
+        "blocked_external": {
+          "$ref": "report.schema.json#/$defs/finding/properties/blocked_external"
+        },
+        "isolation_dimensions": {
+          "$ref": "report.schema.json#/$defs/finding/properties/isolation_dimensions"
+        },
+        "isolation_boundary": {
+          "$ref": "report.schema.json#/$defs/finding/properties/isolation_boundary"
+        },
+        "disposition": {
+          "$ref": "report.schema.json#/$defs/finding/properties/disposition"
+        },
+        "fingerprint": {
+          "$ref": "report.schema.json#/$defs/finding/properties/fingerprint"
+        },
+        "fingerprint_algo": {
+          "$ref": "report.schema.json#/$defs/finding/properties/fingerprint_algo"
+        },
+        "effective_severity": {
+          "$ref": "report.schema.json#/$defs/finding/properties/effective_severity"
+        },
+        "passes": {
+          "$ref": "report.schema.json#/$defs/finding/properties/passes"
+        },
+        "dependency": {
+          "$ref": "report.schema.json#/$defs/finding/properties/dependency"
+        }
+      }
+    },
     "metadata": {
       "type": "object",
       "required": [
@@ -77,13 +187,22 @@
       "additionalProperties": false
     },
     "canonical_write": {
-      "description": "Opt-in contract for findings returned by scanner adapters.",
+      "description": "Opt-in canonical effort sizes or null for scanner observations, without report authoring minima.",
       "allOf": [
         { "$ref": "#" },
         {
           "properties": {
             "findings": {
-              "items": { "$ref": "report.schema.json#/$defs/canonical_finding" }
+              "items": {
+                "allOf": [
+                  { "$ref": "#/$defs/adapter_finding" },
+                  {
+                    "properties": {
+                      "remediation_effort": { "$ref": "report.schema.json#/$defs/effort" }
+                    }
+                  }
+                ]
+              }
             }
           }
         }

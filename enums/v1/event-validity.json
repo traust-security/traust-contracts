@@ -1,15 +1,32 @@
 {
   "name": "event_validity",
   "source_schema": "layer.schema.json#/$defs/validity",
-  "description": "Finding validity for disposition events. 4-value set (not_verified is the audit-stage default and is never set by an event). 'hardening' = defense-in-depth gap with no concrete exploit path.",
+  "description": "Validity on historical layer events, including canonical confirmed, false_positive and not_affected. Finding kind and restatement operations are separate concepts.",
   "values": [
     "confirmed",
     "false_positive",
     "corrected",
-    "hardening"
+    "hardening",
+    "not_affected"
   ],
-  "note": "Distinct from the 5-value validity enum (which includes not_verified for audit-stage defaults). Events never carry not_verified.",
+  "note": "Historical corrected and hardening remain schema-valid. not_verified is an audit-stage absence of an answer and is not an event validity.",
   "used_in_schemas": [
     "layer.schema.json"
-  ]
+  ],
+  "definitions": {
+    "confirmed": "The reported claim is real.",
+    "false_positive": "The reported claim is wrong.",
+    "corrected": "Historical revision marker; import as a restatement, not a validity answer.",
+    "hardening": "Historical real defense-in-depth weakness.",
+    "not_affected": "The issue exists but does not apply to this repository, version or deployment."
+  },
+  "deprecated": {
+    "corrected": { "replaced_by": [], "note": "The decision owner handles restatement semantics." },
+    "hardening": {
+      "replaced_by": [
+        { "enum": "validity", "value": "confirmed" },
+        { "enum": "finding_kind", "value": "weakness" }
+      ]
+    }
+  }
 }

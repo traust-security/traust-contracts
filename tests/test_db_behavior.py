@@ -126,6 +126,27 @@ def finding(db: Db, repository_id: str, fingerprint: str = "f" * 64) -> str:
     )
 
 
+def decision(db: Db, finding_id: str, **values: Any) -> str:
+    return db.insert(
+        "decision",
+        **{
+            "finding_id": finding_id,
+            "actor": "human:a",
+            "statement_key": str(uuid.uuid4()),
+            "occurred_at": NOW,
+            **values,
+        },
+    )
+
+
+def decision_status(db: Db, finding_id: str) -> tuple[str | None, bool]:
+    validity, is_open = db.run(
+        f"SELECT validity, is_open FROM {db.t('finding_status')} WHERE finding_id = ?",
+        (finding_id,),
+    )[0]
+    return validity, bool(is_open)
+
+
 def test_database_owns_identity_and_time(db: Db) -> None:
     pid = db.insert("product", slug="acme", name="Acme")
     uuid.UUID(pid)
@@ -287,6 +308,351 @@ def test_only_an_assessors_false_positive_is_auto_accepted(db: Db) -> None:
     )
 
 
+@pytest.mark.parametrize("proof_validity", ["confirmed", "true_positive", "hardening"])
+def test_execution_proof_needs_two_distinct_later_humans(db: Db, proof_validity: str) -> None:
+    fid = finding(db, repo(db))
+    decision(db, fid, actor="service:executor", validity=proof_validity, evidence_grade="E0")
+    assert decision_status(db, fid) == ("confirmed", True)
+    decision(db, fid, validity="false_positive", evidence_grade="E0", occurred_at=LATER)
+    assert decision_status(db, fid) == ("confirmed", True)
+    decision(db, fid, validity="false_positive", evidence_grade="E0", occurred_at=LATER)
+    assert decision_status(db, fid) == ("confirmed", True)  # not an independent signature
+    decision(
+        db, fid, actor="human:b", validity="false_positive", evidence_grade="E0", occurred_at=LATER
+    )
+    assert decision_status(db, fid) == ("false_positive", False)
+
+    # A new execution proof resets the concurrence interval, not just its author.
+    decision(db, fid, validity="confirmed", evidence_grade="E0", occurred_at="2026-10-22T12:00:00Z")
+    assert decision_status(db, fid) == ("confirmed", True)
+    for actor, expected in (
+        ("human:a", ("confirmed", True)),
+        ("human:b", ("false_positive", False)),
+    ):
+        decision(
+            db,
+            fid,
+            actor=actor,
+            validity="false_positive",
+            evidence_grade="E0",
+            occurred_at="2026-10-23T12:00:00Z",
+        )
+        assert decision_status(db, fid) == expected
+
+
+@pytest.mark.parametrize(
+    ("grade", "at"),
+    [
+        ("E0", "2026-10-19T12:00:00Z"),
+        ("E0", NOW),  # strictly after, even when created later
+        ("E1", LATER),
+        ("E2", LATER),
+        ("E3", LATER),
+        (None, LATER),
+        ("unknown", LATER),
+    ],
+)
+def test_old_or_weaker_second_signature_cannot_close(db: Db, grade: str | None, at: str) -> None:
+    fid = finding(db, repo(db))
+    decision(db, fid, validity="confirmed", evidence_grade="E0")
+    decision(db, fid, validity="false_positive", evidence_grade="E0", occurred_at=LATER)
+    decision(
+        db, fid, actor="human:b", validity="false_positive", evidence_grade=grade, occurred_at=at
+    )
+    assert decision_status(db, fid) == ("confirmed", True)
+    decision(
+        db, fid, actor="human:b", validity="false_positive", evidence_grade="E0", occurred_at=LATER
+    )
+    assert decision_status(db, fid) == ("false_positive", False)
+
+
+@pytest.mark.parametrize(
+    ("actor", "eligible"),
+    [
+        ("human:a", True),
+        ("Human:a", False),
+        ("HUMAN:a", False),
+        ("user:a", False),
+        ("service:human:a", False),
+        ("humanish:a", False),
+    ],
+)
+def test_fp_human_prefix_is_exact_and_case_sensitive(db: Db, actor: str, eligible: bool) -> None:
+    fid = finding(db, repo(db))
+    decision(
+        db,
+        fid,
+        actor=actor,
+        validity="false_positive",
+        evidence_grade="E0",
+        source_channel="human",
+    )
+    assert decision_status(db, fid) == (("false_positive", False) if eligible else (None, True))
+    decision(db, fid, validity="confirmed", evidence_grade="E0", occurred_at=NOW)
+    decision(
+        db, fid, actor=actor, validity="false_positive", evidence_grade="E0", occurred_at=LATER
+    )
+    decision(
+        db, fid, actor="human:b", validity="false_positive", evidence_grade="E0", occurred_at=LATER
+    )
+    assert decision_status(db, fid) == (
+        ("false_positive", False) if eligible else ("confirmed", True)
+    )
+
+
+@pytest.mark.parametrize("auto_accept", [False, True])
+def test_machine_fp_eligibility_never_supplies_execution_signoff(db: Db, auto_accept: bool) -> None:
+    rid = repo(db)
+    fid, aid = finding(db, rid), assessment(db, ref(db, rid))
+    decision(
+        db,
+        fid,
+        actor=None,
+        assessment_id=aid,
+        validity="false_positive",
+        evidence_grade="E0",
+        auto_accept_tier=auto_accept,
+        occurred_at=LATER,
+    )
+    assert decision_status(db, fid) == (("false_positive", False) if auto_accept else (None, True))
+    decision(db, fid, validity="confirmed", evidence_grade="E0")
+    assert decision_status(db, fid) == ("confirmed", True)
+    decision(db, fid, validity="false_positive", evidence_grade="E0", occurred_at=LATER)
+    assert decision_status(db, fid) == ("confirmed", True)
+    decision(
+        db, fid, actor="human:b", validity="false_positive", evidence_grade="E0", occurred_at=LATER
+    )
+    assert decision_status(db, fid) == ("false_positive", False)
+
+
+@pytest.mark.parametrize(
+    ("proof_grade", "fp_grade", "expected"),
+    [
+        ("E1", "E0", "false_positive"),
+        ("E1", "E1", "false_positive"),
+        ("E1", "E2", "confirmed"),
+        ("E2", "E3", "confirmed"),
+        ("E3", None, "confirmed"),
+        ("E3", "E00", "confirmed"),
+        (None, "E3", "false_positive"),
+        ("unknown", None, "false_positive"),
+    ],
+)
+def test_validity_uses_only_explicit_strength(
+    db: Db, proof_grade: str | None, fp_grade: str | None, expected: str
+) -> None:
+    fid = finding(db, repo(db))
+    decision(db, fid, actor="service:executor", validity="confirmed", evidence_grade=proof_grade)
+    decision(
+        db,
+        fid,
+        actor="human:verified-admin",
+        validity="false_positive",
+        evidence_grade=fp_grade,
+        source_channel="execution",
+        occurred_at=LATER,
+    )
+    assert decision_status(db, fid) == (expected, expected != "false_positive")
+
+
+def test_strongest_latest_non_fp_answer_controls_execution_guard(db: Db) -> None:
+    fid = finding(db, repo(db))
+    decision(db, fid, validity="confirmed", evidence_grade="E0")
+    decision(db, fid, validity="not_affected", evidence_grade="E1", occurred_at=LATER)
+    decision(db, fid, validity="false_positive", evidence_grade="E0", occurred_at=LATER)
+    assert decision_status(db, fid) == ("confirmed", True)
+    decision(
+        db, fid, validity="not_affected", evidence_grade="E0", occurred_at="2026-10-22T12:00:00Z"
+    )
+    assert decision_status(db, fid) == ("not_affected", False)
+
+
+@pytest.mark.parametrize("no_answer", [None, "not_verified", "corrected", "unknown"])
+def test_absent_and_unrecognized_validity_do_not_replace_an_answer(
+    db: Db, no_answer: str | None
+) -> None:
+    fid = finding(db, repo(db))
+    decision(db, fid, validity="confirmed", evidence_grade="E1")
+    decision(db, fid, validity=no_answer, evidence_grade="E0", occurred_at=LATER)
+    assert decision_status(db, fid) == ("confirmed", True)
+
+
+def test_restated_execution_proof_is_not_active(db: Db) -> None:
+    fid = finding(db, repo(db))
+    proof = decision(db, fid, validity="true_positive", evidence_grade="E0")
+    decision(db, fid, validity="false_positive", evidence_grade="E1", occurred_at=LATER)
+    assert decision_status(db, fid) == ("confirmed", True)
+    correction = decision(
+        db,
+        fid,
+        restates_id=proof,
+        validity="not_verified",
+        reason="data_error",
+        ticket="T-1",
+        rationale="execution evidence was attached to the wrong finding",
+        occurred_at=LATER,
+    )
+    assert decision_status(db, fid) == ("false_positive", False)
+    decision(
+        db,
+        fid,
+        restates_id=correction,
+        validity="corrected",
+        reason="data_error",
+        ticket="T-2",
+        rationale="correction wording clarified, original proof remains withdrawn",
+        occurred_at=LATER,
+    )
+    assert decision_status(db, fid) == ("false_positive", False)
+
+
+def test_restated_human_signature_no_longer_counts(db: Db) -> None:
+    fid = finding(db, repo(db))
+    decision(db, fid, validity="confirmed", evidence_grade="E0")
+    decision(db, fid, validity="false_positive", evidence_grade="E0", occurred_at=LATER)
+    second = decision(
+        db, fid, actor="human:b", validity="false_positive", evidence_grade="E0", occurred_at=LATER
+    )
+    assert decision_status(db, fid) == ("false_positive", False)
+    decision(
+        db,
+        fid,
+        actor="human:admin",
+        restates_id=second,
+        validity="not_verified",
+        reason="data_error",
+        ticket="T-1",
+        rationale="second reviewer withdrew the mistaken signature",
+        occurred_at=LATER,
+    )
+    assert decision_status(db, fid) == ("confirmed", True)
+    decision(
+        db, fid, actor="human:c", validity="false_positive", evidence_grade="E0", occurred_at=LATER
+    )
+    assert decision_status(db, fid) == ("false_positive", False)
+
+
+def test_restatement_exclusion_is_scoped_to_its_finding(db: Db) -> None:
+    rid = repo(db)
+    fid, other = finding(db, rid), finding(db, rid, "e" * 64)
+    proof = decision(db, fid, validity="confirmed", evidence_grade="E0", severity="high")
+    # Historical malformed cross-finding references do not withdraw a proof.
+    decision(
+        db,
+        other,
+        restates_id=proof,
+        validity="not_verified",
+        reason="data_error",
+        ticket="T-1",
+        rationale="historical cross-finding reference is not this finding's correction",
+    )
+    assert db.run(
+        f"SELECT validity, severity, evidence_grade FROM {db.t('current_decision')} "
+        "WHERE finding_id = ?",
+        (fid,),
+    ) == [("confirmed", "high", "E0")]
+
+
+def test_current_fields_are_active_recognized_and_strength_ranked(db: Db) -> None:
+    fid = finding(db, repo(db))
+    proof = decision(db, fid, validity="confirmed", evidence_grade="E1", severity="high")
+    decision(db, fid, evidence_grade="E2", severity="low", occurred_at=LATER)
+    invalid = decision(db, fid, evidence_grade="E0", severity="urgent", occurred_at=LATER)
+    query = (
+        f"SELECT validity, severity, evidence_grade FROM {db.t('current_decision')} "
+        "WHERE finding_id = ?"
+    )
+    assert db.run(query, (fid,)) == [("confirmed", "high", "E0")]
+    for target in (invalid, proof):
+        decision(
+            db,
+            fid,
+            restates_id=target,
+            validity="not_verified",
+            reason="data_error",
+            ticket="T-1",
+            rationale="the original statement's fields were erroneous",
+            occurred_at=LATER,
+        )
+        expected = ("confirmed", "high", "E1") if target == invalid else (None, "low", "E2")
+        assert db.run(query, (fid,)) == [expected]
+
+
+def test_same_strength_answers_use_occurred_then_created_time(db: Db) -> None:
+    fid = finding(db, repo(db))
+    decision(db, fid, validity="confirmed", severity="high", evidence_grade="E1", created_at=NOW)
+    decision(
+        db, fid, validity="not_affected", severity="low", evidence_grade="E1", created_at=LATER
+    )
+    query = f"SELECT validity, severity FROM {db.t('current_decision')} WHERE finding_id = ?"
+    assert db.run(query, (fid,)) == [("not_affected", "low")]
+    decision(
+        db,
+        fid,
+        validity="confirmed",
+        severity="informational",
+        evidence_grade="E1",
+        occurred_at=LATER,
+        created_at=NOW,
+    )
+    assert db.run(query, (fid,)) == [("confirmed", "informational")]
+
+
+def test_current_decision_preserves_population_and_null_shape(db: Db) -> None:
+    fid = finding(db, repo(db))
+    assert db.run(f"SELECT * FROM {db.t('current_decision')}") == []
+    assert decision_status(db, fid) == (None, True)
+    decision(db, fid, validity="unknown", severity="unknown", evidence_grade="unknown")
+    rows = db.run(f"SELECT * FROM {db.t('current_decision')}")
+    assert [(str(row[0]), *row[1:]) for row in rows] == [(fid, None, None, None)]
+    assert decision_status(db, fid) == (None, True)
+
+
+def test_explicit_view_refresh_is_transactional_and_preserves_statements(db: Db) -> None:
+    fid = finding(db, repo(db))
+    decision(db, fid, validity="confirmed", evidence_grade="E0")
+    decision(db, fid, validity="false_positive", evidence_grade="E0", occurred_at=LATER)
+    saved = db.run(f"SELECT * FROM {db.t('decision')} ORDER BY id")
+    path = next(
+        path
+        for path in storage_sql.bootstrap_files(db.engine)
+        if path.name == "current_decision.sql"
+    )
+    # Install the prior latest-nonnull projection to model an already-created DB.
+    db.run("BEGIN")
+    if db.engine == "sqlite":
+        db.run(f"DROP VIEW {db.t('current_decision')}")
+    create = "CREATE VIEW" if db.engine == "sqlite" else "CREATE OR REPLACE VIEW"
+    db.run(
+        f"{create} {db.t('current_decision')} AS "
+        f"SELECT f.id AS finding_id, "
+        f"(SELECT d.validity FROM {db.t('decision')} d "
+        "WHERE d.finding_id = f.id AND d.validity IS NOT NULL "
+        "ORDER BY d.occurred_at DESC, d.created_at DESC LIMIT 1) AS validity, "
+        "CAST(NULL AS TEXT) AS severity, CAST(NULL AS TEXT) AS evidence_grade "
+        f"FROM {db.t('finding')} f"
+    )
+    db.run("COMMIT")
+    assert decision_status(db, fid) == ("false_positive", False)
+
+    db.run("BEGIN")
+    for statement in bootstrap_statements(db.engine, path):
+        db.run(statement)
+    assert decision_status(db, fid) == ("confirmed", True)
+    db.run("ROLLBACK")
+    assert decision_status(db, fid) == ("false_positive", False)
+
+    # Explicitly reapplying the authored file is safe with dependent views and
+    # is repeatable. No bootstrap-order or statement-loader change is needed.
+    for _ in range(2):
+        db.run("BEGIN")
+        for statement in bootstrap_statements(db.engine, path):
+            db.run(statement)
+        db.run("COMMIT")
+        assert decision_status(db, fid) == ("confirmed", True)
+        assert db.run(f"SELECT * FROM {db.t('decision')} ORDER BY id") == saved
+
+
 def test_occurrence_and_location_rules(db: Db) -> None:
     rid = repo(db)
     aid, fid = assessment(db, ref(db, rid)), finding(db, rid)
@@ -408,7 +774,7 @@ def test_status_and_clock_follow_the_default_line(db: Db) -> None:
     db.insert(
         "decision",
         finding_id=refuted,
-        actor="user:a",
+        actor="human:a",
         statement_key="4",
         validity="false_positive",
         occurred_at=LATER,

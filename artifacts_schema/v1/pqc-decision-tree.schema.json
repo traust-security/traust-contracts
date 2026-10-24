@@ -299,11 +299,12 @@
         "s",
         "m",
         "l",
-        "xl"
+        "xl",
+        null
       ]
     },
     "canonical_write": {
-      "description": "Opt-in known-size rules; existing effort requiredness is retained.",
+      "description": "Opt-in canonical sizes or null for unknown size; existing effort requiredness is retained. Blocking is independent.",
       "allOf": [
         { "$ref": "#" },
         {

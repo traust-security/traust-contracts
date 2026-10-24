@@ -1,7 +1,7 @@
 {
   "name": "layer_review_queue_reason",
-  "source_schema": "layer.schema.json#/$defs/review_item/properties/queue_reason",
-  "description": "Reason a finding entered the layer disposition review queue.",
+  "source_schema": "",
+  "description": "Historical layer review reasons, retained with their original codes. The merged review_reason vocabulary now owns ReviewItem.reason and layer queue_reason.",
   "values": [
     "ambiguous_statement",
     "unverified_identity",
@@ -19,7 +19,42 @@
     "severity_proposal",
     "needs_identity"
   ],
-  "used_in_schemas": [
-    "layer.schema.json"
-  ]
+  "used_in_schemas": [],
+  "definitions": {
+    "ambiguous_statement": "The submitted statement does not make an unambiguous judgement.",
+    "unverified_identity": "The identity attached to the statement has not been verified.",
+    "insufficient_authority": "The actor lacks authority for the requested judgement.",
+    "no_finding_id": "The statement has no finding identifier.",
+    "undetermined_finding": "Triage could not determine a verdict for the finding.",
+    "fp_audit_valve": "A sampled automatically accepted machine false positive requires human audit.",
+    "needs_manual_test": "A manual proof or live test is needed before deciding validity.",
+    "stale_baseline": "The statement was made against an audit baseline that has changed.",
+    "rebaseline_mapping": "A finding rename or rebaseline mapping requires review.",
+    "rebaseline_unmatched": "A finding could not be matched during rebaselining.",
+    "unsound_refutation": "A machine refutation was judged insufficiently sound to accept.",
+    "weak_confirmation": "An E3 inference-only confirmation quarantined for stronger evidence or human review.",
+    "ungraded_confirmation": "The confirmation supplies no evidence grade.",
+    "severity_proposal": "A proposed severity change requires review.",
+    "needs_identity": "The submitted finding has no fingerprint, so the receiver cannot identify which finding the statement concerns."
+  },
+  "standard": {
+    "none": "Project-defined classifier vocabulary; existing meanings are retained."
+  },
+  "deprecated": {
+    "ambiguous_statement": { "replaced_by": [{ "enum": "review_reason", "value": "ambiguous_statement" }] },
+    "unverified_identity": { "replaced_by": [{ "enum": "review_reason", "value": "unverified_identity" }] },
+    "insufficient_authority": { "replaced_by": [{ "enum": "review_reason", "value": "insufficient_authority" }] },
+    "no_finding_id": { "replaced_by": [{ "enum": "review_reason", "value": "no_finding_id" }] },
+    "undetermined_finding": { "replaced_by": [{ "enum": "review_reason", "value": "undetermined_finding" }] },
+    "fp_audit_valve": { "replaced_by": [{ "enum": "review_reason", "value": "fp_audit_valve" }] },
+    "needs_manual_test": { "replaced_by": [{ "enum": "review_reason", "value": "needs_manual_test" }] },
+    "stale_baseline": { "replaced_by": [{ "enum": "review_reason", "value": "stale_baseline" }] },
+    "rebaseline_mapping": { "replaced_by": [{ "enum": "review_reason", "value": "rebaseline_mapping" }] },
+    "rebaseline_unmatched": { "replaced_by": [{ "enum": "review_reason", "value": "rebaseline_unmatched" }] },
+    "unsound_refutation": { "replaced_by": [{ "enum": "review_reason", "value": "unsound_refutation" }] },
+    "weak_confirmation": { "replaced_by": [{ "enum": "review_reason", "value": "weak_confirmation" }] },
+    "ungraded_confirmation": { "replaced_by": [{ "enum": "review_reason", "value": "ungraded_confirmation" }] },
+    "severity_proposal": { "replaced_by": [{ "enum": "review_reason", "value": "severity_proposal" }] },
+    "needs_identity": { "replaced_by": [{ "enum": "review_reason", "value": "needs_identity" }] }
+  }
 }

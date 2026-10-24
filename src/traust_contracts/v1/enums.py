@@ -17,6 +17,24 @@ class Validity(StrEnum):
     FALSE_POSITIVE = "false_positive"
     NOT_VERIFIED = "not_verified"
     HARDENING = "hardening"
+    NOT_AFFECTED = "not_affected"
+    TRUE_POSITIVE = "true_positive"
+
+
+class FindingKind(StrEnum):
+    """Finding classification, independent of validity."""
+
+    VULNERABILITY = "vulnerability"
+    WEAKNESS = "weakness"
+
+
+class EvidenceGrade(StrEnum):
+    """Explicit evidence strength, E0 strongest; no grade is inferred from provenance."""
+
+    E0 = "E0"
+    E1 = "E1"
+    E2 = "E2"
+    E3 = "E3"
 
 
 class DispositionResolution(StrEnum):
@@ -108,6 +126,41 @@ class LayerReviewQueueReason(StrEnum):
     WEAK_CONFIRMATION = "weak_confirmation"
     UNGRADED_CONFIRMATION = "ungraded_confirmation"
     SEVERITY_PROPOSAL = "severity_proposal"
+    NEEDS_IDENTITY = "needs_identity"
+
+
+class ReviewReason(StrEnum):
+    """Merged review vocabulary; historical layer and triage codes retain their meanings."""
+
+    AMBIGUOUS_STATEMENT = "ambiguous_statement"
+    UNVERIFIED_IDENTITY = "unverified_identity"
+    INSUFFICIENT_AUTHORITY = "insufficient_authority"
+    NO_FINDING_ID = "no_finding_id"
+    UNDETERMINED_FINDING = "undetermined_finding"
+    FP_AUDIT_VALVE = "fp_audit_valve"
+    NEEDS_MANUAL_TEST = "needs_manual_test"
+    STALE_BASELINE = "stale_baseline"
+    REBASELINE_MAPPING = "rebaseline_mapping"
+    REBASELINE_UNMATCHED = "rebaseline_unmatched"
+    UNSOUND_REFUTATION = "unsound_refutation"
+    WEAK_CONFIRMATION = "weak_confirmation"
+    UNGRADED_CONFIRMATION = "ungraded_confirmation"
+    SEVERITY_PROPOSAL = "severity_proposal"
+    NEEDS_IDENTITY = "needs_identity"
+    NEW_DISCOVERY = "new_discovery"
+    SEVERITY_UPGRADE = "severity_upgrade"
+    REGRESSION_DETECTED = "regression_detected"
+    EVIDENCE_AVAILABLE = "evidence_available"
+    REMEDIATION_READY = "remediation_ready"
+    REMEDIATION_DUE = "remediation_due"
+    FALSE_POSITIVE_DISPUTE = "false_positive_dispute"
+    SCOPE_CHANGE = "scope_change"
+    REVALIDATION_REQUIRED = "revalidation_required"
+    SLA_ESCALATION = "sla_escalation"
+    MANUAL_QUEUE = "manual_queue"
+    DEPENDENCY_UPDATE = "dependency_update"
+    PATCH_AVAILABLE = "patch_available"
+    ANALYST_REVIEW = "analyst_review"
 
 
 class RefKind(StrEnum):
@@ -181,10 +234,11 @@ class ActorKind(StrEnum):
 
 
 class EventValidity(StrEnum):
-    """4-value validity for disposition events. Distinct from Validity which
-    includes NOT_VERIFIED (the audit-stage default never set by an event)."""
+    """Layer-event validity, retaining historical correction and hardening values.
+    Distinct from Validity, which includes audit-stage NOT_VERIFIED."""
 
     CONFIRMED = "confirmed"
     FALSE_POSITIVE = "false_positive"
     CORRECTED = "corrected"
     HARDENING = "hardening"
+    NOT_AFFECTED = "not_affected"

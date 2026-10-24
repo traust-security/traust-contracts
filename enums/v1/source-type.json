@@ -1,7 +1,7 @@
 {
   "name": "source_type",
   "source_schema": "layer.schema.json#/$defs/source_type",
-  "description": "Event source type classifying evidence origin. Evidence classes for validity precedence: validation_report/verification_report/fuzz_report are execution-verified (class 1), human static (class 2), machine static incl. triage_report/impact_report/vuln_scan_report (class 3). rebaseline is NOT an evidence class and never participates in validity precedence: it records that a finding was RENAMED, so the alias lives in the Merkle-covered event stream rather than in mutable metadata.Every one of them carries an EMPTY disposition, which is the invariant a consumer should rely on -- a rebaseline event asserts nothing about whether a finding is real. restatement is NOT an evidence class either: it records that DATA was wrong -- a claim hash, a report digest, an artifact digest map, or a field on a prior event -- and carries an empty disposition plus a `restatement` block.",
+  "description": "Historical combined source vocabulary. Human channels now belong to Decision.source_channel, producing machine kinds to Assessment.kind. Rebaseline and restatement remain administrative operations, not evidence kinds. Source type never supplies a missing evidence grade.",
   "values": [
     "mr_comment",
     "commit",
@@ -18,5 +18,36 @@
   ],
   "used_in_schemas": [
     "layer.schema.json"
-  ]
+  ],
+  "definitions": {
+    "mr_comment": "A human judgement submitted in a merge or pull request comment.",
+    "commit": "A human judgement associated with a commit.",
+    "jira": "A human judgement submitted through Jira.",
+    "interactive": "An interactively submitted human judgement.",
+    "validation_report": "A finding validation assessment report.",
+    "verification_report": "A remediation verification assessment report.",
+    "triage_report": "A finding triage assessment report.",
+    "impact_report": "A dependency impact assessment report.",
+    "vuln_scan_report": "A vulnerability scan assessment report.",
+    "fuzz_report": "A fuzzing assessment report.",
+    "rebaseline": "An administrative finding rename; not an evidence or validity assertion.",
+    "restatement": "An administrative data correction; not an evidence kind."
+  },
+  "standard": {
+    "none": "Project-defined classifier vocabulary; existing meanings are retained."
+  },
+  "deprecated": {
+    "mr_comment": { "replaced_by": [{ "enum": "source_channel", "value": "mr_comment" }] },
+    "commit": { "replaced_by": [{ "enum": "source_channel", "value": "commit" }] },
+    "jira": { "replaced_by": [{ "enum": "source_channel", "value": "jira" }] },
+    "interactive": { "replaced_by": [{ "enum": "source_channel", "value": "interactive" }] },
+    "validation_report": { "replaced_by": [{ "enum": "assessment_kind", "value": "validation" }] },
+    "verification_report": { "replaced_by": [{ "enum": "assessment_kind", "value": "verification" }] },
+    "triage_report": { "replaced_by": [{ "enum": "assessment_kind", "value": "triage" }] },
+    "impact_report": { "replaced_by": [{ "enum": "assessment_kind", "value": "impact" }] },
+    "vuln_scan_report": { "replaced_by": [{ "enum": "assessment_kind", "value": "vuln_scan" }] },
+    "fuzz_report": { "replaced_by": [{ "enum": "assessment_kind", "value": "fuzz" }] },
+    "rebaseline": { "replaced_by": [], "note": "Administrative rename operation; no judgement or evidence kind is implied." },
+    "restatement": { "replaced_by": [], "note": "The decision owner handles restatement; no evidence kind is implied." }
+  }
 }

@@ -49,6 +49,28 @@
         "asserted_by": {"type": "string", "minLength": 1},
         "note": {"type": "string"}
       }
+    },
+    "canonical_write": {
+      "description": "Opt-in claimed severity from the existing severity vocabulary; historical text, prose reasons and scalar rules stay readable by default.",
+      "allOf": [
+        { "$ref": "#" },
+        {
+          "properties": {
+            "entries": {
+              "items": {
+                "properties": {
+                  "claimed_severity": {
+                    "anyOf": [
+                      { "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/report.schema.json#/$defs/severity_level" },
+                      { "type": "null" }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

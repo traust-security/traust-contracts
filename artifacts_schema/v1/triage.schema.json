@@ -430,6 +430,28 @@
         }
       },
       "additionalProperties": false
+    },
+    "canonical_write": {
+      "description": "Opt-in claimed severity from the existing severity vocabulary; historical text and null remain readable by default.",
+      "allOf": [
+        { "$ref": "#" },
+        {
+          "properties": {
+            "findings": {
+              "items": {
+                "properties": {
+                  "claimed_severity": {
+                    "anyOf": [
+                      { "$ref": "report.schema.json#/$defs/severity_level" },
+                      { "type": "null" }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

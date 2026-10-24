@@ -1,7 +1,7 @@
 {
   "name": "disposition_assurance",
   "source_schema": "cloud-config-findings-current.schema.json#/properties/findings/items/properties/disposition/properties/assurance",
-  "description": "Level of confidence in a disposition. Indicates how a status was verified.",
+  "description": "Historical disposition assurance labels, retained for compatibility. Evidence strength is now evidence_grade E0-E3; human review is actor provenance, not an automatic evidence upgrade.",
   "values": [
     "execution_proven",
     "human_reviewed",
@@ -13,5 +13,32 @@
     "cloud-config-findings-current.schema.json",
     "report.schema.json",
     "validation.schema.json"
-  ]
+  ],
+  "definitions": {
+    "execution_proven": "Historical claim of execution-backed assurance; use only an explicitly supplied evidence grade.",
+    "human_reviewed": "Historical human-review provenance; human approval does not establish evidence strength.",
+    "machine_verified": "Historical machine-verification provenance; no absent evidence grade may be inferred.",
+    "claimed": "A bare claim, with no evidence grade."
+  },
+  "standard": {
+    "none": "Project-defined classifier vocabulary; existing meanings are retained."
+  },
+  "deprecated": {
+    "execution_proven": {
+      "replaced_by": [],
+      "note": "Use an explicitly supplied evidence grade only; do not guess a legacy grade."
+    },
+    "human_reviewed": {
+      "replaced_by": [],
+      "note": "Retain the actor principal; human approval does not establish an evidence grade."
+    },
+    "machine_verified": {
+      "replaced_by": [],
+      "note": "Use an explicitly supplied evidence grade only; do not guess a legacy grade."
+    },
+    "claimed": {
+      "replaced_by": [],
+      "note": "A bare claim remains ungraded."
+    }
+  }
 }

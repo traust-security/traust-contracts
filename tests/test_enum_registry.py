@@ -17,7 +17,9 @@ entering the registry (and, through it, the generated SDK enum types).
 from __future__ import annotations
 
 import copy
+import csv
 import importlib.util
+import io
 import json
 import sys
 from pathlib import Path
@@ -62,6 +64,41 @@ def test_usage_follows_refs_across_files():
     used = enum_registry.derived_used_in(frozenset({"low", "high"}), reach)
     # d only names the values inside an `if` condition; it does not validate them.
     assert used == ["a.schema.json", "b.schema.json", "c.schema.json"]
+
+
+def test_canonical_schema_id_resolves_without_filename_or_host_guessing():
+    schema_id = "https://contracts.example.test/v1/a.schema.json"
+    target = {"enum": ["p", "q"]}
+    schemas = {"a.schema.json": {"$id": schema_id, "$defs": {"level": target}}}
+    assert enum_registry.resolve(schemas, f"{schema_id}#/$defs/level", "") == (
+        "a.schema.json",
+        target,
+    )
+    assert (
+        enum_registry.resolve(
+            schemas, "https://other.example.test/v1/a.schema.json#/$defs/level", ""
+        )
+        is None
+    )
+
+
+def test_registry_usage_follows_canonical_schema_id_across_distinct_base_uris():
+    schema_id = "https://contracts.example.test/v1/a.schema.json"
+    schemas = {
+        "a.schema.json": {
+            "$id": schema_id,
+            "$defs": {"level": {"enum": ["p", "q"]}},
+        },
+        "b.schema.json": {
+            "$id": "https://other.example.test/schemas/b.schema.json",
+            "properties": {"level": {"$ref": f"{schema_id}#/$defs/level"}},
+        },
+    }
+    reach = enum_registry.reachable(schemas)
+    assert enum_registry.derived_used_in(frozenset({"p", "q"}), reach) == [
+        "a.schema.json",
+        "b.schema.json",
+    ]
 
 
 # --- Optional fields: definitions, standard, deprecated -------------------
@@ -185,3 +222,54 @@ def test_each_format_rule_rejects_a_violation(case, mutate, expected):
     mutate(files)
     found = enum_registry.format_problems(files)
     assert any(expected in p for p in found), f"{case}: got {found}"
+
+
+def test_review_sheet_preserves_every_current_and_retired_registry_value():
+    registry = enum_registry.load_registry()
+    rows = list(csv.DictReader(io.StringIO(enum_registry.review_sheet(registry))))
+    expected = {
+        (entry["name"], value)
+        for entry in registry.values()
+        for value in set(entry["values"]) | set(entry.get("deprecated", {}))
+    }
+    assert {(row["enum"], row["value"]) for row in rows} == expected
+    assert len(rows) == len(expected)
+
+
+def test_review_sheet_is_deterministic_and_preserves_split_drop_and_retired_metadata():
+    registry = _synthetic()
+    colour = _colour(registry)
+    colour["definitions"]["blue"] = 'A "blue", tone\nwith a second line.'
+    sheet = enum_registry.review_sheet(registry)
+    shuffled = dict(reversed(list(copy.deepcopy(registry).items())))
+    for entry in shuffled.values():
+        entry["values"].reverse()
+        entry["used_in_schemas"] = list(reversed(entry.get("used_in_schemas", [])))
+        for metadata in entry.get("deprecated", {}).values():
+            metadata["replaced_by"].reverse()
+    assert enum_registry.review_sheet(shuffled) == sheet
+    rows = {(row["enum"], row["value"]): row for row in csv.DictReader(io.StringIO(sheet))}
+    assert rows["colour", "blue"]["definition"] == colour["definitions"]["blue"]
+    assert rows["colour", "blue"]["status"] == "current"
+    assert rows["colour", "navy"]["status"] == "deprecated"
+    assert json.loads(rows["colour", "navy"]["replaced_by"]) == [
+        {"enum": "colour", "value": "blue"},
+        {"enum": "shade", "value": "dark"},
+    ]
+    assert json.loads(rows["colour", "teal"]["replaced_by"]) == []
+    assert rows["colour", "maroon"]["status"] == "retired"
+    assert json.loads(rows["colour", "maroon"]["replaced_by"]) == [
+        {"enum": "colour", "value": "red"}
+    ]
+    assert json.loads(rows["colour", "blue"]["standard"]) == colour.get("standard")
+
+
+def test_review_sheet_cli_generates_actual_csv_file_and_stdout(tmp_path, monkeypatch, capsys):
+    registry = _synthetic()
+    monkeypatch.setattr(enum_registry, "load_registry", lambda: registry)
+    target = tmp_path / "review.csv"
+    assert enum_registry.main(["--sheet", str(target)]) == 0
+    expected = enum_registry.review_sheet(registry)
+    assert target.read_text(encoding="utf-8") == expected
+    assert enum_registry.main(["--sheet", "-"]) == 0
+    assert capsys.readouterr().out == expected

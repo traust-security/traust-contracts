@@ -194,7 +194,8 @@
               "s",
               "m",
               "l",
-              "xl"
+              "xl",
+              null
             ],
             "$comment": "Historical labels follow the existing v1.3 provenance x agility mapping. The xs–xl size labels have no assigned legacy replacement mapping."
           },
@@ -381,7 +382,8 @@
               "s",
               "m",
               "l",
-              "xl"
+              "xl",
+              null
             ]
           },
           "blocked_external": { "type": "boolean" },
@@ -511,7 +513,7 @@
   },
   "$defs": {
     "canonical_write": {
-      "description": "Opt-in known-size write contract; historical clock extras remain readable.",
+      "description": "Opt-in canonical effort sizes or null for unknown size; historical clock extras remain readable.",
       "allOf": [
         { "$ref": "#" },
         {

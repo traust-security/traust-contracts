@@ -51,7 +51,7 @@ class Override(ContractModel):
     by: str
     date: str
     rationale: str
-    overridden_check_verdict: str | None = None
+    overridden_check_verdict: ComplianceVerdict | str | None = None
 
 
 class NPassAgreement(ContractModel):

@@ -45,9 +45,10 @@
         "confirmed",
         "false_positive",
         "corrected",
-        "hardening"
+        "hardening",
+        "not_affected"
       ],
-      "$comment": "The validity axis: is the finding real? 'not_verified' is the audit-stage default and is never set by an event. 'hardening' (harness >= 0.27.0) = accurately described defense-in-depth/benchmark gap with no concrete exploit path (triage exclusion rule 13) \u2014 real, risk-bearing at a category-aware weight, but not an exploitable vulnerability; never a false positive."
+      "$comment": "Canonical validity is confirmed (real claim), false_positive (wrong claim), or not_affected (real upstream issue inapplicable here). Historical corrected and hardening remain readable; the owner imports them as restatement and confirmed weakness respectively. not_verified is an audit-stage absence of an answer, not an event validity."
     },
     "resolution": {
       "type": "string",
@@ -529,7 +530,7 @@
             "E3",
             null
           ],
-          "description": "P4 evidence grade carried from the validation report; E2/E3 demote the event to machine-static class regardless of source type."
+          "description": "Explicit evidence strength: E0 observed effect, E1 authenticated success response, E2 strong inference, E3 behavioral inference. E0 is strongest. Missing or null means ungraded; source type and human approval never invent or upgrade a grade."
         },
         "alias": {
           "$ref": "#/$defs/event_alias"
@@ -672,7 +673,21 @@
             "weak_confirmation",
             "ungraded_confirmation",
             "severity_proposal",
-            "needs_identity"
+            "needs_identity",
+            "new_discovery",
+            "severity_upgrade",
+            "regression_detected",
+            "evidence_available",
+            "remediation_ready",
+            "remediation_due",
+            "false_positive_dispute",
+            "scope_change",
+            "revalidation_required",
+            "sla_escalation",
+            "manual_queue",
+            "dependency_update",
+            "patch_available",
+            "analyst_review"
           ],
           "$comment": "'undetermined_finding' = triage could not decide (unlocatable material or split votes) \u2014 needs human review; 'fp_audit_valve' = deterministic 10% sample of auto-accepted machine false positives, queued so the auto-accept tier's error rate is continuously measured; 'needs_manual_test' = an unconfident triage confirmation (recall-mode split) awaiting a human PoC or live validation \u2014 no validity event was emitted; 'stale_baseline' = a validation verdict was recorded against an audit baseline whose sha256 has since changed (the validation event emitter) \u2014 the event was still emitted, but a human should confirm the claim it proves/refutes survived the baseline revision. 'unsound_refutation' = a machine refuted verdict was blocked by the refutation-soundness gate (error-signature transcript, zero-subject RBAC probe, or target-not-deployed run) \u2014 no false_positive event was emitted; the finding awaits re-validation or human review. 'weak_confirmation' = an E3 inference-only confirmation quarantined by the validation event emitter \u2014 no validity event until the evidence is graded E0-E2 or a human accepts it; 'ungraded_confirmation' = a post-0.179.0 confirmation with no evidence_grade, same quarantine; 'severity_proposal' = a validation-time severity re-rating proposal \u2014 severity changes are human-only (disposition.severity), so the proposal queues for countersign instead of setting state. 'needs_identity' = a report was submitted with a finding carrying no `fingerprint`, so the receiver cannot say WHICH finding the statement is about. The submission is accepted and the statement queues here rather than being recorded: identity is computed by the producer, which holds the repository URL, the location paths and the CWE at audit time, and a receiver that hashes what the envelope happens to carry produces a confident wrong answer instead of no answer \u2014 with `metadata.repository` absent, every unstamped finding sharing a path and CWE collapses to one identity across unrelated repositories. Re-submit stamped, or confirm the queued item by hand."
         },
@@ -681,13 +696,15 @@
           "enum": [
             "pending",
             "confirmed",
-            "rejected"
+            "rejected",
+            "accepted",
+            "closed_unreviewed"
           ],
-          "description": "Queue state. 'confirmed' items must have a corresponding event appended; 'rejected' items record resolution_note."
+          "description": "Review queue state, independent of finding validity. 'accepted' is an actual review acceptance; historical 'confirmed' is its deprecated spelling. 'rejected' is an actual review rejection. 'closed_unreviewed' is administrative closure without review, not acceptance or rejection. Historical payloads remain valid; rejecting deprecated values at new writes is separate core record-door work."
         },
         "resolution_note": {
           "type": "string",
-          "description": "Why the item was confirmed or rejected, and by whom."
+          "description": "Why the item was accepted, rejected or administratively closed, and by whom; historical confirmed notes remain valid."
         }
       }
     },

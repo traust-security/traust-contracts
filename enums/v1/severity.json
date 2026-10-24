@@ -17,6 +17,7 @@
     "isolation-review.schema.json",
     "layer.schema.json",
     "pqc-blockers.schema.json",
+    "refuted-register.schema.json",
     "remediation.schema.json",
     "report.schema.json",
     "sla-policy.schema.json",

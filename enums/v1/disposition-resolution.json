@@ -1,7 +1,7 @@
 {
   "name": "disposition_resolution",
   "source_schema": "cloud-config-findings-current.schema.json#/properties/findings/items/properties/disposition/properties/resolution",
-  "description": "Finding remediation resolution state. Tracks progress from open through risk acceptance or regression.",
+  "description": "Canonical decision resolution is open, resolved or risk_accepted. Historical progress, partial-resolution and regression labels remain readable; the owner applies line-specific or operational semantics.",
   "values": [
     "open",
     "fix_in_progress",
@@ -16,5 +16,32 @@
     "layer.schema.json",
     "report.schema.json",
     "validation.schema.json"
-  ]
+  ],
+  "definitions": {
+    "open": "The finding is unresolved on the judged code line.",
+    "fix_in_progress": "Historical remediation progress while the finding remains open.",
+    "resolved": "The finding is fixed on the judged code line.",
+    "partially_resolved": "Historical aggregate: some code lines are fixed and others remain open.",
+    "risk_accepted": "The remaining risk was accepted rather than fixed.",
+    "regression_introduced": "Historical combination of open resolution and a regression reason."
+  },
+  "standard": {
+    "none": "Project-defined classifier vocabulary; existing meanings are retained."
+  },
+  "deprecated": {
+    "fix_in_progress": {
+      "replaced_by": [{ "enum": "disposition_resolution", "value": "open" }],
+      "note": "Remediation progress belongs to the work item."
+    },
+    "partially_resolved": {
+      "replaced_by": [],
+      "note": "Requires code-line context: resolved on fixed lines, open on the rest. No unconditional replacement."
+    },
+    "regression_introduced": {
+      "replaced_by": [
+        { "enum": "disposition_resolution", "value": "open" },
+        { "enum": "decision_reason", "value": "regression" }
+      ]
+    }
+  }
 }

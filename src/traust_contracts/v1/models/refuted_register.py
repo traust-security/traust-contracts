@@ -6,6 +6,7 @@ from datetime import datetime
 
 from pydantic import ConfigDict, Field
 
+from traust_contracts.v1.enums import Severity
 from traust_contracts.v1.models._base import ContractModel
 
 
@@ -25,7 +26,7 @@ class RefutedEntry(ContractModel):
     file: str | None = None
     line: int | None = Field(default=None, ge=0)
     category: str | None = None
-    claimed_severity: str | None = None
+    claimed_severity: Severity | str | None = None
     exclusion_rule: str | int | None = None
 
 

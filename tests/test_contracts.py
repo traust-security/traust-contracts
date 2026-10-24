@@ -175,13 +175,6 @@ class TestEnums:
                         f"Expected {schema_values}, got {enum_values}"
                     )
 
-    def test_layer_review_queue_reason_matches_schema(self):
-        enum_path = ENUMS_DIR / "layer-review-queue-reason.json"
-        enum_def = json.loads(enum_path.read_text(encoding="utf-8"))
-        layer = json.loads((SCHEMA_DIR / "layer.schema.json").read_text(encoding="utf-8"))
-        schema_values = set(layer["$defs"]["review_item"]["properties"]["queue_reason"]["enum"])
-        assert set(enum_def["values"]) == schema_values
-
     def test_triage_verdict_matches_schema(self):
         enum_def = json.loads((ENUMS_DIR / "verdict.json").read_text(encoding="utf-8"))
         triage = json.loads((SCHEMA_DIR / "triage.schema.json").read_text(encoding="utf-8"))
