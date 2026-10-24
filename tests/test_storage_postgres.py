@@ -14,11 +14,14 @@ import pytest
 from conftest import (
     FINDINGS_SUMMARY_ROWS,
     FINDINGS_SUMMARY_SCOPE,
+    THREAT_RATING_VALUES,
+    assert_tagged_threat_rating_roundtrip,
     current_finding_detail_rows,
     report_with_external_blocking,
     report_with_findings,
     seed_current_finding_detail,
     seed_findings_summary,
+    threat_current_rows,
 )
 from storage_samples import (
     ALL_SECONDARY_PROJECTION_TABLES,
@@ -459,7 +462,8 @@ def test_postgres_projects_and_orders_owasp_ratings(database: tuple[Any, str]) -
     conn, _ = database
     store = Store(conn)
     store.init()
-    store.ingest("threat-model", rated_threat_model(), run_binding())
+    payload = rated_threat_model()
+    store.ingest("threat-model", payload, run_binding())
     rows = {
         row[0]: row[1:]
         for row in conn.execute(
@@ -473,11 +477,22 @@ def test_postgres_projects_and_orders_owasp_ratings(database: tuple[Any, str]) -
     assert rows["T1"][:7] == (None,) * 7 and rows["T1"][7] is not None
     if not conn.autocommit:
         conn.rollback()  # the raw read opened a transaction; the store needs an idle one
-    current = {row[2]: row for row in store.query_threat_current(["local"])}
-    assert current["T2"][-6:] == ("high", 4.375, "medium", 7.25, "high", "technical")
-    assert json.loads(json.dumps(current["T2"][-7]))["severity"] == "high"
+    current = threat_current_rows(store)
+    assert {name: current["T2"][name] for name in THREAT_RATING_VALUES} == THREAT_RATING_VALUES
+    assert current["T2"]["risk_rating"] == json.loads(payload)["threats"][1]["risk_rating"]
+    assert current["T1"]["review_surfaces"] is None
+    assert current["T2"]["review_surfaces"] is None
     exposure = store.query_threat_exposure(["local"])
     assert {row[-1] for row in exposure} == {"high", None}
+
+
+def test_postgres_tagged_threat_preserves_rating_and_review_surfaces(
+    database: tuple[Any, str],
+) -> None:
+    conn, _ = database
+    store = Store(conn)
+    store.init()
+    assert_tagged_threat_rating_roundtrip(store)
 
 
 def _pg_registry_owner(store: Store, product: str = "rhacm") -> str:

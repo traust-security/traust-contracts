@@ -15,6 +15,7 @@ import pytest
 from conftest import (
     FINDINGS_SUMMARY_ROWS,
     FINDINGS_SUMMARY_SCOPE,
+    assert_tagged_threat_rating_roundtrip,
     current_finding_detail_rows,
     report_with_external_blocking,
     report_with_findings,
@@ -1173,6 +1174,10 @@ def test_threat_current_carries_the_rating(store: Store) -> None:
     assert rows["T2"][-7:-1] == ("high", 4.375, "medium", 7.25, "high", "technical")
     assert json.loads(rows["T2"][-8])["severity"] == "high"
     assert rows["T1"][-8:-1] == (None,) * 7
+
+
+def test_tagged_threat_preserves_rating_and_review_surfaces(store: Store) -> None:
+    assert_tagged_threat_rating_roundtrip(store)
 
 
 def test_threat_exposure_splits_rated_from_legacy_and_orders_by_severity(store: Store) -> None:

@@ -2,6 +2,20 @@
 
 All notable changes to traust-contracts are documented here.
 
+## [0.62.3]
+
+### Fixed
+
+- Correct PostgreSQL rating-projection tests to assert named fields rather
+  than assuming the rating occupies the row's tail. The six expected rating
+  values are unchanged, and the full rating object is compared with the
+  original artifact. `review_surfaces` remains the last `threat_current`
+  column, preserving existing column positions.
+- Add SQLite and PostgreSQL regression coverage for tagged, OWASP-rated
+  threats: the complete rating and review-surface tags survive projection
+  and the public current-threat query alongside an untagged legacy threat.
+  No SQL, schema, storage revision or risk-rating methodology changes.
+
 ## [0.62.2]
 
 ### Fixed

@@ -5,7 +5,7 @@ import warnings
 from typing import Any, Never
 
 import pytest
-from storage_samples import encode, sample
+from storage_samples import encode, rated_threat_model, sample
 
 from traust_contracts.v1.storage import Binding, Store
 
@@ -39,6 +39,53 @@ def postgres_dsn() -> str:
     except psycopg.OperationalError:
         skip_postgres("local database is unavailable")
     return POSTGRES_DSN
+
+
+THREAT_RATING_VALUES = {
+    "severity": "high",
+    "likelihood_score": 4.375,
+    "likelihood_level": "medium",
+    "impact_score": 7.25,
+    "impact_level": "high",
+    "impact_basis": "technical",
+}
+
+
+def threat_current_rows(store: Store) -> dict[str, dict[str, Any]]:
+    rows = store.query_threat_current(["local"])
+    view = "traust_storage.threat_current" if store.dialect == "postgres" else "threat_current"
+    cursor = store.conn.execute(f"SELECT * FROM {view} LIMIT 0")
+    columns = [column[0] for column in cursor.description]
+    store.conn.commit()
+    named = [dict(zip(columns, row, strict=True)) for row in rows]
+    return {row["threat_id"]: row for row in named}
+
+
+def assert_tagged_threat_rating_roundtrip(store: Store) -> None:
+    document = json.loads(rated_threat_model())
+    rated = document["threats"][1]
+    rated["review_surfaces"] = ["scope-enforcement", "ownership-resolution"]
+    store.ingest(
+        "threat-model",
+        encode(document),
+        Binding(subject_id="findings/example/repo", run_id="r1"),
+    )
+    current = threat_current_rows(store)
+    assert {name: current["T2"][name] for name in THREAT_RATING_VALUES} == THREAT_RATING_VALUES
+    for name in ("risk_rating", "review_surfaces"):
+        value = current["T2"][name]
+        assert (json.loads(value) if isinstance(value, str) else value) == rated[name]
+    assert current["T2"]["score"] is None
+    assert current["T1"]["risk_rating"] is None
+    assert current["T1"]["review_surfaces"] is None
+    assert current["T1"]["score"] == 128
+    table = "traust_storage.threat" if store.dialect == "postgres" else "threat"
+    stored = store.conn.execute(
+        f"SELECT risk_rating, review_surfaces FROM {table} WHERE threat_id = 'T2'"
+    ).fetchone()
+    store.conn.commit()
+    for name, value in zip(("risk_rating", "review_surfaces"), stored, strict=True):
+        assert (json.loads(value) if isinstance(value, str) else value) == rated[name]
 
 
 FINDINGS_SUMMARY_SCOPE = "local"
