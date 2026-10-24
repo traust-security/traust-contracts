@@ -367,6 +367,20 @@ def test_spend_carries_its_orders_lane(db: Db) -> None:
     db.rejects("ops.spend_event", run_order_id=routed, lane="", occurred_at=NOW, **spend)
 
 
+def test_a_metric_snapshot_is_reported_once_and_never_revised(db: Db) -> None:
+    row = {"source": "program", "metric": "findings_total", "value": 1234}
+    first = db.insert("ops.metric_snapshot", snapshot_at=NOW, **row)
+    db.rejects("ops.metric_snapshot", snapshot_at=NOW, **row)
+    db.insert("ops.metric_snapshot", snapshot_at=LATER, note="methodology v2", **row)
+    db.rejects("ops.metric_snapshot", snapshot_at=NOW, source="", metric="m", value=1)
+    db.rejects("ops.metric_snapshot", snapshot_at=NOW, source="s", metric="", value=1)
+    db.rejects("ops.metric_snapshot", snapshot_at=LATER, note="", source="s", metric="m", value=1)
+    with pytest.raises(db.Error):
+        db.run(f"UPDATE {db.t('ops.metric_snapshot')} SET value = 0 WHERE id = ?", (first,))
+    with pytest.raises(db.Error):
+        db.run(f"DELETE FROM {db.t('ops.metric_snapshot')} WHERE id = ?", (first,))
+
+
 def test_status_and_clock_follow_the_default_line(db: Db) -> None:
     rid = repo(db)
     main1 = db.insert(

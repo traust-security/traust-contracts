@@ -35,6 +35,7 @@ TABLE_ORDER: tuple[str, ...] = (
     "run_batch",
     "run_order",
     "spend_event",
+    "metric_snapshot",
     "feed_snapshot",
     "assessment_input",
 )
