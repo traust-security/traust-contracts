@@ -28,12 +28,34 @@
     "artifacts": {
       "type": "object",
       "additionalProperties": false,
+      "not": {
+        "required": ["path", "s3"]
+      },
       "properties": {
         "path": {
           "type": "string",
-          "description": "Where artifact bytes live; relative to home."
+          "description": "Where artifact bytes live locally; relative to home. Absent: <home>/artifacts."
+        },
+        "s3": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bucket"],
+          "dependentRequired": {
+            "access_key_env": ["secret_key_env"],
+            "secret_key_env": ["access_key_env"]
+          },
+          "properties": {
+            "bucket": {"type": "string", "minLength": 1},
+            "prefix": {"type": "string"},
+            "endpoint_url": {"type": "string", "pattern": "^https?://[^/]+"},
+            "region": {"type": "string", "minLength": 1},
+            "access_key_env": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+            "secret_key_env": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
+          },
+          "description": "S3-compatible artifact bytes (AWS, MinIO or Ceph). Absent credentials use the SDK credential chain, including workload identity; named credentials come from the environment."
         }
-      }
+      },
+      "description": "Choose either local path or S3. Absent: local bytes under <home>/artifacts."
     },
     "process": {
       "type": "object",

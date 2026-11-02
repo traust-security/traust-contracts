@@ -103,6 +103,44 @@ def test_the_schema_accepts(document: dict) -> None:
     _validate(document)
 
 
+@pytest.mark.parametrize(
+    "artifacts",
+    [
+        {"path": "artifacts"},
+        {"s3": {"bucket": "test-artifacts"}},
+        {"s3": {"bucket": "test-artifacts", "prefix": "deploy-a", "region": "us-east-1"}},
+        {
+            "s3": {
+                "bucket": "test-artifacts",
+                "endpoint_url": "http://localhost:9000",
+                "access_key_env": "TEST_ACCESS_KEY",
+                "secret_key_env": "TEST_SECRET_KEY",
+            }
+        },
+    ],
+)
+def test_artifact_storage_config_is_selectable(artifacts: dict) -> None:
+    _validate({"artifacts": artifacts})
+
+
+@pytest.mark.parametrize(
+    "artifacts",
+    [
+        {"path": "local", "s3": {"bucket": "test-artifacts"}},
+        {"s3": {}},
+        {"s3": {"bucket": ""}},
+        {"s3": {"bucket": "test-artifacts", "secret_access_key": "secret"}},
+        {"s3": {"bucket": "test-artifacts", "access_key_env": "NOT_PAIRED"}},
+        {"s3": {"bucket": "test-artifacts", "secret_key_env": "NOT_PAIRED"}},
+        {"s3": {"bucket": "test-artifacts", "access_key_env": "1BAD", "secret_key_env": "OK"}},
+        {"s3": {"bucket": "test-artifacts", "endpoint_url": "ftp://invalid"}},
+    ],
+)
+def test_artifact_storage_config_rejects_invalid_or_ambiguous_values(artifacts: dict) -> None:
+    with pytest.raises(jsonschema.ValidationError):
+        _validate({"artifacts": artifacts})
+
+
 @pytest.mark.parametrize("outputs", [["stderr"], ["file"], ["stderr", "file"]])
 def test_logging_outputs_are_selectable(outputs: list[str]) -> None:
     _validate({"logging": {"outputs": outputs}})
