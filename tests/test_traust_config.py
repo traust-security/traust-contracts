@@ -109,6 +109,8 @@ def test_the_schema_accepts(document: dict) -> None:
         {"path": "artifacts"},
         {"s3": {"bucket": "test-artifacts"}},
         {"s3": {"bucket": "test-artifacts", "prefix": "deploy-a", "region": "us-east-1"}},
+        {"s3": {"bucket": "test-artifacts", "endpoint_url": "https://rgw.example.com"}},
+        {"s3": {"bucket": "test-artifacts", "endpoint_url": "http://[::1]:9000"}},
         {
             "s3": {
                 "bucket": "test-artifacts",
@@ -134,6 +136,15 @@ def test_artifact_storage_config_is_selectable(artifacts: dict) -> None:
         {"s3": {"bucket": "test-artifacts", "secret_key_env": "NOT_PAIRED"}},
         {"s3": {"bucket": "test-artifacts", "access_key_env": "1BAD", "secret_key_env": "OK"}},
         {"s3": {"bucket": "test-artifacts", "endpoint_url": "ftp://invalid"}},
+        {
+            "s3": {
+                "bucket": "test-artifacts",
+                "endpoint_url": "https://user:password@rgw.example.com",
+            }
+        },
+        {"s3": {"bucket": "test-artifacts", "endpoint_url": "http://bad host"}},
+        {"s3": {"bucket": "test-artifacts", "endpoint_url": "http://bad..host"}},
+        {"s3": {"bucket": "test-artifacts", "endpoint_url": "http://localhost:notaport"}},
     ],
 )
 def test_artifact_storage_config_rejects_invalid_or_ambiguous_values(artifacts: dict) -> None:
