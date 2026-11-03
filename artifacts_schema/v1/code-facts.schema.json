@@ -15,13 +15,122 @@
     "languages": {
       "type": ["array", "null"],
       "items": {"$ref": "#/$defs/language"}
+    },
+    "packages": {
+      "type": ["object", "null"],
+      "required": ["modules", "imports", "exports", "gaps"],
+      "additionalProperties": false,
+      "properties": {
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ecosystem", "name", "location"],
+            "additionalProperties": false,
+            "properties": {
+              "ecosystem": {"type": "string", "minLength": 1},
+              "name": {"type": "string", "minLength": 1},
+              "location": {"$ref": "#/$defs/location"}
+            }
+          }
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["package", "language", "location"],
+            "additionalProperties": false,
+            "properties": {
+              "package": {"type": "string", "minLength": 1},
+              "language": {"type": "string", "minLength": 1},
+              "location": {"$ref": "#/$defs/location"}
+            }
+          }
+        },
+        "exports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["package", "name", "language", "location"],
+            "additionalProperties": false,
+            "properties": {
+              "package": {"type": "string", "minLength": 1},
+              "name": {"type": "string", "minLength": 1},
+              "kind": {"type": ["string", "null"]},
+              "language": {"type": "string", "minLength": 1},
+              "location": {"$ref": "#/$defs/location"}
+            }
+          }
+        },
+        "gaps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["system", "reason"],
+            "additionalProperties": false,
+            "properties": {
+              "system": {"type": "string", "minLength": 1},
+              "reason": {"type": "string", "minLength": 1},
+              "path": {"type": ["string", "null"]},
+              "paths": {"type": "array", "items": {"type": "string"}},
+              "count": {"type": ["integer", "null"], "minimum": 0},
+              "evidence": {"type": ["string", "null"]}
+            }
+          }
+        }
+      }
+    },
+    "interfaces": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "required": ["api_group", "role", "location", "resources", "verbs"],
+        "additionalProperties": false,
+        "properties": {
+          "api_group": {"type": "string"},
+          "role": {"enum": ["owner", "consumer", "rbac", "webhook"]},
+          "location": {"$ref": "#/$defs/location"},
+          "kind": {"type": ["string", "null"]},
+          "name": {"type": ["string", "null"]},
+          "resources": {"type": "array", "items": {"type": "string"}},
+          "verbs": {"type": "array", "items": {"type": "string"}}
+        }
+      }
     }
   },
   "anyOf": [
     {"properties": {"symbols": {"type": "array"}}},
-    {"properties": {"languages": {"type": "array"}}}
+    {"properties": {"languages": {"type": "array"}}},
+    {"required": ["packages"], "properties": {"packages": {"type": "object"}}},
+    {"required": ["interfaces"], "properties": {"interfaces": {"type": "array"}}}
   ],
   "$defs": {
+    "location": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?![\\s\\S]*(?:^|/)\\.{1,2}(?:/|$))[^\\\\\u0000]+$"
+        },
+        "line": {"type": ["integer", "null"], "minimum": 1},
+        "symbol": {"type": ["string", "null"], "minLength": 1},
+        "hashes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["algorithm", "digest"],
+            "additionalProperties": false,
+            "properties": {
+              "algorithm": {"type": "string", "minLength": 1},
+              "digest": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
     "symbol": {
       "type": "object",
       "required": ["name", "path", "line", "kind", "language"],

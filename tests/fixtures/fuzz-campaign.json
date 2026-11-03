@@ -1,0 +1,78 @@
+{
+  "artifact": "fuzz-campaign",
+  "campaign_id": "parser-campaign-example",
+  "generated": "2026-07-05",
+  "repositories": [
+    "https://github.com/example-org/widget"
+  ],
+  "source_references": [
+    "campaign/FUZZ-CAMPAIGN-SUMMARY.json",
+    "campaign/FUZZ-FINDINGS-ROLLUP.md"
+  ],
+  "harness_version": "example-import",
+  "manifest_generated": "2026-07-02",
+  "duration": {
+    "start": "2026-07-02",
+    "end": "2026-07-05"
+  },
+  "totals": {
+    "targets": 3,
+    "repos": 1,
+    "fuzzed_targets": 2,
+    "fuzz_functions": 4,
+    "executed_targets": 2,
+    "runs_logged": 4,
+    "bugs": 1,
+    "bugs_medium_plus": 1,
+    "bugs_by_fuzz": 1,
+    "advisories": 1,
+    "hit_rate": "1/2",
+    "hit_rate_pct": 50
+  },
+  "batches": [
+    {
+      "batch": "2",
+      "targets": 3,
+      "fuzz_functions": 4,
+      "bugs": 1
+    },
+    {
+      "batch": "grep-sweep",
+      "targets": null,
+      "fuzz_functions": null,
+      "bugs": 0
+    }
+  ],
+  "bugs": [
+    {
+      "num": 1,
+      "target": "widget",
+      "title": "Unchecked parser index",
+      "cvss": "4.4",
+      "cwe": "129",
+      "advisory": "ADV-EXAMPLE-001",
+      "method": "fuzz",
+      "narrative": "### #1 \u2014 widget\n\n**Fix:** Check the split length.\n\n**CVSS:** 4.4 (AV:N/AC:L/PR:H/UI:N/S:U/C:N/I:N/A:H).",
+      "references": [
+        "findings/widget/fuzz-corpus/FuzzParseRange/001-bounds.md"
+      ]
+    }
+  ],
+  "patterns": [
+    {
+      "name": "Unchecked split index",
+      "tested": 2,
+      "vulnerable": 1,
+      "rate": "50% at batch close",
+      "advisory": "ADV-EXAMPLE-001",
+      "references": [
+        "campaign/FUZZ-CAMPAIGN-SUMMARY.md#pattern-hit-rates"
+      ]
+    }
+  ],
+  "remediation_priority": "| P | Action |\n|---|---|\n| P2 | Validate the range before indexing |",
+  "negative_controls": "| Target | Checked for | Result |\n|---|---|---|\n| widget-control | Well-formed range | No index panic |",
+  "advisory_files": [
+    "advisories/ADV-EXAMPLE-001.md"
+  ]
+}

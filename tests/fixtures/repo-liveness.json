@@ -1,0 +1,31 @@
+{
+  "repositories": {
+    "10000000-0000-4000-8000-000000000001": {
+      "repository_id": "10000000-0000-4000-8000-000000000001",
+      "url": "https://github.com/example/old-name",
+      "status": "moved",
+      "observed_at": "2026-11-03T12:00:00Z",
+      "status_since": "2026-11-01T12:00:00Z",
+      "canonical_url": "https://github.com/example/new-name",
+      "archived": false,
+      "pushed_at": "2026-10-30T12:00:00Z"
+    },
+    "10000000-0000-4000-8000-000000000002": {
+      "repository_id": "10000000-0000-4000-8000-000000000002",
+      "url": "https://github.com/example/deleted",
+      "status": "missing",
+      "observed_at": "2026-11-03T12:00:00Z",
+      "status_since": "2026-11-03T12:00:00Z",
+      "reason": "github.com: repository lookup returned HTTP 404"
+    },
+    "10000000-0000-4000-8000-000000000003": {
+      "repository_id": "10000000-0000-4000-8000-000000000003",
+      "url": "https://gitlab.com/example/inaccessible",
+      "status": "unknown",
+      "observed_at": "2026-11-03T12:00:00Z",
+      "status_since": "2026-11-03T12:00:00Z",
+      "unobserved": "no-credentials",
+      "reason": "repository lookup requires authentication"
+    }
+  }
+}

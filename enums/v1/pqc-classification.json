@@ -16,6 +16,7 @@
     "pqc-blockers.schema.json",
     "pqc-decision-tree.schema.json",
     "report.schema.json",
-    "validation.schema.json"
+    "validation.schema.json",
+    "verification.schema.json"
   ]
 }

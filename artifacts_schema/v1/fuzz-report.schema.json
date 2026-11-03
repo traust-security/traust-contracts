@@ -14,9 +14,40 @@
       "oneOf": [{"$ref": "#/$defs/coverage"}, {"type": "null"}],
       "description": "Code coverage of the final corpus, measured by a coverage tool. null: not measured."
     },
-    "gaps": {"type": "array", "items": {"$ref": "#/$defs/gap"}}
+    "gaps": {"type": "array", "items": {"$ref": "#/$defs/gap"}},
+    "batch": {"type": "string", "minLength": 1},
+    "patterns": {"type": "array", "items": {"$ref": "#/$defs/pattern_observation"}}
   },
   "$defs": {
+    "crasher_analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "narrative": {"type": "string", "minLength": 1},
+        "narrative_references": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "fix": {"type": "string", "minLength": 1},
+        "priority": {"type": "string", "minLength": 1},
+        "negative_control_references": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "pattern_observation": {
+      "type": "object",
+      "required": ["name", "tested", "vulnerable"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "tested": {"type": "boolean"},
+        "vulnerable": {"type": ["boolean", "null"]},
+        "reference": {"type": "string", "minLength": 1},
+        "advisory": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"vulnerable": {"type": "boolean"}}, "required": ["vulnerable"]},
+          "then": {"properties": {"tested": {"const": true}}}
+        }
+      ]
+    },
     "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"},
     "count": {"type": ["integer", "null"], "minimum": 0},
     "target": {
@@ -76,7 +107,8 @@
         "severity_proposal": {"$ref": "report.schema.json#/$defs/severity_level", "description": "The producer's proposal; triage owns the severity."},
         "cvss": {"$ref": "report.schema.json#/$defs/finding/properties/cvss"},
         "location": {"$ref": "report.schema.json#/$defs/location", "description": "Where the crash surfaces (top in-repository frame), when known."},
-        "finding_id": {"type": "string", "format": "uuid", "description": "An existing finding this crasher confirms. Absent: intake mints a new finding."}
+        "finding_id": {"type": "string", "format": "uuid", "description": "An existing finding this crasher confirms. Absent: intake mints a new finding."},
+        "analysis": {"$ref": "#/$defs/crasher_analysis"}
       }
     },
     "signature": {

@@ -68,6 +68,30 @@
           ],
           "description": "Package ecosystem of the affected module; the same vocabulary as report.schema.json finding.dependency.ecosystem (enums/v1/ecosystem.json). actions/docker/helm are manifest-level dependency surfaces (no reachability tier); rpm/deb/apk are distro ecosystems for C/C++ packages (no reachability tier). Optional (defaults to go semantics when absent) and non-breaking."
         },
+        "preparation_scope": {
+          "type": "object",
+          "description": "The complete package/version snapshot prepared for this advisory and commit. Readers promote a replacement snapshot only after every declared member has recorded evidence; an incomplete run cannot clear prior exposure.",
+          "required": ["digest", "members"],
+          "additionalProperties": false,
+          "properties": {
+            "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "members": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "required": ["ecosystem", "module", "version"],
+                "additionalProperties": false,
+                "properties": {
+                  "ecosystem": {"$ref": "#/$defs/metadata/properties/ecosystem"},
+                  "module": {"type": "string", "minLength": 1},
+                  "version": {"type": ["string", "null"], "minLength": 1}
+                }
+              }
+            }
+          }
+        },
         "vulnerable_range": {
           "type": "string",
           "description": "Version constraint describing the vulnerable range (e.g. '< v1.64.1')."

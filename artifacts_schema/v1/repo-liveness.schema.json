@@ -1,0 +1,83 @@
+{
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/repo-liveness.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Repository liveness reference facts",
+  "description": "The latest availability facts recorded by the forge observation owner, keyed by stable inventory repository UUID. status_since is retained across consecutive observations of the same status; unknown observations are not evidence of deletion. Unqueried repositories have no entry.",
+  "type": "object",
+  "required": [
+    "repositories"
+  ],
+  "properties": {
+    "repositories": {
+      "type": "object",
+      "propertyNames": {
+        "format": "uuid"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/liveness"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "liveness": {
+      "type": "object",
+      "required": [
+        "repository_id",
+        "url",
+        "status",
+        "observed_at",
+        "status_since"
+      ],
+      "properties": {
+        "repository_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "archived",
+            "moved",
+            "missing",
+            "disabled",
+            "unknown"
+          ]
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status_since": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "canonical_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "archived": {
+          "type": "boolean"
+        },
+        "pushed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "unobserved": {
+          "$ref": "repo-state.schema.json#/$defs/comparison_status"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
