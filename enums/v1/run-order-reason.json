@@ -2,7 +2,7 @@
   "name": "run_order_reason",
   "source_schema": "",
   "schema_enforced": false,
-  "description": "Operational vocabulary for traust_ops.run_order.reason; Core enforces new writes, while stored historical text remains readable.",
+  "description": "Operational vocabulary for traust_ops.run_order.reason; Core enforces new writes, while stored historical text remains readable. `write-rejected`: the record gate refused the executor's artifact (a 4xx) \u2014 the payload does not conform to the canonical write; the artifact is terminally rejected, never retried.",
   "values": [
     "budget-over",
     "asset-not-in-pack",
@@ -15,7 +15,8 @@
     "snapshot_unavailable",
     "source_unavailable",
     "ledger_unconfigured",
-    "upstream-stale"
+    "upstream-stale",
+    "write-rejected"
   ],
   "definitions": {
     "budget-over": "Admission withheld work because its lane budget would bind.",
