@@ -15,7 +15,8 @@
     "snapshot_unavailable",
     "source_unavailable",
     "ledger_unconfigured",
-    "upstream-stale"
+    "upstream-stale",
+    "write-rejected"
   ],
   "definitions": {
     "budget-over": "Admission withheld work because its lane budget would bind.",
@@ -29,7 +30,8 @@
     "snapshot_unavailable": "A required feed has no usable snapshot.",
     "source_unavailable": "A source refresh failed while retained data remains usable.",
     "ledger_unconfigured": "A ledger audit was requested without a configured ledger.",
-    "upstream-stale": "The engine did not dispatch work because an upstream asset is stale."
+    "upstream-stale": "The engine did not dispatch work because an upstream asset is stale.",
+    "write-rejected": "The record gate refused the executor's artifact at the canonical write (a 4xx): the payload does not conform, and the artifact is terminally rejected. A schema or lint failure the runner catches on its own output before writing is session-output-invalid; this value is the gate's refusal."
   },
   "standard": {
     "none": "Project-defined operations vocabulary; existing value spellings are preserved."

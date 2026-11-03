@@ -1,0 +1,27 @@
+{
+  "name": "liveness_status",
+  "source_schema": "repo-liveness.schema.json#/$defs/liveness/properties/status",
+  "description": "Forge-observed repository availability, distinct from recency of activity.",
+  "values": [
+    "active",
+    "archived",
+    "moved",
+    "missing",
+    "disabled",
+    "unknown"
+  ],
+  "definitions": {
+    "active": "The forge reports an available repository.",
+    "archived": "The repository is available but archived.",
+    "moved": "The repository resolves to a different canonical URL.",
+    "missing": "The forge positively reports the repository missing.",
+    "disabled": "The forge reports the repository disabled.",
+    "unknown": "The attempt did not establish repository availability."
+  },
+  "standard": {
+    "none": "Project-defined observation vocabulary; no external standard applies."
+  },
+  "used_in_schemas": [
+    "repo-liveness.schema.json"
+  ]
+}
