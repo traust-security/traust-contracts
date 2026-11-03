@@ -33,6 +33,7 @@ def test_a_complete_read_and_one_with_unresolved_manifests_validate() -> None:
         _doc(
             {"ecosystem": "pypi", "path": "pyproject.toml", "reason": "no-lockfile"},
             {"ecosystem": "nuget", "path": "src/App/App.csproj", "reason": "no-lockfile"},
+            {"ecosystem": "pypi", "path": "requirements.txt", "reason": "unpinned"},
         )
     )
 
@@ -56,3 +57,10 @@ def test_the_document_names_its_tool() -> None:
     doc = _doc()
     del doc["tool"]
     assert not _validator().is_valid(doc)
+
+
+def test_coverage_has_its_own_assessment_kind() -> None:
+    kinds = json.loads(
+        (SCHEMA_DIR.parent.parent / "enums" / "v1" / "assessment-kind.json").read_text("utf-8")
+    )
+    assert "manifest_sbom" in kinds["values"] and "manifest_sbom" in kinds["definitions"]

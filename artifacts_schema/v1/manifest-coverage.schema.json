@@ -2,7 +2,7 @@
   "$id": "https://example.com/traust-contracts/artifacts_schema/v1/manifest-coverage.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Manifest SBOM Coverage",
-  "description": "What the SBOM tool could not resolve when it read one commit's dependency manifests: each manifest it saw with nothing resolved beside it (no lockfile), by ecosystem. Stored as the artifact of a tool_scan assessment on the commit, beside its manifest SBOM. A package missing from the SBOM in an ecosystem listed here is unknown, never absent. An empty list is a complete read.",
+  "description": "What the SBOM tool could not resolve when it read one commit's dependency manifests: each manifest whose declarations it could not all pin, by ecosystem. Stored as the artifact of a manifest_sbom assessment on the commit, beside its manifest SBOM (not tool_scan, whose document is code-facts). A package missing from the SBOM in an ecosystem listed here is unknown, never absent. An empty list is a complete read.",
   "type": "object",
   "required": ["artifact", "tool", "unresolved"],
   "additionalProperties": false,
@@ -38,9 +38,9 @@
           "pattern": "^(?!/)(?![A-Za-z]:)(?![\\s\\S]*(?:^|/)\\.{1,2}(?:/|$))[^\\\\\u0000]+$"
         },
         "reason": {
-          "description": "no-lockfile: a manifest whose versions only a lockfile pins, with none beside it or above it in the tree.",
+          "description": "no-lockfile: a manifest whose versions only a lockfile pins, with none beside it or above it in the tree. unpinned: a manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which it drops.",
           "type": "string",
-          "enum": ["no-lockfile"]
+          "enum": ["no-lockfile", "unpinned"]
         }
       }
     }
