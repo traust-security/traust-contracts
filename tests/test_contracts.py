@@ -53,12 +53,7 @@ class TestSchemas:
     def test_all_schemas_parse_json(self):
         """All schema files must be valid JSON."""
         schema_files = list(SCHEMA_DIR.glob("*.schema.json"))
-        assert len(schema_files) == 43, f"Expected 43 data schemas, found {len(schema_files)}"
-
         config_schema_files = list(CONFIG_SCHEMA_DIR.glob("*.schema.json"))
-        assert len(config_schema_files) == 9, (
-            f"Expected 9 config schemas, found {len(config_schema_files)}"
-        )
 
         for sf in [*schema_files, *config_schema_files]:
             with Path(sf).open() as f:

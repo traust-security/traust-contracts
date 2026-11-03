@@ -33,6 +33,11 @@ profiles, feeds, rule packs) ships with traust and is checked against its
 two files.
 End-to-end architecture: `traust/docs/architecture.md` → *Configuration & context*.
 
+`compliance.docs_targets` binds registered product UUIDs to explicit official
+documentation slugs, versions and optional guide names. These are adopter facts,
+not values inferred from product labels. Omitted guides use the provider's actual
+landing-page discovery; missing product coordinates are an explicit refusal.
+
 ## Install
 
 ```bash
@@ -116,6 +121,17 @@ precondition references and chain links also need service checks: JSON Schema va
 item, not relationships among items. An edited or recon-extended plan is a new artifact and
 needs a new authorization decision.
 
+## Complete impact preparation snapshots
+
+`impact-analysis` metadata may name a `preparation_scope`: a content digest and
+the complete ecosystem/module/installed-version member set prepared for one
+advisory and commit. Every package packet carries that same scope. Core validates
+membership and consistent member sets, then promotes a replacement only after all
+members have recorded evidence. A partial newer run cannot clear a prior affected
+snapshot; a complete corrected snapshot can replace obsolete package versions.
+Historical queries use the latest complete snapshot at their cutoff. The field
+remains optional so historical single-packet reports retain their defined meaning.
+
 ## Below-range packets and verdicts
 
 `artifacts_schema/v1/below-range-packets.schema.json` is one commit's below-range evidence:
@@ -144,6 +160,20 @@ grep-sweep confirmations are not fuzz crashers and a clean run records none. Run
 derive from the harness outcomes. Harness-name references are checked by the recording
 service, not the schema.
 
+Optional batch and tested-pattern associations preserve per-target measurements;
+unknown outcomes stay null. Per-crasher analysis carries supplied narratives,
+fixes, priorities and negative-control references without changing intake validity.
+`fuzz-campaign.schema.json` is a separate supplied scope reference: it preserves
+legacy aggregate counts and analyst Markdown verbatim, not fabricated run evidence
+or target-level associations. The content gate enforces vulnerable counts no
+greater than tested counts.
+
+`repo-liveness.schema.json` is the forge observation owner's latest reference
+snapshot keyed by registered repository UUID. It records availability, observation
+time and the start of an unchanged status without inventing a commit for a missing
+repository. Unqueried has no entry; unknown is not evidence of deletion. No new
+database table is introduced.
+
 ## PQC vendor claims
 
 `artifacts_schema/v1/pqc-vendor-claims.schema.json` is a declared reference document
@@ -156,10 +186,12 @@ derived by the reader, never stored.
 
 ## Storage contract
 
-`artifacts_schema/v1/code-facts.schema.json` defines recorded symbols and measured
-language/LoC counters for `tool_scan` assessments. The assessment identifies the
-scanned ref and producer. A null section is unmeasured; an empty array is a
-measured empty result. This artifact adds no database tables or columns.
+`artifacts_schema/v1/code-facts.schema.json` defines recorded symbols, measured
+language/LoC counters, package module/import/export facts and service-interface
+observations for `tool_scan` assessments. The assessment identifies the scanned ref
+and producer. Null sections are unmeasured; empty collections are measured empty
+results. Locations stay relative to the scanned ref. These artifacts add no
+database tables or columns.
 
 `db/v1/traust` is the one-owner data model (XWING-2363): readable, authored
 SQLite/PostgreSQL SQL — each concept one owner, database-generated UUID v4

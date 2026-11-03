@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-campaign.schema.json",
+  "title": "Supplied fuzz campaign scope reference",
+  "description": "A supplied campaign snapshot, not fuzz execution evidence. Aggregate populations and analyst prose are retained with declared references; historical pattern counts are never redistributed into fabricated per-target observations.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact",
+    "campaign_id",
+    "generated",
+    "repositories",
+    "source_references"
+  ],
+  "properties": {
+    "artifact": {
+      "const": "fuzz-campaign"
+    },
+    "campaign_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated": {
+      "type": "string",
+      "format": "date"
+    },
+    "repositories": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "source_references": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "narrative": {
+      "type": "string",
+      "minLength": 1
+    },
+    "harness_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "manifest_generated": {
+      "type": "string",
+      "format": "date"
+    },
+    "duration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date"
+        },
+        "end": {
+          "type": "string",
+          "format": "date"
+        }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "targets": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "repos": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "fuzzed_targets": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "fuzz_functions": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "executed_targets": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "runs_logged": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "bugs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "bugs_medium_plus": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "bugs_by_fuzz": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "advisories": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "hit_rate": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Single encoding of the hit-rate fact (narrative form, e.g. \"1/2\"); no duplicate numeric encoding ships in the same document."
+        }
+              }
+    },
+    "batches": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/batch"
+      }
+    },
+    "bugs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/bug"
+      }
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pattern"
+      }
+    },
+    "remediation_priority": {
+      "type": "string",
+      "minLength": 1
+    },
+    "negative_controls": {
+      "type": "string",
+      "minLength": 1
+    },
+    "advisory_files": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "batch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batch",
+        "targets",
+        "fuzz_functions",
+        "bugs"
+      ],
+      "properties": {
+        "batch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "targets": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "fuzz_functions": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "bugs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "bug": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "num",
+        "target",
+        "title"
+      ],
+      "properties": {
+        "num": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cvss": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cwe": {
+          "type": "string",
+          "minLength": 1
+        },
+        "advisory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "method": {
+          "type": "string",
+          "minLength": 1
+        },
+        "narrative": {
+          "type": "string",
+          "minLength": 1
+        },
+        "references": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "pattern": {
+      "description": "Supplied legacy aggregate counts per pattern. The content gate (validate.py) rejects a pattern whose vulnerable count exceeds its tested count.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "tested",
+        "vulnerable"
+     ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tested": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "vulnerable": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "advisory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "references": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}
