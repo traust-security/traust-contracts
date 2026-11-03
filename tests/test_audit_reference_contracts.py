@@ -208,6 +208,7 @@ def test_impact_metadata_round_trips_the_complete_preparation_scope() -> None:
             "tiers_executed": ["l1"],
             "options": {},
             "preparation_scope": scope,
+            "portfolio_graph_version": "corp-portfolio@2026-11-01",
         },
         "summary": {
             "repos_in_blast_radius": 0,
@@ -220,4 +221,6 @@ def test_impact_metadata_round_trips_the_complete_preparation_scope() -> None:
             "inconclusive": 0,
         },
     }
-    assert ImpactAnalysis.from_dict(document).to_dict()["metadata"]["preparation_scope"] == scope
+    round_tripped = ImpactAnalysis.from_dict(document).to_dict()["metadata"]
+    assert round_tripped["preparation_scope"] == scope
+    assert round_tripped["portfolio_graph_version"] == "corp-portfolio@2026-11-01"
