@@ -70,7 +70,7 @@
         },
         "preparation_scope": {
           "type": "object",
-          "description": "The complete package/version snapshot prepared for this advisory and commit. Readers promote a replacement snapshot only after every declared member has recorded evidence; an incomplete run cannot clear prior exposure.",
+          "description": "The complete package/version snapshot prepared for this advisory and commit. Readers promote a replacement snapshot only after every declared member has recorded evidence; an incomplete run cannot clear prior exposure. digest: SHA-256 over the UTF-8 JSON encoding of the snapshot object (prepared_at, advisory, manifest_sbom_id, images, members) with sort_keys=true and default separators, as traust-core ExposureService.prepare computes it (sha256_hex(json.dumps(snapshot, sort_keys=True))); members serialize as objects with exactly the keys ecosystem, module, version, the member list sorted by (ecosystem, module, version). A producer diverging from this canonical form is a producer bug, not a schema interpretation.",
           "required": ["digest", "members"],
           "additionalProperties": false,
           "properties": {

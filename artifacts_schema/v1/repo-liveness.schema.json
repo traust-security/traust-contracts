@@ -2,16 +2,24 @@
   "$id": "https://example.com/traust-contracts/artifacts_schema/v1/repo-liveness.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Repository liveness reference facts",
-  "description": "The latest availability facts recorded by the forge observation owner, keyed by stable inventory repository UUID. status_since is retained across consecutive observations of the same status; unknown observations are not evidence of deletion. Unqueried repositories have no entry.",
+  "description": "The latest availability facts recorded by the forge observation owner (traust-core portfolio.liveness), keyed by stable inventory repository UUID. repository_id MUST equal the map key it sits under (validate.py content gate); status_since is retained across consecutive observations of the same status; unknown observations are not evidence of deletion. Unqueried repositories have no entry.",
   "type": "object",
   "required": [
-    "repositories"
+    "repositories",
+    "generated"
   ],
   "properties": {
+    "generated": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "When the forge observation owner produced this snapshot. A consumer holding an older snapshot replaces it whole: per-repo observed_at orders observations within one snapshot, generated orders snapshots."
+    },
     "repositories": {
       "type": "object",
       "propertyNames": {
-        "format": "uuid"
+        "format": "uuid",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
       },
       "additionalProperties": {
         "$ref": "#/$defs/liveness"
@@ -32,7 +40,8 @@
       "properties": {
         "repository_id": {
           "type": "string",
-          "format": "uuid"
+          "format": "uuid",
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
         },
         "url": {
           "type": "string",
@@ -52,11 +61,14 @@
         },
         "observed_at": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
         },
         "status_since": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$",
+          "description": "Start of the current unchanged status. The observation owner carries status_since across consecutive observations of the same status and resets it to observed_at on a status change; a producer that resets it every observation misstates the semantics."
         },
         "canonical_url": {
           "type": "string",
@@ -68,7 +80,8 @@
         },
         "pushed_at": {
           "type": "string",
-          "format": "date-time"
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
         },
         "unobserved": {
           "$ref": "repo-state.schema.json#/$defs/comparison_status"

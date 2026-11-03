@@ -128,3 +128,96 @@ def test_documentation_coordinates_are_explicit_safe_path_segments(segment: obje
     assert gate.is_valid(document)
     target["product_slug"] = segment
     assert not gate.is_valid(document)
+
+
+def test_campaign_counts_content_gate_rejects_vulnerable_above_tested(
+    tmp_path: Path,
+) -> None:
+    """The README's documented gate: vulnerable <= tested, enforced by validate.py."""
+    import sys
+
+    sys.path.insert(0, str(ROOT))
+    from validate import validate_artifact
+
+    document = json.loads((FIXTURES / "fuzz-campaign.json").read_text())
+    document["patterns"][0].update(tested=0, vulnerable=1)
+    bad = tmp_path / "bad-campaign.json"
+    bad.write_text(json.dumps(document))
+    assert not validate_artifact("fuzz-campaign", bad)
+
+    document["patterns"][0].update(tested=2, vulnerable=1)
+    good = tmp_path / "good-campaign.json"
+    good.write_text(json.dumps(document))
+    assert validate_artifact("fuzz-campaign", good)
+
+
+def test_liveness_entry_must_carry_its_own_map_key(tmp_path: Path) -> None:
+    """One repository's facts cannot sit under another repository's key."""
+    import sys
+
+    sys.path.insert(0, str(ROOT))
+    from validate import validate_artifact
+
+    document = json.loads((FIXTURES / "repo-liveness.json").read_text())
+    first = next(iter(document["repositories"]))
+    document["repositories"][first]["repository_id"] = "10000000-0000-4000-8000-0000000000ff"
+    misplaced = tmp_path / "misplaced.json"
+    misplaced.write_text(json.dumps(document))
+    assert not validate_artifact("repo-liveness", misplaced)
+
+    document["repositories"][first]["repository_id"] = first
+    correct = tmp_path / "correct.json"
+    correct.write_text(json.dumps(document))
+    assert validate_artifact("repo-liveness", correct)
+
+
+def test_liveness_snapshot_carries_a_generated_marker() -> None:
+    """Consumers order snapshots by generated, observations by observed_at."""
+    document = json.loads((FIXTURES / "repo-liveness.json").read_text())
+    gate = validator("repo-liveness")
+    assert gate.is_valid(document)
+    del document["generated"]
+    assert not gate.is_valid(document)
+
+
+def test_code_facts_all_null_sections_record_nothing() -> None:
+    """A document whose sections are all explicit nulls does not validate."""
+    document = json.loads((FIXTURES / "code-facts-interfaces.json").read_text())
+    gate = validator("code-facts")
+    assert gate.is_valid(document)
+    for section in ("symbols", "languages", "packages", "interfaces"):
+        document[section] = None
+    assert not gate.is_valid(document)
+
+
+def test_impact_metadata_round_trips_the_complete_preparation_scope() -> None:
+    """The SDK must not silently drop the complete-snapshot identity."""
+    from traust_contracts.v1.models.impact import ImpactAnalysis
+
+    scope = {
+        "digest": "a" * 64,
+        "members": [{"ecosystem": "go", "module": "example.test/lib", "version": "1.0.0"}],
+    }
+    document = {
+        "metadata": {
+            "cve": "CVE-2026-0001",
+            "module": "example.test/lib",
+            "vulnerable_range": "<1.0.1",
+            "harness_version": "test",
+            "generated_at": "2026-11-03T12:00:00Z",
+            "tiers_executed": ["l1"],
+            "options": {},
+            "preparation_scope": scope,
+        },
+        "summary": {
+            "repos_in_blast_radius": 0,
+            "version_in_range": 0,
+            "affected": 0,
+            "likely_affected": 0,
+            "not_observed": 0,
+            "version_not_in_range": 0,
+            "not_imported": 0,
+            "inconclusive": 0,
+        },
+    }
+    assert ImpactAnalysis.from_dict(document).to_dict()["metadata"]["preparation_scope"] == scope

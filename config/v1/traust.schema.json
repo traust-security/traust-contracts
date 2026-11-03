@@ -12,7 +12,7 @@
       "properties": {
         "docs_targets": {
           "type": "object",
-          "description": "Official documentation coordinates for registered product UUIDs. Coordinates are adopter facts; an omitted guides list discovers guides from the official product landing page.",
+          "description": "Official documentation coordinates for registered product UUIDs. Coordinates are adopter facts; an omitted guides list means traust-core's compliance docs provider (compliance_sources.py) discovers guides from the official product landing page: it parses the landing page for guide slugs, and a page yielding no slugs is an explicit refusal (the product is reported not fetched, never an empty-guide success).",
           "propertyNames": {
             "format": "uuid",
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"

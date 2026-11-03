@@ -26,8 +26,7 @@
     "bugs_medium_plus": 1,
     "bugs_by_fuzz": 1,
     "advisories": 1,
-    "hit_rate": "1/2",
-    "hit_rate_pct": 50
+    "hit_rate": "1/2"
   },
   "batches": [
     {

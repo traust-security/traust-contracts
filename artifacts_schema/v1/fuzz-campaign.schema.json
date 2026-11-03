@@ -149,17 +149,10 @@
         },
         "hit_rate": {
           "type": "string",
-          "minLength": 1
-        },
-        "hit_rate_pct": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0,
-          "maximum": 100
+          "minLength": 1,
+          "description": "Single encoding of the hit-rate fact (narrative form, e.g. \"1/2\"); no duplicate numeric encoding ships in the same document."
         }
-      }
+              }
     },
     "batches": {
       "type": "array",
@@ -287,13 +280,14 @@
       }
     },
     "pattern": {
+      "description": "Supplied legacy aggregate counts per pattern. The content gate (validate.py) rejects a pattern whose vulnerable count exceeds its tested count.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "name",
         "tested",
         "vulnerable"
-      ],
+     ],
       "properties": {
         "name": {
           "type": "string",

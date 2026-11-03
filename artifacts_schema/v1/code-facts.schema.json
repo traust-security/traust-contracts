@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/traust-contracts/artifacts_schema/v1/code-facts.schema.json",
   "title": "Recorded code facts",
-  "description": "Deterministic symbols and measured language statistics attached to a tool_scan assessment. The assessment owns the scanned ref, producer/version and time. null means not measured; an empty array means measured with no results. Producers normalize symbol enumerator and scc/tokei output before publication; consumers never estimate LoC from language byte counts.",
+  "description": "Deterministic symbols and measured language statistics attached to a tool_scan assessment. The assessment owns the scanned ref, producer/version and time. null means not measured; an empty array means measured with no results. Producers normalize symbol enumerator and scc/tokei output before publication; consumers never estimate LoC from language byte counts. At least one section must carry a recorded array/object; all four sections explicit nulls records nothing and does not validate.",
   "type": "object",
   "required": ["artifact", "symbols", "languages"],
   "additionalProperties": false,
@@ -63,6 +63,7 @@
           }
         },
         "gaps": {
+          "description": "Why a package/interface fact is unmeasured. system stays free-form by design: it names the producer's own subsystem (an adopter's scanner), unlike interface-role and liveness-status which are shared vocabularies; reason carries the producer's cause.",
           "type": "array",
           "items": {
             "type": "object",
@@ -99,8 +100,8 @@
     }
   },
   "anyOf": [
-    {"properties": {"symbols": {"type": "array"}}},
-    {"properties": {"languages": {"type": "array"}}},
+    {"required": ["symbols"], "properties": {"symbols": {"type": "array"}}},
+    {"required": ["languages"], "properties": {"languages": {"type": "array"}}},
     {"required": ["packages"], "properties": {"packages": {"type": "object"}}},
     {"required": ["interfaces"], "properties": {"interfaces": {"type": "array"}}}
   ],
