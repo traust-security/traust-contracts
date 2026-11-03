@@ -1,0 +1,48 @@
+{
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/manifest-coverage.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Manifest SBOM Coverage",
+  "description": "What the SBOM tool could not resolve when it read one commit's dependency manifests: each manifest it saw with nothing resolved beside it (no lockfile), by ecosystem. Stored as the artifact of a tool_scan assessment on the commit, beside its manifest SBOM. A package missing from the SBOM in an ecosystem listed here is unknown, never absent. An empty list is a complete read.",
+  "type": "object",
+  "required": ["artifact", "tool", "unresolved"],
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {"const": "manifest-coverage"},
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1}
+      }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/manifest"}
+    }
+  },
+  "$defs": {
+    "manifest": {
+      "type": "object",
+      "required": ["ecosystem", "path", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "ecosystem": {
+          "$ref": "impact-analysis.schema.json#/$defs/metadata/properties/ecosystem"
+        },
+        "path": {
+          "description": "The manifest, relative to the repository root.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?![\\s\\S]*(?:^|/)\\.{1,2}(?:/|$))[^\\\\\u0000]+$"
+        },
+        "reason": {
+          "description": "no-lockfile: a manifest whose versions only a lockfile pins, with none beside it or above it in the tree.",
+          "type": "string",
+          "enum": ["no-lockfile"]
+        }
+      }
+    }
+  }
+}

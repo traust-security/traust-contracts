@@ -22,6 +22,7 @@
     "below-range-packets.schema.json",
     "below-range-verdicts.schema.json",
     "impact-analysis.schema.json",
+    "manifest-coverage.schema.json",
     "pqc-vendor-claims.schema.json",
     "report.schema.json",
     "validation.schema.json"
