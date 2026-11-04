@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS traust.repository_ref (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
     PRIMARY KEY (id),
     UNIQUE (id, repository_id),
-    CHECK (NOT is_default OR kind = 'branch'),
+    CHECK (NOT is_default OR (kind IS NOT NULL AND kind = 'branch')),
     CHECK ((name IS NULL) = (kind IS NULL))
 );
 

@@ -45,6 +45,21 @@ the first view set has landed (below). The previous projection model (its
 schema, queries, migrations and Store) was removed with it; databases
 created under it are recreated, not migrated.
 
+### Bootstrap constraint corrections
+
+The default-reference and auto-accept CHECKs explicitly reject NULL classification
+values when their flags are true. A default reference must be a named branch;
+auto-accept requires an assessor's `false_positive` validity. SQL CHECK accepts an
+unknown result, so equality alone does not enforce either rule on nullable fields.
+
+These definitions apply when creating tables. Re-running `CREATE TABLE IF NOT
+EXISTS` does not replace CHECKs in an existing database. Before relying on these
+guards there, arrange an explicit constraint upgrade (PostgreSQL) or a reviewed
+table rebuild (SQLite) with the data-model owners. Existing violating rows must
+be assessed first; do not silently change classifications or rewrite append-only
+decisions to make an upgrade pass. This bootstrap correction does not bump the
+database revision or perform a migration.
+
 ## Views
 
 Landed in `views/` (both dialects), load-ordered by `VIEW_ORDER`:
