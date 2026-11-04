@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import Field
 
@@ -100,7 +100,7 @@ class LayerEvent(ContractModel):
     source: LayerSource
     disposition: LayerDisposition
     rationale: str
-    evidence_refs: list[str] = Field(default_factory=list)
+    evidence_refs: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)
     occurred_at: IsoTimestamp | None = None
     harness_version: str | None = None
     auto_accept_tier: bool | None = None
@@ -155,4 +155,6 @@ class Layer(ContractModel):
     metadata: LayerMetadata
     events: list[LayerEvent] = Field(default_factory=list)
     needs_review: list[ReviewItem] = Field(default_factory=list)
-    baseline_claims: dict[str, str] = Field(default_factory=dict)
+    baseline_claims: dict[str, Annotated[str, Field(pattern="^[a-f0-9]{64}$")]] = Field(
+        default_factory=dict
+    )

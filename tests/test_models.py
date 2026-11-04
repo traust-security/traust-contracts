@@ -211,3 +211,46 @@ def test_layer_evidence_collections_do_not_accept_explicit_null(field: str) -> N
     target[field] = None
     with pytest.raises(ValidationError):
         Layer.from_dict(raw)
+
+
+@pytest.mark.parametrize(
+    "claim_hash",
+    ["not-a-hash", "", "a" * 63, "a" * 65, "A" * 64, "g" * 64, "a" * 64 + "\n"],
+)
+@pytest.mark.parametrize("assigned", [False, True])
+def test_layer_rejects_invalid_baseline_claim_items(claim_hash: str, assigned: bool) -> None:
+    from pydantic import ValidationError
+
+    from traust_contracts.models import Layer
+
+    raw = json.loads((FIXTURES / "sample-findings-layer.json").read_text())
+    if assigned:
+        model = Layer.from_dict(raw)
+        original = dict(model.baseline_claims)
+        with pytest.raises(ValidationError):
+            model.baseline_claims = {"FIND-001": claim_hash}
+        assert model.baseline_claims == original
+    else:
+        raw["baseline_claims"] = {"FIND-001": claim_hash}
+        with pytest.raises(ValidationError):
+            Layer.from_dict(raw)
+
+
+@pytest.mark.parametrize("assigned", [False, True])
+def test_layer_rejects_empty_evidence_reference_items(assigned: bool) -> None:
+    from pydantic import ValidationError
+
+    from traust_contracts.models import Layer
+
+    raw = json.loads((FIXTURES / "sample-findings-layer.json").read_text())
+    if assigned:
+        model = Layer.from_dict(raw)
+        event = model.events[0]
+        original = list(event.evidence_refs)
+        with pytest.raises(ValidationError):
+            event.evidence_refs = [""]
+        assert event.evidence_refs == original
+    else:
+        raw["events"][0]["evidence_refs"] = [""]
+        with pytest.raises(ValidationError):
+            Layer.from_dict(raw)
