@@ -2,7 +2,7 @@
   "name": "deny_code",
   "source_schema": "",
   "schema_enforced": false,
-  "description": "Machine-readable denial vocabulary for the REST problem envelope's code and issues[].code: why a preflight check or a submit gate refused an action, so consumers fail fast and route on the reason without parsing prose.",
+  "description": "Machine-readable denial vocabulary for the platform API: why a policy gate (preflight, submit) refused an action, so consumers fail fast and route on the reason without parsing prose. Carried by the typed errors in-process and by the problem+json envelope's code and issues[].code over HTTP.",
   "values": [
     "subject_unknown",
     "role_denied",
@@ -24,6 +24,6 @@
   "standard": {
     "none": "Project-defined denial vocabulary."
   },
-  "note": "API vocabulary for core's problem+json envelope (code, issues[].code); not a JSON Schema enum site. The submit path re-verifies every preflight denial, so no code is preflight-only.",
+  "note": "API vocabulary, not a JSON Schema enum site. The submit path re-verifies every preflight denial, so no code is preflight-only.",
   "used_in_schemas": []
 }
