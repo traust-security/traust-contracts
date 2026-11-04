@@ -80,9 +80,7 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
         )
         print(f"{artifact_path}: {path_str}: {error.message}")
 
-    valid = _content_gates(basename, artifact, artifact_path) and valid
-
-    return valid
+    return valid and _content_gates(basename, artifact, artifact_path)
 
 
 def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:

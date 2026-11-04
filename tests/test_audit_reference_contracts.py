@@ -224,3 +224,74 @@ def test_impact_metadata_round_trips_the_complete_preparation_scope() -> None:
     round_tripped = ImpactAnalysis.from_dict(document).to_dict()["metadata"]
     assert round_tripped["preparation_scope"] == scope
     assert round_tripped["portfolio_graph_version"] == "corp-portfolio@2026-11-01"
+
+
+@pytest.mark.parametrize("schema", ["fuzz-campaign", "repo-liveness"])
+@pytest.mark.parametrize("document", [None, [], 1, "not an object", False])
+def test_validator_rejects_invalid_root_shapes_without_crashing(
+    schema: str, document: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.syspath_prepend(str(ROOT))
+    from validate import validate_artifact
+
+    artifact = tmp_path / "invalid.json"
+    artifact.write_text(json.dumps(document))
+    assert validate_artifact(schema, artifact) is False
+
+
+@pytest.mark.parametrize(
+    "schema, field, value",
+    [
+        ("fuzz-campaign", "patterns", None),
+        ("fuzz-campaign", "patterns", [None]),
+        ("fuzz-campaign", "patterns", ["not an object"]),
+        ("fuzz-campaign", "patterns", {}),
+        ("repo-liveness", "repositories", None),
+        ("repo-liveness", "repositories", []),
+        ("repo-liveness", "repositories", {"10000000-0000-4000-8000-000000000001": None}),
+    ],
+)
+def test_validator_rejects_invalid_content_gate_shapes_without_crashing(
+    schema: str, field: str, value: object, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.syspath_prepend(str(ROOT))
+    from validate import validate_artifact
+
+    document = json.loads((FIXTURES / f"{schema}.json").read_text())
+    document[field] = value
+    artifact = tmp_path / "invalid.json"
+    artifact.write_text(json.dumps(document))
+    assert validate_artifact(schema, artifact) is False
+
+
+def test_validator_cli_reports_later_files_after_a_structurally_invalid_document(
+    tmp_path: Path,
+) -> None:
+    import subprocess
+    import sys
+
+    first = tmp_path / "invalid-root.json"
+    first.write_text("[]")
+    second = tmp_path / "invalid-entry.json"
+    document = json.loads((FIXTURES / "repo-liveness.json").read_text())
+    key = next(iter(document["repositories"]))
+    document["repositories"][key]["repository_id"] = "10000000-0000-4000-8000-0000000000ff"
+    second.write_text(json.dumps(document))
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "validate.py"),
+            "--schema",
+            "repo-liveness",
+            str(first),
+            str(second),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert str(first) in result.stdout
+    assert str(second) in result.stdout
+    assert "Traceback" not in result.stderr
