@@ -89,6 +89,8 @@ class LayerRestatement(ContractModel):
 
 
 class LayerEvent(ContractModel):
+    omit_unset_empty_fields = frozenset({"evidence_refs"})
+
     # Timestamps are validated here rather than left to the schema: jsonschema
     # asserts `format: date-time` only when the optional rfc3339-validator
     # package is present, so as bare `str` these were never checked anywhere.
@@ -98,6 +100,7 @@ class LayerEvent(ContractModel):
     source: LayerSource
     disposition: LayerDisposition
     rationale: str
+    evidence_refs: list[str] = Field(default_factory=list)
     occurred_at: IsoTimestamp | None = None
     harness_version: str | None = None
     auto_accept_tier: bool | None = None
@@ -147,6 +150,9 @@ class LayerMetadata(ContractModel):
 class Layer(ContractModel):
     """Findings disposition layer ledger."""
 
+    omit_unset_empty_fields = frozenset({"baseline_claims"})
+
     metadata: LayerMetadata
     events: list[LayerEvent] = Field(default_factory=list)
     needs_review: list[ReviewItem] = Field(default_factory=list)
+    baseline_claims: dict[str, str] = Field(default_factory=dict)
