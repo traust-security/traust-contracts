@@ -67,6 +67,14 @@ available to the final schema gate, including invalid explicit nulls. These
 models are not a new-write admission policy: core validates the final artifact
 bytes and owns canonical persistence.
 
+Layer DTO construction and field reassignment require lowercase 64-character
+hexadecimal values in root `baseline_claims`, and at least one character in each
+event `evidence_refs` item. Absent empty collections remain omitted; explicitly
+empty maps and lists remain valid and present. The root map stays independent of
+`metadata.claim_hashes`. Final artifact schema validation is still required,
+including after in-place edits to mutable collections; semantic preservation is
+not a byte-identical reserialization guarantee for signed historical payloads.
+
 `adapter-result` carries scanner observations, not authored audit findings.
 Its adapter-local finding schema preserves shared field validation while
 allowing unreported CWEs, description and remediation, and opaque native IDs.
