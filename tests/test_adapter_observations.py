@@ -272,3 +272,22 @@ def test_adapter_envelope_stays_closed(
     target = document if section == "document" else document[section]
     target["unknown"] = True
     assert not adapter_validator.is_valid(document)
+
+
+def test_adapter_accepts_supplied_owasp_llm_references(
+    adapter_validator: Draft202012Validator,
+) -> None:
+    adapter_validator.validate(
+        _adapter({**_observation(), "owasp_llm_references": ["LLM01", "LLM10"]})
+    )
+
+
+@pytest.mark.parametrize(
+    "references", [[], ["LLM11"], ["llm01"], ["LLM01", "LLM01"], None, "LLM01", [1]]
+)
+def test_adapter_validates_supplied_owasp_llm_references(
+    adapter_validator: Draft202012Validator, references: object
+) -> None:
+    assert not adapter_validator.is_valid(
+        _adapter({**_observation(), "owasp_llm_references": references})
+    )

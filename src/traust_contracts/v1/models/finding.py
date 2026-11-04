@@ -112,7 +112,9 @@ class Finding(ContractModel):
             "dependency",
         }
     )
-    omit_unset_empty_fields = frozenset({"peach_references", "isolation_dimensions"})
+    omit_unset_empty_fields = frozenset(
+        {"peach_references", "owasp_llm_references", "isolation_dimensions"}
+    )
 
     id: str
     title: str
@@ -124,6 +126,7 @@ class Finding(ContractModel):
     remediation: str
     asvs_references: list[str] = Field(default_factory=list)
     peach_references: list[str] = Field(default_factory=list)
+    owasp_llm_references: list[str] = Field(default_factory=list)
     cvss: CVSS | None = None
     capec: list[str] = Field(default_factory=list)
     evidence: list[EvidenceBlock] = Field(default_factory=list)

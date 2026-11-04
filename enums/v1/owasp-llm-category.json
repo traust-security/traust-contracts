@@ -16,6 +16,7 @@
   ],
   "note": "Stored by traust-core as finding labels with taxonomy `owasp-llm`. The categories' names and text belong to OWASP (CC BY-SA 4.0) and are not reproduced here.",
   "used_in_schemas": [
+    "adapter-result.schema.json",
     "report.schema.json",
     "threat-model.schema.json",
     "validation.schema.json"
