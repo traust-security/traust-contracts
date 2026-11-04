@@ -24,6 +24,7 @@ class ImpactMetadata(ContractModel):
     advisory_sources: list[str] = Field(default_factory=list)
     portfolio_graph_db: str | None = None
     portfolio_graph_version: str | None = None
+    preparation_scope: dict | None = None
 
 
 class ImpactSummary(ContractModel):

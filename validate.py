@@ -80,6 +80,35 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
         )
         print(f"{artifact_path}: {path_str}: {error.message}")
 
+    valid = _content_gates(basename, artifact, artifact_path) and valid
+
+    return valid
+
+
+def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:
+    """Cross-field content gates the JSON Schema drafts cannot express.
+
+    The README documents these as "the content gate": structural validation
+    alone lets inconsistent facts through, so the CLI enforces them here.
+    """
+    valid = True
+    if basename == "fuzz-campaign":
+        for i, pattern in enumerate(artifact.get("patterns", [])):
+            tested, vulnerable = pattern.get("tested"), pattern.get("vulnerable")
+            if isinstance(tested, int) and isinstance(vulnerable, int) and vulnerable > tested:
+                valid = False
+                print(
+                    f"{artifact_path}: patterns[{i}]: vulnerable ({vulnerable}) "
+                    f"exceeds tested ({tested})"
+                )
+    if basename == "repo-liveness":
+        for key, entry in artifact.get("repositories", {}).items():
+            if entry.get("repository_id") != key:
+                valid = False
+                print(
+                    f"{artifact_path}: repositories[{key}]: repository_id "
+                    f"({entry.get('repository_id')}) does not match its map key"
+                )
     return valid
 
 

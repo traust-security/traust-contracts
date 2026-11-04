@@ -465,6 +465,15 @@
         "category": {
           "type": "string"
         },
+        "pqc_classification": {
+          "$ref": "report.schema.json#/$defs/finding/properties/pqc_classification"
+        },
+        "remediation_effort": {
+          "$ref": "report.schema.json#/$defs/finding/properties/remediation_effort"
+        },
+        "blocked_external": {
+          "$ref": "report.schema.json#/$defs/finding/properties/blocked_external"
+        },
         "introduced_by": {
           "type": "string",
           "minLength": 7,

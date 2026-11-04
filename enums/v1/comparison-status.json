@@ -30,6 +30,7 @@
   },
   "standard": { "none": "Project-defined observation outcomes; no external standard applies." },
   "used_in_schemas": [
-    "repo-state.schema.json"
+    "repo-state.schema.json",
+    "repo-liveness.schema.json"
   ]
 }

@@ -125,6 +125,7 @@
                   "budgets",
                   "remediation",
                   "campaign",
+                  "compliance",
                   "feeds",
                   "execution",
                   "locations",
@@ -132,7 +133,7 @@
                   "model-registry"
                 ]
               },
-              "description": "traust.yaml top-level keys (traust.schema.json), plus model-registry for model-registry.yaml. Keys with a convention default when unset: home, database, artifacts, process, http, logging, rating, ledger, identity, forge_hosts, forge_tokens, feeds, execution, locations, overrides; the rest must be set."
+              "description": "traust.yaml top-level keys (traust.schema.json), plus model-registry for model-registry.yaml. Keys with a convention default when unset: home, database, artifacts, process, http, logging, rating, ledger, identity, forge_hosts, forge_tokens, feeds, execution, locations, overrides; the rest must be set. compliance means compliance.docs_targets in traust.yaml: at least one registered product UUID with product_slug and version."
             },
             "facts": {
               "type": "array",
