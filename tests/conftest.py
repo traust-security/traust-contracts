@@ -1,5 +1,6 @@
 """Shared test fixtures."""
 
+import os
 import sqlite3
 import uuid as uuid_lib
 import warnings
@@ -7,7 +8,9 @@ from typing import Never
 
 import pytest
 
-POSTGRES_DSN = "postgresql://traust:traust-test-only@127.0.0.1:5432/traust_test"
+POSTGRES_DSN = os.environ.get(
+    "TRAUST_TEST_DATABASE_URL", "postgresql://traust:traust-test-only@127.0.0.1:5432/traust_test"
+)
 POSTGRES_SETUP = (
     "Run:\n  podman run --name traust-postgres --rm -d "
     "-e POSTGRES_USER=traust -e POSTGRES_PASSWORD=traust-test-only "

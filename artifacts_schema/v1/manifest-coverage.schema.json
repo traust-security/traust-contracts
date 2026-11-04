@@ -2,9 +2,9 @@
   "$id": "https://example.com/traust-contracts/artifacts_schema/v1/manifest-coverage.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Manifest SBOM Coverage",
-  "description": "What the SBOM tool could not resolve when it read one commit's dependency manifests: each manifest whose declarations it could not all pin, by ecosystem. Stored as the artifact of a manifest_sbom assessment on the commit, beside its manifest SBOM (not tool_scan, whose document is code-facts). A package missing from the SBOM in an ecosystem listed here is unknown, never absent. An empty list is a complete read.",
+  "description": "What the SBOM tool could not resolve when it read one commit's dependency manifests, keyed by ecosystem and canonical repository-relative manifest path. Stored as the artifact of the current manifest_sbom assessment, not tool_scan. Readers must match assessment_id to both the owning assessment and the commit's current manifest_sbom scan assessment, and sbom_id to the commit's current manifest_sbom_id; reject mismatches. The database-generated assessment identifies this scan even when normalized SBOM content is unchanged. A package missing from the SBOM in an unresolved ecosystem is unknown, never absent. An empty unresolved object proves a complete read only for the matching scan and SBOM; absent or unmatched coverage is unknown, never complete. A newer scan without coverage must not reuse older coverage.",
   "type": "object",
-  "required": ["artifact", "tool", "unresolved"],
+  "required": ["artifact", "tool", "sbom_id", "assessment_id", "unresolved"],
   "additionalProperties": false,
   "properties": {
     "artifact": {"const": "manifest-coverage"},
@@ -17,32 +17,40 @@
         "version": {"type": "string", "minLength": 1}
       }
     },
+    "sbom_id": {
+      "description": "The native database SBOM UUID at the commit's current manifest_sbom_id, not a content digest.",
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessment_id": {
+      "description": "The database-generated UUID of the owning, current manifest_sbom assessment for this scan, not a synthesized identifier or SBOM content identity.",
+      "type": "string",
+      "format": "uuid"
+    },
     "unresolved": {
-      "type": "array",
-      "items": {"$ref": "#/$defs/manifest"}
+      "type": "object",
+      "propertyNames": {
+        "$ref": "impact-analysis.schema.json#/$defs/metadata/properties/ecosystem"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "minProperties": 1,
+        "propertyNames": {"$ref": "#/$defs/path"},
+        "additionalProperties": {"$ref": "#/$defs/reason"}
+      }
     }
   },
   "$defs": {
-    "manifest": {
-      "type": "object",
-      "required": ["ecosystem", "path", "reason"],
-      "additionalProperties": false,
-      "properties": {
-        "ecosystem": {
-          "$ref": "impact-analysis.schema.json#/$defs/metadata/properties/ecosystem"
-        },
-        "path": {
-          "description": "The manifest, relative to the repository root.",
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^(?!/)(?![A-Za-z]:)(?![\\s\\S]*(?:^|/)\\.{1,2}(?:/|$))[^\\\\\u0000]+$"
-        },
-        "reason": {
-          "description": "no-lockfile: a manifest whose versions only a lockfile pins, with none beside it or above it in the tree. unpinned: a manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which it drops.",
-          "type": "string",
-          "enum": ["no-lockfile", "unpinned"]
-        }
-      }
+    "path": {
+      "description": "The canonical manifest path relative to the repository root: no absolute paths, drive prefixes, backslashes, empty segments, or dot segments.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![A-Za-z]:)(?![\\s\\S]*(?:^|/)\\.{1,2}(?:/|$))[^/\\\\\u0000]+(?:/[^/\\\\\u0000]+)*$"
+    },
+    "reason": {
+      "description": "no-lockfile: a manifest whose versions only a lockfile pins, with none beside it or above it in the tree. unpinned: a manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which it drops.",
+      "type": "string",
+      "enum": ["no-lockfile", "unpinned"]
     }
   }
 }

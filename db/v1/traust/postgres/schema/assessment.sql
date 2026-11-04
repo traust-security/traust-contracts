@@ -39,6 +39,14 @@ CREATE INDEX IF NOT EXISTS idx_assessment_run_order
 CREATE INDEX IF NOT EXISTS idx_assessment_created
     ON traust.assessment (created_at, id);
 
+-- repository_ref -> assessment -> repository_ref closes a cycle: add the
+-- current manifest scan FK here, once both tables exist. SQLite has it inline.
+ALTER TABLE traust.repository_ref
+    DROP CONSTRAINT IF EXISTS repository_ref_manifest_sbom_assessment_id_fkey;
+ALTER TABLE traust.repository_ref
+    ADD CONSTRAINT repository_ref_manifest_sbom_assessment_id_fkey
+    FOREIGN KEY (manifest_sbom_assessment_id) REFERENCES traust.assessment(id) ON DELETE RESTRICT;
+
 DROP TRIGGER IF EXISTS assessment_reject_mutation ON traust.assessment;
 CREATE TRIGGER assessment_reject_mutation
 BEFORE UPDATE OR DELETE ON traust.assessment

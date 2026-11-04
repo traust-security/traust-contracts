@@ -13,11 +13,21 @@ import json
 import sys
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 from referencing.exceptions import Unresolvable
 
 SCHEMA_DIR = Path(__file__).parent / "artifacts_schema" / "v1"
+
+
+def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Reject duplicate JSON members before decoding can discard their evidence."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON member {key!r}")
+        result[key] = value
+    return result
 
 
 def build_registry() -> Registry:
@@ -44,8 +54,10 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
 
     try:
         schema = json.loads(schema_file.read_text(encoding="utf-8"))
-        artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
+        artifact = json.loads(
+            artifact_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_object
+        )
+    except ValueError as e:
         print(f"{artifact_path}: JSON parse error: {e}")
         return False
 
@@ -58,7 +70,7 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
             print(f"{artifact_path}: invalid schema selector {schema_name!r}: {error}")
             return False
         schema = {"$schema": schema["$schema"], "$ref": reference}
-    validator = Draft202012Validator(schema, registry=registry)
+    validator = Draft202012Validator(schema, registry=registry, format_checker=FormatChecker())
 
     valid = True
     for error in validator.iter_errors(artifact):

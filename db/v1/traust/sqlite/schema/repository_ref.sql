@@ -6,6 +6,8 @@
 -- UNIQUE (id, repository_id) is the target of composite FKs .
 -- manifest_sbom_id: the SBOM read from the source tree (manifests, lockfiles,
 -- Dockerfile FROM).
+-- manifest_sbom_assessment_id: the exact scan that produced current coverage,
+-- even when the SBOM content is unchanged; null means coverage is unknown.
 CREATE TABLE IF NOT EXISTS repository_ref (
     id TEXT NOT NULL DEFAULT (uuid()),
     repository_id TEXT NOT NULL REFERENCES repository(id) ON DELETE RESTRICT,
@@ -14,6 +16,7 @@ CREATE TABLE IF NOT EXISTS repository_ref (
     is_default BOOLEAN NOT NULL DEFAULT FALSE CHECK (is_default IN (0, 1)),
     sha TEXT NOT NULL CHECK (sha <> ''),
     manifest_sbom_id TEXT REFERENCES sbom(id) ON DELETE RESTRICT,
+    manifest_sbom_assessment_id TEXT REFERENCES assessment(id) ON DELETE RESTRICT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     PRIMARY KEY (id),
@@ -41,6 +44,11 @@ CREATE INDEX IF NOT EXISTS idx_repository_ref_repository
 CREATE INDEX IF NOT EXISTS idx_repository_ref_manifest_sbom
     ON repository_ref (manifest_sbom_id)
     WHERE manifest_sbom_id IS NOT NULL;
+
+-- Refs bound to a manifest scan; also supports the assessment FK check.
+CREATE INDEX IF NOT EXISTS idx_repository_ref_manifest_sbom_assessment
+    ON repository_ref (manifest_sbom_assessment_id)
+    WHERE manifest_sbom_assessment_id IS NOT NULL;
 
 -- The database owns updated_at; the guard keeps it stable under recursive
 -- triggers and respects a manually set value.

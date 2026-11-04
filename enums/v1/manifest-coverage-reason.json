@@ -1,6 +1,6 @@
 {
   "name": "manifest_coverage_reason",
-  "source_schema": "manifest-coverage.schema.json#/$defs/manifest/properties/reason",
+  "source_schema": "manifest-coverage.schema.json#/$defs/reason",
   "description": "Why the SBOM tool could not resolve a dependency manifest. An unresolved manifest makes a package missing from the SBOM unknown, never absent.",
   "values": [
     "no-lockfile",
