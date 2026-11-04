@@ -418,6 +418,29 @@ def test_only_an_assessors_false_positive_is_auto_accepted(db: Db) -> None:
     )
 
 
+def test_default_reference_requires_a_named_branch_not_a_bare_commit(db: Db) -> None:
+    rid = repo(db)
+    db.insert("repository_ref", repository_id=rid, sha="a" * 40, is_default=False)
+    db.insert(
+        "repository_ref",
+        repository_id=rid,
+        name="main",
+        kind="branch",
+        sha="b" * 40,
+        is_default=True,
+    )
+    db.rejects("repository_ref", repository_id=rid, sha="c" * 40, is_default=True)
+
+
+def test_auto_accept_requires_nonnull_false_positive_validity(db: Db) -> None:
+    rid = repo(db)
+    rref = ref(db, rid)
+    aid, fid = assessment(db, rref), finding(db, rid)
+    base = {"finding_id": fid, "assessment_id": aid, "occurred_at": NOW, "validity": None}
+    db.insert("decision", statement_key="no-answer", auto_accept_tier=False, **base)
+    db.rejects("decision", statement_key="auto-no-answer", auto_accept_tier=True, **base)
+
+
 def test_occurrence_and_location_rules(db: Db) -> None:
     rid = repo(db)
     aid, fid = assessment(db, ref(db, rid)), finding(db, rid)

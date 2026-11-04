@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS repository_ref (
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     PRIMARY KEY (id),
     UNIQUE (id, repository_id),
-    CHECK (NOT is_default OR kind = 'branch'),
+    CHECK (NOT is_default OR (kind IS NOT NULL AND kind = 'branch')),
     CHECK ((name IS NULL) = (kind IS NULL))
 );
 

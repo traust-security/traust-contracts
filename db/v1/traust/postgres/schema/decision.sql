@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS traust.decision (
     CHECK (restates_id IS NULL OR (actor IS NOT NULL AND ticket IS NOT NULL
         AND reason IS NOT NULL AND rationale IS NOT NULL)),
     CHECK (NOT auto_accept_tier OR (assessment_id IS NOT NULL
-        AND validity = 'false_positive'))
+        AND validity IS NOT NULL AND validity = 'false_positive'))
 );
 
 -- A finding's decisions in judgement order (the findings service's fold:
