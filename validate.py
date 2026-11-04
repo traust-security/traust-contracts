@@ -20,6 +20,16 @@ from referencing.exceptions import Unresolvable
 SCHEMA_DIR = Path(__file__).parent / "artifacts_schema" / "v1"
 
 
+def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Reject duplicate JSON members before decoding can discard their evidence."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON member {key!r}")
+        result[key] = value
+    return result
+
+
 def build_registry() -> Registry:
     """Build $ref registry across all schemas for cross-file references."""
     resources = {}
@@ -44,8 +54,10 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
 
     try:
         schema = json.loads(schema_file.read_text(encoding="utf-8"))
-        artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
+        artifact = json.loads(
+            artifact_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_object
+        )
+    except ValueError as e:
         print(f"{artifact_path}: JSON parse error: {e}")
         return False
 

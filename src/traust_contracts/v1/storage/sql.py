@@ -25,6 +25,7 @@ __all__ = [
     "VIEW_ORDER",
     "bootstrap_files",
     "bootstrap_statements",
+    "manifest_sbom_binding_upgrade",
 ]
 
 CONTRACT_VERSION = "v1"
@@ -32,8 +33,9 @@ CONTRACT_VERSION = "v1"
 #: Tables other tables reference, in dependency order; the loader appends the
 #: remaining schema files alphabetically, so a table must appear here whenever
 #: another table's FK reaches it and alphabetical order would invert that.
-#: Two FKs close cycles and are ALTERs on Postgres (SQLite does not check
-#: parent existence at CREATE): sbom.artifact_id (added in artifact.sql) and
+#: Three FKs close cycles and are ALTERs on Postgres (SQLite does not check
+#: parent existence at CREATE): sbom.artifact_id (added in artifact.sql),
+#: repository_ref.manifest_sbom_assessment_id (added in assessment.sql), and
 #: assessment.run_order_id (added by the ops bootstrap, since run_order
 #: references storage tables back).
 TABLE_ORDER: tuple[str, ...] = (
@@ -83,3 +85,14 @@ def bootstrap_files(dialect: Dialect) -> list[Path]:
         first_tables=TABLE_ORDER,
         view_order=VIEW_ORDER,
     )
+
+
+def manifest_sbom_binding_upgrade(dialect: Dialect) -> list[str]:
+    """Load the explicit additive upgrade for a database missing the scan column.
+
+    Callers must inspect repository_ref first and apply these statements only
+    when manifest_sbom_assessment_id is absent. This does not run on bootstrap
+    or infer bindings for existing SBOMs: old coverage remains unknown.
+    """
+    path = storage_dir() / dialect / "upgrades" / "manifest_sbom_binding.sql"
+    return list(bootstrap_statements(dialect, path))

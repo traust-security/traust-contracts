@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import pytest
@@ -19,11 +18,33 @@ from traust_contracts.config import (
     optional_config_path,
 )
 
-_TRAUST_FIXTURES = Path(__file__).resolve().parents[2] / "traust" / "tests" / "fixtures" / "config"
-
 
 def _write_minimal_config(home: Path) -> None:
-    shutil.copytree(_TRAUST_FIXTURES, home, dirs_exist_ok=True)
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "model-registry.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "updated": "2026-01-01",
+                "tiers": {"standard": {"description": "Synthetic test tier"}},
+                "providers": {
+                    "fixture": {
+                        "data_handling": "synthetic",
+                        "models": {"fixture-model": {"tier": "standard", "batch_eligible": False}},
+                    }
+                },
+                "roles": {
+                    "review": {
+                        "floor": "standard",
+                        "approved": ["fixture-model"],
+                        "candidates": [],
+                        "ledger_validity_writer": False,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_manifest_covers_harness_context_sections():
@@ -67,9 +88,6 @@ def test_config_path_and_optional(tmp_path, monkeypatch):
     home = tmp_path / "cfg"
     _write_minimal_config(home)
     monkeypatch.setenv(TRAUST_CONFIG_HOME_ENV, str(home))
-    # Probe absence with a name no fixture home provides: this test's fixture
-    # helper copies a sibling checkout's config fixtures, whose contents can
-    # drift, so "feeds.yaml" may exist there and never raise.
     with pytest.raises(DeploymentConfigMissing, match=r"absent-required\.yaml"):
         config_path("absent-required.yaml")
     (home / "feeds.yaml").write_text("sources: {}\n", encoding="utf-8")

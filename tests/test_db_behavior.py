@@ -40,9 +40,9 @@ class Db:
         return name if self.engine == "sqlite" else f"traust.{name}"
 
     def run(self, sql: str, params: tuple = ()) -> list[tuple]:
-        if self.engine == "postgres":
+        if self.engine == "postgres" and params:
             sql = sql.replace("?", "%s")
-        cur = self.conn.execute(sql, params)
+        cur = self.conn.execute(sql, params) if params else self.conn.execute(sql)
         return cur.fetchall() if cur.description else []
 
     def insert(self, table: str, **cols: Any) -> str:
@@ -215,6 +215,124 @@ def test_a_commit_is_recorded_once(db: Db) -> None:
     db.rejects("repository_ref", repository_id=rid, name="x", sha="c" * 40)  # name without kind
     db.rejects(
         "repository_ref", repository_id=rid, name="v1", kind="tag", is_default=True, sha="d" * 40
+    )
+
+
+def test_manifest_coverage_keeps_its_exact_scan_when_sbom_content_is_unchanged(db: Db) -> None:
+    rref = ref(db, repo(db))
+    table = db.t("repository_ref")
+    query = f"SELECT manifest_sbom_id, manifest_sbom_assessment_id FROM {table} WHERE id = ?"
+    assert db.run(query, (rref,)) == [(None, None)]
+    sid = db.insert("sbom", digest="e" * 64)
+    scans = []
+    for _ in range(2):
+        scan = db.insert(
+            "assessment",
+            repository_ref_id=rref,
+            kind="manifest_sbom",
+            status="completed",
+            assessor="tool:syft",
+            assessor_version="1.51.1",
+            occurred_at=NOW,
+            created_at=NOW,
+        )
+        scans.append(scan)
+        db.run(
+            f"UPDATE {table} SET manifest_sbom_id = ?, manifest_sbom_assessment_id = ? "
+            "WHERE id = ?",
+            (sid, scan, rref),
+        )
+        row = db.run(query, (rref,))[0]
+        assert tuple(map(str, row)) == (sid, scan)
+    assert scans[0] != scans[1]
+    # Reinstalling the cyclic FK must preserve an already-bound scan.
+    for path in storage_sql.bootstrap_files(db.engine):
+        if path.stem in {"repository_ref", "assessment"}:
+            for statement in bootstrap_statements(db.engine, path):
+                db.run(statement)
+    assert tuple(map(str, db.run(query, (rref,))[0])) == (sid, scans[1])
+    db.run(f"UPDATE {table} SET manifest_sbom_assessment_id = NULL WHERE id = ?", (rref,))
+    row = db.run(query, (rref,))[0]
+    assert str(row[0]) == sid and row[1] is None
+
+
+def test_a_manifest_scan_binding_must_reference_a_real_assessment(db: Db) -> None:
+    rid = repo(db)
+    rref = ref(db, rid)
+    missing = str(uuid.uuid4())
+    db.rejects(
+        "repository_ref",
+        repository_id=rid,
+        sha="b" * 40,
+        manifest_sbom_assessment_id=missing,
+    )
+    with pytest.raises(db.Error):
+        db.run(
+            f"UPDATE {db.t('repository_ref')} SET manifest_sbom_assessment_id = ? WHERE id = ?",
+            (missing, rref),
+        )
+    assert db.run(
+        f"SELECT manifest_sbom_assessment_id FROM {db.t('repository_ref')} WHERE id = ?", (rref,)
+    ) == [(None,)]
+
+
+def test_a_bound_manifest_assessment_cannot_be_deleted_through_its_ref(db: Db) -> None:
+    rref = ref(db, repo(db))
+    scan = assessment(db, rref)
+    table = db.t("repository_ref")
+    db.run(f"UPDATE {table} SET manifest_sbom_assessment_id = ? WHERE id = ?", (scan, rref))
+    # Isolate the FK rule: the ordinary append-only guard would reject any delete.
+    if db.engine == "sqlite":
+        db.run("DROP TRIGGER assessment_reject_delete")
+    else:
+        db.run(f"DROP TRIGGER assessment_reject_mutation ON {db.t('assessment')}")
+    with pytest.raises(db.Error):
+        db.run(f"DELETE FROM {db.t('assessment')} WHERE id = ?", (scan,))
+    assert (
+        str(db.run(f"SELECT manifest_sbom_assessment_id FROM {table} WHERE id = ?", (rref,))[0][0])
+        == scan
+    )
+    db.run(f"UPDATE {table} SET manifest_sbom_assessment_id = NULL WHERE id = ?", (rref,))
+    db.run(f"DELETE FROM {db.t('assessment')} WHERE id = ?", (scan,))
+    assert db.run(f"SELECT id FROM {table} WHERE id = ?", (rref,))
+
+
+def test_manifest_scan_upgrade_preserves_existing_rows_without_inventing_coverage(db: Db) -> None:
+    rref = ref(db, repo(db))
+    scan = assessment(db, rref)
+    sid = db.insert("sbom", digest="9" * 64)
+    table = db.t("repository_ref")
+    db.run(f"UPDATE {table} SET manifest_sbom_id = ? WHERE id = ?", (sid, rref))
+    # Reproduce the prior table shape without recreating any populated table.
+    db.run(f"DROP INDEX {db.t('idx_repository_ref_manifest_sbom_assessment')}")
+    db.run(f"ALTER TABLE {table} DROP COLUMN manifest_sbom_assessment_id")
+    query = f"SELECT * FROM {table} WHERE id = ?"
+    before = db.run(query, (rref,))[0]
+    assessment_before = db.run(f"SELECT * FROM {db.t('assessment')} WHERE id = ?", (scan,))
+    sbom_before = db.run(f"SELECT * FROM {db.t('sbom')} WHERE id = ?", (sid,))
+    for statement in storage_sql.manifest_sbom_binding_upgrade(db.engine):
+        db.run(statement)
+    row = db.run(query, (rref,))[0]
+    assert row[:-1] == before and row[-1] is None
+    assert db.run(f"SELECT * FROM {db.t('assessment')} WHERE id = ?", (scan,)) == assessment_before
+    assert db.run(f"SELECT * FROM {db.t('sbom')} WHERE id = ?", (sid,)) == sbom_before
+    with pytest.raises(db.Error):
+        db.run(
+            f"UPDATE {table} SET manifest_sbom_assessment_id = ? WHERE id = ?",
+            (str(uuid.uuid4()), rref),
+        )
+    db.run(f"UPDATE {table} SET manifest_sbom_assessment_id = ? WHERE id = ?", (scan, rref))
+    assert (
+        str(db.run(f"SELECT manifest_sbom_assessment_id FROM {table} WHERE id = ?", (rref,))[0][0])
+        == scan
+    )
+    # Normal bootstrap remains safe once the explicit upgrade has run.
+    for path in storage_sql.bootstrap_files(db.engine):
+        for statement in bootstrap_statements(db.engine, path):
+            db.run(statement)
+    assert (
+        str(db.run(f"SELECT manifest_sbom_assessment_id FROM {table} WHERE id = ?", (rref,))[0][0])
+        == scan
     )
 
 

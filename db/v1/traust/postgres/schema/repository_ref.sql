@@ -6,6 +6,9 @@
 -- UNIQUE (id, repository_id) is the target of composite FKs .
 -- manifest_sbom_id: the SBOM read from the source tree (manifests, lockfiles,
 -- Dockerfile FROM).
+-- manifest_sbom_assessment_id: the exact scan that produced current coverage,
+-- even when the SBOM content is unchanged; null means coverage is unknown.
+-- Its FK closes a cycle and is added after assessment exists in assessment.sql.
 CREATE TABLE IF NOT EXISTS traust.repository_ref (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     repository_id UUID NOT NULL REFERENCES traust.repository(id) ON DELETE RESTRICT,
@@ -14,6 +17,7 @@ CREATE TABLE IF NOT EXISTS traust.repository_ref (
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
     sha TEXT NOT NULL CHECK (sha <> ''),
     manifest_sbom_id UUID REFERENCES traust.sbom(id) ON DELETE RESTRICT,
+    manifest_sbom_assessment_id UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
     PRIMARY KEY (id),
@@ -41,6 +45,11 @@ CREATE INDEX IF NOT EXISTS idx_repository_ref_repository
 CREATE INDEX IF NOT EXISTS idx_repository_ref_manifest_sbom
     ON traust.repository_ref (manifest_sbom_id)
     WHERE manifest_sbom_id IS NOT NULL;
+
+-- Refs bound to a manifest scan; also supports the assessment FK check.
+CREATE INDEX IF NOT EXISTS idx_repository_ref_manifest_sbom_assessment
+    ON traust.repository_ref (manifest_sbom_assessment_id)
+    WHERE manifest_sbom_assessment_id IS NOT NULL;
 
 DROP TRIGGER IF EXISTS repository_ref_touch ON traust.repository_ref;
 CREATE TRIGGER repository_ref_touch

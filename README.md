@@ -73,6 +73,29 @@ allowing unreported CWEs, description and remediation, and opaque native IDs.
 It does not invent classifications or verdicts. `report.schema.json` keeps its
 full authored-finding requirements unchanged.
 
+## Manifest SBOM coverage
+
+`manifest-coverage.schema.json` binds a checkout's unresolved manifests to native
+`sbom_id` and `assessment_id` UUIDs. The assessment identifies the scan, independently
+of deduplicated SBOM package content. Core records the SBOM, coverage and
+`repository_ref.manifest_sbom_assessment_id` pointer atomically; readers verify both
+IDs against the current reference and owning assessment, never a timestamp-selected
+historical document. A direct SBOM replacement clears the scan pointer, including
+when its normalized package content is unchanged.
+
+`unresolved` is keyed by ecosystem, then canonical repository-relative manifest
+path, with one `manifest-coverage-reason` value per path. Duplicate JSON members
+are rejected before decoding can discard an identical or conflicting declaration.
+An empty object is a complete read only for the matching scan. Missing coverage is
+unknown, not complete; mismatched bindings are rejected.
+
+Existing databases need the explicit additive
+`storage.sql.manifest_sbom_binding_upgrade(dialect)` before using this contract.
+Inspect the reference table first and apply it only when the new column is absent.
+The authored SQL preserves existing rows and leaves their scan pointers null;
+no timestamps, historical assessments or deduplicated SBOM artifacts are used to
+invent bindings. Core exposes the upgrade through its contracts facade.
+
 ## Pack spec
 
 `config/v1/pack.schema.json` is the shape of a workload pack's `assets.yaml` (the

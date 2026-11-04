@@ -53,6 +53,7 @@ class TestSchemas:
     def test_all_schemas_parse_json(self):
         """All schema files must be valid JSON."""
         schema_files = list(SCHEMA_DIR.glob("*.schema.json"))
+
         config_schema_files = list(CONFIG_SCHEMA_DIR.glob("*.schema.json"))
 
         for sf in [*schema_files, *config_schema_files]:

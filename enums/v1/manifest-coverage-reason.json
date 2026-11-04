@@ -1,0 +1,16 @@
+{
+  "name": "manifest_coverage_reason",
+  "source_schema": "manifest-coverage.schema.json#/$defs/reason",
+  "description": "Why the SBOM tool could not resolve a dependency manifest. An unresolved manifest makes a package missing from the SBOM unknown, never absent.",
+  "values": [
+    "no-lockfile",
+    "unpinned"
+  ],
+  "definitions": {
+    "no-lockfile": "A manifest whose versions only a lockfile pins, with none beside it or above it in the tree.",
+    "unpinned": "A manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which the tool drops."
+  },
+  "used_in_schemas": [
+    "manifest-coverage.schema.json"
+  ]
+}
