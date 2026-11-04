@@ -88,6 +88,9 @@
         "peach_references": {
           "$ref": "report.schema.json#/$defs/finding/properties/peach_references"
         },
+        "owasp_llm_references": {
+          "$ref": "report.schema.json#/$defs/finding/properties/owasp_llm_references"
+        },
         "cvss": {
           "$ref": "report.schema.json#/$defs/finding/properties/cvss"
         },

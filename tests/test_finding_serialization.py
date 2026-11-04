@@ -232,3 +232,50 @@ def test_explicit_null_effort_is_distinct_from_absence_in_nested_serialization()
 def test_unknown_values_in_existing_enum_domains_are_not_silently_dropped(optional: dict) -> None:
     with pytest.raises(ValidationError):
         Finding.from_dict({**_finding(), **optional})
+
+
+@pytest.mark.parametrize("references", [["LLM01"], ["LLM01", "LLM10"]])
+def test_owasp_llm_references_survive_finding_and_nested_adapter_serialization(references) -> None:
+    raw = {**_finding(), "owasp_llm_references": references}
+    finding_validator = _definition_validator("report", "/$defs/finding")
+    finding_validator.validate(raw)
+    restored = Finding.from_dict(raw).to_dict()
+    assert restored["owasp_llm_references"] == references
+    finding_validator.validate(restored)
+    model = AdapterResult.from_dict(_adapter(raw))
+    for document in (model.to_dict(), json.loads(model.model_dump_json(exclude_none=True))):
+        assert document["findings"][0]["owasp_llm_references"] == references
+        _canonical_write_validator("adapter-result", canonical=True).validate(document)
+
+
+def test_absent_owasp_llm_references_remain_absent() -> None:
+    finding = Finding.from_dict(_finding())
+    assert "owasp_llm_references" not in finding.to_dict()
+    model = AdapterResult.from_dict(_adapter(_finding()))
+    assert "owasp_llm_references" not in model.to_dict()["findings"][0]
+    assert (
+        "owasp_llm_references"
+        not in json.loads(model.model_dump_json(exclude_none=True))["findings"][0]
+    )
+
+
+def test_owasp_llm_references_survive_in_place_mutation() -> None:
+    model = AdapterResult.from_dict(_adapter(_finding()))
+    model.findings[0].owasp_llm_references.append("LLM01")
+    assert "owasp_llm_references" not in model.findings[0].model_fields_set
+    document = model.to_dict()
+    assert document["findings"][0]["owasp_llm_references"] == ["LLM01"]
+    _canonical_write_validator("adapter-result", canonical=True).validate(document)
+
+
+@pytest.mark.parametrize("assigned", [False, True])
+def test_explicit_empty_owasp_llm_references_reach_final_schema_validation(assigned: bool) -> None:
+    raw = _finding()
+    if assigned:
+        model = Finding.from_dict(raw)
+        model.owasp_llm_references = []
+    else:
+        model = Finding.from_dict({**raw, "owasp_llm_references": []})
+    document = _adapter(model.to_dict())
+    assert document["findings"][0]["owasp_llm_references"] == []
+    assert not _canonical_write_validator("adapter-result", canonical=True).is_valid(document)
