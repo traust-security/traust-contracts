@@ -64,6 +64,8 @@ TABLE_ORDER: tuple[str, ...] = (
     "review_item",
     "occurrence",
     "location",
+    "remediation",
+    "remediation_finding",
 )
 
 #: Views other views select FROM, in creation order (filenames), because

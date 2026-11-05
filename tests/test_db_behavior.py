@@ -418,6 +418,76 @@ def test_only_an_assessors_false_positive_is_auto_accepted(db: Db) -> None:
     )
 
 
+def remediation(db: Db, assessment_id: str | None = None) -> str:
+    return db.insert(
+        "remediation",
+        fork_url="https://github.com/example-mirrors/example-service",
+        fork_branch="fix/1f0e8dad-e8d3-4c1e-9a1a-8b2f6b0d1b7c/title",
+        status="candidate",
+        assessment_id=assessment_id,
+    )
+
+
+def test_a_remediation_schedules_its_findings_and_its_status_moves(db: Db) -> None:
+    rid = repo(db)
+    rref = ref(db, rid)
+    work = db.insert(
+        "assessment",
+        repository_ref_id=rref,
+        kind="remediation",
+        status="completed",
+        assessor="skill:remediate-finding",
+        assessor_version="1",
+        occurred_at=NOW,
+    )
+    fid = finding(db, rid)
+    scheduled = remediation(db, work)
+    uuid.UUID(scheduled)
+    remediation(db)  # no linked assessment: scheduled outside a work item
+    pair = {"remediation_id": scheduled, "finding_id": fid, "repository_id": rid}
+    db.insert("remediation_finding", **pair)
+    db.rejects("remediation_finding", **pair)  # the same finding twice is a retry
+    db.rejects(
+        "remediation_finding",
+        remediation_id=str(uuid.uuid4()),
+        **{"finding_id": fid, "repository_id": rid},
+    )
+    db.rejects(
+        "remediation",
+        fork_url="https://github.com/example-mirrors/example-service",
+        fork_branch="fix/x",
+        status="",
+    )
+    created, updated = db.run(
+        f"SELECT created_at, updated_at FROM {db.t('remediation')} WHERE id = ?", (scheduled,)
+    )[0]
+    assert created == updated
+    time.sleep(0.02)
+    db.run(f"UPDATE {db.t('remediation')} SET status = 'forked' WHERE id = ?", (scheduled,))
+    created2, updated2 = db.run(
+        f"SELECT created_at, updated_at FROM {db.t('remediation')} WHERE id = ?", (scheduled,)
+    )[0]
+    assert created2 == created and updated2 > updated
+
+
+def test_scheduled_findings_cannot_be_deleted_out_from_under_the_effort(db: Db) -> None:
+    rid = repo(db)
+    fid, other = finding(db, rid), finding(db, repo(db, "https://example.com/r2"))
+    scheduled, second = remediation(db), remediation(db)
+    db.insert("remediation_finding", remediation_id=scheduled, finding_id=fid, repository_id=rid)
+    for table, row in (
+        ("remediation", scheduled),
+        ("finding", fid),
+        ("repository", rid),
+    ):
+        with pytest.raises(db.Error):
+            db.run(f"DELETE FROM {db.t(table)} WHERE id = ?", (row,))
+    # a finding under one effort can be scheduled by another, and an effort
+    # with no findings left (GC's terminal sweep) can go
+    db.insert("remediation_finding", remediation_id=second, finding_id=fid, repository_id=rid)
+    db.run(f"DELETE FROM {db.t('remediation')} WHERE id = ?", (other,))
+
+
 def test_default_reference_requires_a_named_branch_not_a_bare_commit(db: Db) -> None:
     rid = repo(db)
     db.insert("repository_ref", repository_id=rid, sha="a" * 40, is_default=False)
