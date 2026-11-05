@@ -264,6 +264,77 @@ def test_validator_rejects_invalid_content_gate_shapes_without_crashing(
     assert validate_artifact(schema, artifact) is False
 
 
+@pytest.mark.parametrize(
+    "schema, value, valid",
+    [
+        ("repo-liveness#/properties/generated", '"2026-11-04T00:00:00Z"', True),
+        ("repo-liveness#/properties/generated", '"not-a-timestamp"', False),
+        ("repo-liveness#/properties/generated", "true", False),
+        ("fuzz-campaign#/properties/campaign_id", '"campaign-2026-11-05"', True),
+        ("fuzz-campaign#/properties/campaign_id", '""', False),
+    ],
+)
+def test_validator_fragment_selection_is_structural_only(
+    schema: str, value: str, valid: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A JSON Pointer fragment selects a sub-schema, not a whole gated document.
+
+    Content gates are document-level cross-field rules; a fragment validation
+    (e.g. the liveness `generated` timestamp alone) must not feed the artifact
+    to them. Reported on PR #114: a valid scalar fragment crashed the
+    basename-dispatched repository-map gate with AttributeError.
+    """
+    monkeypatch.syspath_prepend(str(ROOT))
+    from validate import validate_artifact
+
+    artifact = tmp_path / "fragment.json"
+    artifact.write_text(value)
+    assert validate_artifact(schema, artifact) is valid
+
+
+def test_validator_bare_hash_selects_the_whole_document_and_keeps_its_gates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`name#` resolves to the whole document, so its content gate still runs."""
+    monkeypatch.syspath_prepend(str(ROOT))
+    from validate import validate_artifact
+
+    document = json.loads((FIXTURES / "repo-liveness.json").read_text())
+    key = next(iter(document["repositories"]))
+    document["repositories"][key]["repository_id"] = "10000000-0000-4000-8000-0000000000ff"
+    misplaced = tmp_path / "misplaced.json"
+    misplaced.write_text(json.dumps(document))
+    assert not validate_artifact("repo-liveness#", misplaced)
+
+    document["repositories"][key]["repository_id"] = key
+    correct = tmp_path / "correct.json"
+    correct.write_text(json.dumps(document))
+    assert validate_artifact("repo-liveness#", correct)
+
+
+def test_validator_fragment_selection_exits_cleanly_on_the_cli(tmp_path: Path) -> None:
+    import subprocess
+    import sys
+
+    artifact = tmp_path / "generated.json"
+    artifact.write_text('"2026-11-04T00:00:00Z"')
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "validate.py"),
+            "--schema",
+            "repo-liveness#/properties/generated",
+            str(artifact),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Traceback" not in result.stderr
+
+
 def test_validator_cli_reports_later_files_after_a_structurally_invalid_document(
     tmp_path: Path,
 ) -> None:

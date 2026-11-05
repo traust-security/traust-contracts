@@ -80,7 +80,11 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
         )
         print(f"{artifact_path}: {path_str}: {error.message}")
 
-    return valid and _content_gates(basename, artifact, artifact_path)
+    # Content gates are whole-document cross-field rules. A JSON Pointer
+    # fragment selects a sub-schema (a bare `#` selects the whole document),
+    # so gates run only when no fragment narrowed the selection.
+    whole_document = fragment == ""
+    return valid and (not whole_document or _content_gates(basename, artifact, artifact_path))
 
 
 def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:
