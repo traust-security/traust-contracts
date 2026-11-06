@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -82,3 +83,47 @@ def test_change_reports_include_each_contract_namespace_against_its_git_base(
     relative = path.relative_to(tmp_path).as_posix()
     lines = capsys.readouterr().out.splitlines()
     assert any(line.startswith(relative + " ") and witness in line for line in lines)
+
+
+def test_hook_context_cannot_redirect_fixture_commits(tmp_path: Path) -> None:
+    outer = tmp_path / "outer"
+    outer.mkdir()
+    git(outer, "init", "--quiet")
+    (outer / "marker.txt").write_text("outer evidence")
+    git(outer, "add", ".")
+    git(
+        outer,
+        "-c",
+        "user.name=Schema fixture",
+        "-c",
+        "user.email=schema@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        "fixture marker",
+    )
+    before = git(outer, "rev-parse", "HEAD")
+    environment = {
+        **os.environ,
+        "GIT_DIR": str(outer / ".git"),
+        "GIT_WORK_TREE": str(outer),
+        "GIT_INDEX_FILE": str(outer / ".git/index"),
+    }
+    result = subprocess.run(
+        (
+            sys.executable,
+            "-m",
+            "pytest",
+            str(Path(__file__).resolve()),
+            "-q",
+            "-k",
+            "views_schema and removed_property",
+        ),
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert git(outer, "rev-parse", "HEAD") == before
+    assert git(outer, "status", "--porcelain") == ""
