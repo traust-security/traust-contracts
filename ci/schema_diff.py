@@ -17,7 +17,11 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-GLOBS = ("artifacts_schema/v1/*.schema.json", "config/v1/*.schema.json")
+GLOBS = (
+    "artifacts_schema/v1/*.schema.json",
+    "config/v1/*.schema.json",
+    "views_schema/v1/*.schema.json",
+)
 
 
 def git(*args: str) -> str:
