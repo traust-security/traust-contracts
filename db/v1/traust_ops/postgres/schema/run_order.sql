@@ -14,6 +14,14 @@
 -- exactly when state = leased. priority: lower = sooner; ties by created_at.
 -- The run manifest (config digests, progress, budget verdict, degraded
 -- keys) is artifact_id - per-run detail is not table rows.
+-- work_item_id is the remediation assessment (work item) an order runs, for
+-- an asset that runs one named item (remediate_finding); null otherwise. It is
+-- last so a database upgraded with ALTER TABLE has the same column order.
+-- fork_url / fork_branch: the mirror an effort runs on and its fix branch
+-- (remediate_finding only) - operational facts, write-once at scheduling,
+-- read-once at claim; deliberately not a repository FK: mirrors are out of
+-- band, never inventory, and the durable record lives in the run's
+-- remediation artifact.
 CREATE TABLE IF NOT EXISTS traust_ops.run_order (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     run_batch_id UUID REFERENCES traust_ops.run_batch(id) ON DELETE RESTRICT,
@@ -33,6 +41,9 @@ CREATE TABLE IF NOT EXISTS traust_ops.run_order (
     finished_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
+    work_item_id UUID REFERENCES traust.assessment(id) ON DELETE RESTRICT,
+    fork_url TEXT,
+    fork_branch TEXT,
     PRIMARY KEY (id),
     CHECK (rule IS NULL OR event_source IS NULL),
     CHECK ((state = 'leased') = (lease_holder IS NOT NULL)),
@@ -52,6 +63,11 @@ CREATE INDEX IF NOT EXISTS idx_ops_run_order_lease
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_batch
     ON traust_ops.run_order (run_batch_id)
     WHERE run_batch_id IS NOT NULL;
+
+-- The order running a work item (the runner's lookup; RESTRICT checks).
+CREATE INDEX IF NOT EXISTS idx_ops_run_order_work_item
+    ON traust_ops.run_order (work_item_id)
+    WHERE work_item_id IS NOT NULL;
 
 -- A repository's planned / running orders (router dedupe).
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_repository_state
@@ -81,3 +97,54 @@ DROP TRIGGER IF EXISTS run_order_touch ON traust_ops.run_order;
 CREATE TRIGGER run_order_touch
 BEFORE UPDATE ON traust_ops.run_order
 FOR EACH ROW EXECUTE FUNCTION traust_ops.touch_updated_at();
+
+-- An order runs a work item of its own repository: the work item's commit
+-- (assessment -> repository_ref) is on the repository the order names.
+-- FOR SHARE on the ref makes a concurrent move of it wait for this order (and
+-- this order wait for a move in flight, then read where it went).
+CREATE OR REPLACE FUNCTION traust_ops.run_order_work_item_of_repository()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    owner UUID;
+BEGIN
+    IF NEW.work_item_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    SELECT r.repository_id INTO owner
+    FROM traust.assessment a JOIN traust.repository_ref r ON r.id = a.repository_ref_id
+    WHERE a.id = NEW.work_item_id
+    FOR SHARE OF r;
+    IF FOUND AND owner IS DISTINCT FROM NEW.repository_id THEN
+        RAISE EXCEPTION 'run_order.work_item_id % is not a work item of repository %',
+            NEW.work_item_id, NEW.repository_id USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS run_order_work_item_of_repository ON traust_ops.run_order;
+CREATE TRIGGER run_order_work_item_of_repository
+BEFORE INSERT OR UPDATE OF work_item_id, repository_id ON traust_ops.run_order
+FOR EACH ROW EXECUTE FUNCTION traust_ops.run_order_work_item_of_repository();
+
+-- ...and a commit whose work item an order runs stays on that repository:
+-- assessments never change, so only the ref moving could break the pairing.
+-- This runs once the ref is locked, on a fresh snapshot, so it sees an order
+-- committed while it waited.
+CREATE OR REPLACE FUNCTION traust_ops.ref_of_ordered_work_item_stays()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM traust_ops.run_order o
+        JOIN traust.assessment a ON a.id = o.work_item_id
+        WHERE a.repository_ref_id = NEW.id AND o.repository_id IS DISTINCT FROM NEW.repository_id
+    ) THEN
+        RAISE EXCEPTION 'repository_ref % holds a work item ordered on repository %',
+            NEW.id, OLD.repository_id USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS ref_of_ordered_work_item_stays ON traust.repository_ref;
+CREATE TRIGGER ref_of_ordered_work_item_stays
+BEFORE UPDATE OF repository_id ON traust.repository_ref
+FOR EACH ROW EXECUTE FUNCTION traust_ops.ref_of_ordered_work_item_stays();

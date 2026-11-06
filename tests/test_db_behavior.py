@@ -482,6 +482,40 @@ def test_run_order_names_its_asset_and_lane_only_when_routed(db: Db) -> None:
     db.rejects("ops.run_order", asset="diff_scan", lane="", **order)
 
 
+def test_a_run_order_names_a_real_work_item_or_none(db: Db) -> None:
+    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
+    at = ref(db, rid)
+    item = assessment(db, at)
+    order = {"asset": "remediate_finding", "state": "queued", "priority": 0, "requested_by": "h"}
+    oid = db.insert(
+        "ops.run_order",
+        work_item_id=item,
+        repository_id=rid,
+        fork_url="https://example.com/mirrors/service",
+        fork_branch="fix/xss-render",
+        **order,
+    )
+    db.insert("ops.run_order", **order)  # an asset that runs no named item
+    db.rejects("ops.run_order", work_item_id=str(uuid.uuid4()), repository_id=rid, **order)
+    # the work item is one of the order's own repository
+    db.rejects("ops.run_order", work_item_id=item, repository_id=elsewhere, **order)
+    db.rejects("ops.run_order", work_item_id=item, **order)
+    table = db.t("ops.run_order")
+    row = db.run(f"SELECT work_item_id, fork_url, fork_branch FROM {table} WHERE id = ?", (oid,))[0]
+    assert (str(row[0]), row[1], row[2]) == (
+        item,
+        "https://example.com/mirrors/service",
+        "fix/xss-render",
+    )
+    with pytest.raises(db.Error):  # the work item an order runs can't be deleted from under it
+        db.run(f"DELETE FROM {db.t('assessment')} WHERE id = ?", (item,))
+    refs = db.t("repository_ref")
+    with pytest.raises(db.Error):  # nor its commit move to another repository
+        db.run(f"UPDATE {refs} SET repository_id = ? WHERE id = ?", (elsewhere, at))
+    unordered = ref(db, rid, name="other")
+    db.run(f"UPDATE {refs} SET repository_id = ? WHERE id = ?", (elsewhere, unordered))
+
+
 def test_one_ledger_layer_per_repository_and_line(db: Db) -> None:
     r, other = repo(db), repo(db, "https://example.com/other")
     layer = {"merkle_signing_method": "keypair"}
@@ -670,3 +704,99 @@ def test_bootstrap_drops_the_retired_views_from_an_existing_database(db: Db) -> 
             db.run(f"SELECT * FROM {db.t(name)}")
         if db.engine == "postgres":
             db.run("ROLLBACK")
+
+
+def _interleave(
+    dsn: str, first: str, first_params: tuple, second: str, second_params: tuple
+) -> Any:
+    """`first` in an open transaction, `second` on another connection while it is open, then
+    `first` commits: the error `second` ends with, or None (Postgres; SQLite has one writer)."""
+    import threading
+
+    import psycopg
+
+    holder = psycopg.connect(dsn)
+    holder.execute(first, first_params)
+    outcome: list[Any] = []
+
+    def run() -> None:
+        with psycopg.connect(dsn, autocommit=True) as other:
+            other.execute("SET statement_timeout = '10s'")
+            try:
+                other.execute(second, second_params)
+                outcome.append(None)
+            except psycopg.Error as error:
+                outcome.append(error)
+
+    waiter = threading.Thread(target=run)
+    waiter.start()
+    time.sleep(0.3)
+    blocked = waiter.is_alive()
+    holder.commit()
+    holder.close()
+    waiter.join()
+    assert blocked, "the second statement must wait for the first transaction"
+    return outcome[0]
+
+
+def test_a_concurrent_ref_move_and_order_never_both_commit(
+    db: Db, request: pytest.FixtureRequest
+) -> None:
+    if db.engine != "postgres":
+        pytest.skip("SQLite serializes writers")
+    dsn = request.getfixturevalue("postgres_dsn")
+    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
+    move = "UPDATE traust.repository_ref SET repository_id = %s WHERE id = %s"
+    order = (
+        "INSERT INTO traust_ops.run_order (asset, state, priority, requested_by, repository_id, "
+        "work_item_id) VALUES ('remediate_finding', 'queued', 0, 'h', %s, %s)"
+    )
+    at = ref(db, rid, name="ordered-first")
+    error = _interleave(dsn, order, (rid, assessment(db, at)), move, (elsewhere, at))
+    assert error is not None  # the move waited for the order, then saw it
+    at = ref(db, rid, name="moved-first")
+    item = assessment(db, at)
+    error = _interleave(dsn, move, (elsewhere, at), order, (rid, item))
+    assert error is not None  # the order waited for the move, then saw where it went
+    rows = db.run(
+        "SELECT count(*) FROM traust_ops.run_order o JOIN traust.assessment a "
+        "ON a.id = o.work_item_id JOIN traust.repository_ref r ON r.id = a.repository_ref_id "
+        "WHERE r.repository_id IS DISTINCT FROM o.repository_id"
+    )
+    assert rows == [(0,)]
+
+
+ROLLBACK = {
+    "postgres": (
+        "DROP TRIGGER IF EXISTS ref_of_ordered_work_item_stays ON traust.repository_ref",
+        "DROP FUNCTION IF EXISTS traust_ops.ref_of_ordered_work_item_stays()",
+        "DROP TRIGGER IF EXISTS run_order_work_item_of_repository ON traust_ops.run_order",
+        "DROP FUNCTION IF EXISTS traust_ops.run_order_work_item_of_repository()",
+        "DROP INDEX IF EXISTS traust_ops.idx_ops_run_order_work_item",
+        "ALTER TABLE traust_ops.run_order DROP COLUMN fork_branch",
+        "ALTER TABLE traust_ops.run_order DROP COLUMN fork_url",
+        "ALTER TABLE traust_ops.run_order DROP COLUMN work_item_id",
+        "DROP INDEX IF EXISTS traust.idx_decision_assessment",
+    ),
+    "sqlite": (
+        "DROP TRIGGER IF EXISTS ops_ref_of_ordered_work_item_stays",
+        "DROP TRIGGER IF EXISTS ops_run_order_work_item_of_repository",
+        "DROP TRIGGER IF EXISTS ops_run_order_work_item_of_repository_update",
+        "DROP INDEX IF EXISTS idx_ops_run_order_work_item",
+        "ALTER TABLE ops_run_order DROP COLUMN fork_branch",
+        "ALTER TABLE ops_run_order DROP COLUMN fork_url",
+        "ALTER TABLE ops_run_order DROP COLUMN work_item_id",
+        "DROP INDEX IF EXISTS idx_decision_assessment",
+    ),
+}
+
+
+def test_the_documented_rollback_leaves_findings_refs_and_orders_working(db: Db) -> None:
+    for statement in ROLLBACK[db.engine]:  # the PR's manual rollback, verbatim
+        db.run(statement)
+    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
+    fid, at = finding(db, rid), ref(db, rid)
+    db.run(f"UPDATE {db.t('finding')} SET repository_id = ? WHERE id = ?", (elsewhere, fid))
+    db.run(f"UPDATE {db.t('repository_ref')} SET repository_id = ? WHERE id = ?", (elsewhere, at))
+    order = {"asset": "diff_scan", "state": "queued", "priority": 1, "requested_by": "h"}
+    db.insert("ops.run_order", repository_id=elsewhere, **order)
