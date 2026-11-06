@@ -58,6 +58,11 @@ CREATE INDEX IF NOT EXISTS idx_decision_finding_occurred
 CREATE INDEX IF NOT EXISTS idx_decision_occurred
     ON traust.decision (occurred_at);
 
+-- A work item's decisions (the remediation fold: lanes, in-flight queries).
+CREATE INDEX IF NOT EXISTS idx_decision_assessment
+    ON traust.decision (assessment_id)
+    WHERE assessment_id IS NOT NULL;
+
 DROP TRIGGER IF EXISTS decision_reject_mutation ON traust.decision;
 CREATE TRIGGER decision_reject_mutation
 BEFORE UPDATE OR DELETE ON traust.decision

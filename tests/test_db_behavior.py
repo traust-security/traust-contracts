@@ -418,96 +418,6 @@ def test_only_an_assessors_false_positive_is_auto_accepted(db: Db) -> None:
     )
 
 
-def remediation(db: Db, assessment_id: str | None = None) -> str:
-    return db.insert(
-        "remediation",
-        fork_url="https://github.com/example-mirrors/example-service",
-        fork_branch="fix/1f0e8dad-e8d3-4c1e-9a1a-8b2f6b0d1b7c/title",
-        status="candidate",
-        assessment_id=assessment_id,
-    )
-
-
-def test_a_remediation_schedules_its_findings_and_its_status_moves(db: Db) -> None:
-    rid = repo(db)
-    rref = ref(db, rid)
-    work = db.insert(
-        "assessment",
-        repository_ref_id=rref,
-        kind="remediation",
-        status="completed",
-        assessor="skill:remediate-finding",
-        assessor_version="1",
-        occurred_at=NOW,
-    )
-    fid = finding(db, rid)
-    scheduled = remediation(db, work)
-    uuid.UUID(scheduled)
-    remediation(db)  # no linked assessment: scheduled outside a work item
-    pair = {"remediation_id": scheduled, "finding_id": fid, "repository_id": rid}
-    db.insert("remediation_finding", **pair)
-    db.rejects("remediation_finding", **pair)  # the same finding twice is a retry
-    db.rejects(
-        "remediation_finding",
-        remediation_id=str(uuid.uuid4()),
-        **{"finding_id": fid, "repository_id": rid},
-    )
-    db.rejects(
-        "remediation",
-        fork_url="https://github.com/example-mirrors/example-service",
-        fork_branch="fix/x",
-        status="",
-    )
-    created, updated = db.run(
-        f"SELECT created_at, updated_at FROM {db.t('remediation')} WHERE id = ?", (scheduled,)
-    )[0]
-    assert created == updated
-    time.sleep(0.02)
-    db.run(f"UPDATE {db.t('remediation')} SET status = 'forked' WHERE id = ?", (scheduled,))
-    created2, updated2 = db.run(
-        f"SELECT created_at, updated_at FROM {db.t('remediation')} WHERE id = ?", (scheduled,)
-    )[0]
-    assert created2 == created and updated2 > updated
-
-
-def test_scheduled_findings_cannot_be_deleted_out_from_under_the_effort(db: Db) -> None:
-    rid = repo(db)
-    fid = finding(db, rid)
-    scheduled, second = remediation(db), remediation(db)
-    db.insert("remediation_finding", remediation_id=scheduled, finding_id=fid, repository_id=rid)
-    for table, row in (
-        ("remediation", scheduled),
-        ("finding", fid),
-        ("repository", rid),
-    ):
-        with pytest.raises(db.Error):
-            db.run(f"DELETE FROM {db.t(table)} WHERE id = ?", (row,))
-    # a finding under one effort can be scheduled by another, and an effort
-    # with no findings left (GC's terminal sweep) can go
-    db.insert("remediation_finding", remediation_id=second, finding_id=fid, repository_id=rid)
-    empty = remediation(db)
-    db.run(f"DELETE FROM {db.t('remediation')} WHERE id = ?", (empty,))
-    assert db.run(f"SELECT id FROM {db.t('remediation')} WHERE id = ?", (empty,)) == []
-
-
-def test_a_scheduled_finding_is_on_the_repository_that_owns_it(db: Db) -> None:
-    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
-    fid = finding(db, rid)
-    effort = remediation(db)
-    db.rejects(
-        "remediation_finding", remediation_id=effort, finding_id=fid, repository_id=elsewhere
-    )
-    row = db.insert("remediation_finding", remediation_id=effort, finding_id=fid, repository_id=rid)
-    table = db.t("remediation_finding")
-    with pytest.raises(db.Error):
-        db.run(f"UPDATE {table} SET repository_id = ? WHERE id = ?", (elsewhere, row))
-    findings = db.t("finding")
-    with pytest.raises(db.Error):  # nor does the finding move out from under its link
-        db.run(f"UPDATE {findings} SET repository_id = ? WHERE id = ?", (elsewhere, fid))
-    unlinked = finding(db, rid, "e" * 64)
-    db.run(f"UPDATE {findings} SET repository_id = ? WHERE id = ?", (elsewhere, unlinked))
-
-
 def test_default_reference_requires_a_named_branch_not_a_bare_commit(db: Db) -> None:
     rid = repo(db)
     db.insert("repository_ref", repository_id=rid, sha="a" * 40, is_default=False)
@@ -577,14 +487,26 @@ def test_a_run_order_names_a_real_work_item_or_none(db: Db) -> None:
     at = ref(db, rid)
     item = assessment(db, at)
     order = {"asset": "remediate_finding", "state": "queued", "priority": 0, "requested_by": "h"}
-    oid = db.insert("ops.run_order", work_item_id=item, repository_id=rid, **order)
+    oid = db.insert(
+        "ops.run_order",
+        work_item_id=item,
+        repository_id=rid,
+        fork_url="https://example.com/mirrors/service",
+        fork_branch="fix/xss-render",
+        **order,
+    )
     db.insert("ops.run_order", **order)  # an asset that runs no named item
     db.rejects("ops.run_order", work_item_id=str(uuid.uuid4()), repository_id=rid, **order)
     # the work item is one of the order's own repository
     db.rejects("ops.run_order", work_item_id=item, repository_id=elsewhere, **order)
     db.rejects("ops.run_order", work_item_id=item, **order)
     table = db.t("ops.run_order")
-    assert str(db.run(f"SELECT work_item_id FROM {table} WHERE id = ?", (oid,))[0][0]) == item
+    row = db.run(f"SELECT work_item_id, fork_url, fork_branch FROM {table} WHERE id = ?", (oid,))[0]
+    assert (str(row[0]), row[1], row[2]) == (
+        item,
+        "https://example.com/mirrors/service",
+        "fix/xss-render",
+    )
     with pytest.raises(db.Error):  # the work item an order runs can't be deleted from under it
         db.run(f"DELETE FROM {db.t('assessment')} WHERE id = ?", (item,))
     refs = db.t("repository_ref")
@@ -592,42 +514,6 @@ def test_a_run_order_names_a_real_work_item_or_none(db: Db) -> None:
         db.run(f"UPDATE {refs} SET repository_id = ? WHERE id = ?", (elsewhere, at))
     unordered = ref(db, rid, name="other")
     db.run(f"UPDATE {refs} SET repository_id = ? WHERE id = ?", (elsewhere, unordered))
-
-
-def test_run_order_work_item_upgrade_keeps_existing_orders_without_inventing_one(
-    db: Db,
-) -> None:
-    table = db.t("ops.run_order")
-    order = {"asset": "diff_scan", "state": "queued", "priority": 1, "requested_by": "h"}
-    oid = db.insert("ops.run_order", **order)
-    # Reproduce the prior table shape without recreating the populated table.
-    schema = "traust_ops." if db.engine == "postgres" else ""
-    if db.engine == "postgres":
-        db.run(f"DROP TRIGGER run_order_work_item_of_repository ON {table}")
-        db.run(f"DROP TRIGGER ref_of_ordered_work_item_stays ON {db.t('repository_ref')}")
-    else:
-        db.run("DROP TRIGGER ops_run_order_work_item_of_repository")
-        db.run("DROP TRIGGER ops_run_order_work_item_of_repository_update")
-        db.run("DROP TRIGGER ops_ref_of_ordered_work_item_stays")
-    db.run(f"DROP INDEX {schema}idx_ops_run_order_work_item")
-    db.run(f"ALTER TABLE {table} DROP COLUMN work_item_id")
-    before = db.run(f"SELECT * FROM {table} WHERE id = ?", (oid,))[0]
-    for statement in ops_sql.run_order_work_item_upgrade(db.engine):
-        db.run(statement)
-    row = db.run(f"SELECT * FROM {table} WHERE id = ?", (oid,))[0]
-    assert row[:-1] == before and row[-1] is None
-    rid = repo(db)
-    item = assessment(db, ref(db, rid))
-    db.run(f"UPDATE {table} SET repository_id = ?, work_item_id = ? WHERE id = ?", (rid, item, oid))
-    with pytest.raises(db.Error):
-        db.run(f"UPDATE {table} SET work_item_id = ? WHERE id = ?", (str(uuid.uuid4()), oid))
-    with pytest.raises(db.Error):  # the upgrade brings the repository guard too
-        db.run(f"UPDATE {table} SET repository_id = NULL WHERE id = ?", (oid,))
-    # Normal bootstrap remains safe once the explicit upgrade has run.
-    for path in ops_sql.bootstrap_files(db.engine):
-        if path.stem == "run_order":
-            for statement in bootstrap_statements(db.engine, path):
-                db.run(statement)
 
 
 def test_one_ledger_layer_per_repository_and_line(db: Db) -> None:
@@ -853,35 +739,6 @@ def _interleave(
     return outcome[0]
 
 
-def test_a_concurrent_move_and_link_never_both_commit(
-    db: Db, request: pytest.FixtureRequest
-) -> None:
-    if db.engine != "postgres":
-        pytest.skip("SQLite serializes writers")
-    dsn = request.getfixturevalue("postgres_dsn")
-    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
-    move = "UPDATE traust.finding SET repository_id = %s WHERE id = %s"
-    link = (
-        "INSERT INTO traust.remediation_finding (remediation_id, finding_id, repository_id) "
-        "VALUES (%s, %s, %s)"
-    )
-    linked_first = finding(db, rid, "1" * 64)
-    error = _interleave(
-        dsn, link, (remediation(db), linked_first, rid), move, (elsewhere, linked_first)
-    )
-    assert error is not None  # the move waited for the link, then saw it
-    moved_first = finding(db, rid, "2" * 64)
-    error = _interleave(
-        dsn, move, (elsewhere, moved_first), link, (remediation(db), moved_first, rid)
-    )
-    assert error is not None  # the link waited for the move, then saw where it went
-    rows = db.run(
-        "SELECT count(*) FROM traust.remediation_finding rf JOIN traust.finding f "
-        "ON f.id = rf.finding_id WHERE f.repository_id IS DISTINCT FROM rf.repository_id"
-    )
-    assert rows == [(0,)]
-
-
 def test_a_concurrent_ref_move_and_order_never_both_commit(
     db: Db, request: pytest.FixtureRequest
 ) -> None:
@@ -911,27 +768,25 @@ def test_a_concurrent_ref_move_and_order_never_both_commit(
 
 ROLLBACK = {
     "postgres": (
-        "DROP TRIGGER IF EXISTS finding_under_remediation_stays ON traust.finding",
-        "DROP FUNCTION IF EXISTS traust.finding_under_remediation_stays()",
-        "DROP TABLE traust.remediation_finding",
-        "DROP FUNCTION IF EXISTS traust.remediation_finding_repository_of_finding()",
-        "DROP TABLE traust.remediation",
         "DROP TRIGGER IF EXISTS ref_of_ordered_work_item_stays ON traust.repository_ref",
         "DROP FUNCTION IF EXISTS traust_ops.ref_of_ordered_work_item_stays()",
         "DROP TRIGGER IF EXISTS run_order_work_item_of_repository ON traust_ops.run_order",
         "DROP FUNCTION IF EXISTS traust_ops.run_order_work_item_of_repository()",
         "DROP INDEX IF EXISTS traust_ops.idx_ops_run_order_work_item",
+        "ALTER TABLE traust_ops.run_order DROP COLUMN fork_branch",
+        "ALTER TABLE traust_ops.run_order DROP COLUMN fork_url",
         "ALTER TABLE traust_ops.run_order DROP COLUMN work_item_id",
+        "DROP INDEX IF EXISTS traust.idx_decision_assessment",
     ),
     "sqlite": (
-        "DROP TRIGGER IF EXISTS finding_under_remediation_stays",
-        "DROP TABLE remediation_finding",
-        "DROP TABLE remediation",
         "DROP TRIGGER IF EXISTS ops_ref_of_ordered_work_item_stays",
         "DROP TRIGGER IF EXISTS ops_run_order_work_item_of_repository",
         "DROP TRIGGER IF EXISTS ops_run_order_work_item_of_repository_update",
         "DROP INDEX IF EXISTS idx_ops_run_order_work_item",
+        "ALTER TABLE ops_run_order DROP COLUMN fork_branch",
+        "ALTER TABLE ops_run_order DROP COLUMN fork_url",
         "ALTER TABLE ops_run_order DROP COLUMN work_item_id",
+        "DROP INDEX IF EXISTS idx_decision_assessment",
     ),
 }
 
