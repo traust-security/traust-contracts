@@ -501,6 +501,11 @@ def test_a_scheduled_finding_is_on_the_repository_that_owns_it(db: Db) -> None:
     table = db.t("remediation_finding")
     with pytest.raises(db.Error):
         db.run(f"UPDATE {table} SET repository_id = ? WHERE id = ?", (elsewhere, row))
+    findings = db.t("finding")
+    with pytest.raises(db.Error):  # nor does the finding move out from under its link
+        db.run(f"UPDATE {findings} SET repository_id = ? WHERE id = ?", (elsewhere, fid))
+    unlinked = finding(db, rid, "e" * 64)
+    db.run(f"UPDATE {findings} SET repository_id = ? WHERE id = ?", (elsewhere, unlinked))
 
 
 def test_default_reference_requires_a_named_branch_not_a_bare_commit(db: Db) -> None:
@@ -569,7 +574,8 @@ def test_run_order_names_its_asset_and_lane_only_when_routed(db: Db) -> None:
 
 def test_a_run_order_names_a_real_work_item_or_none(db: Db) -> None:
     rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
-    item = assessment(db, ref(db, rid))
+    at = ref(db, rid)
+    item = assessment(db, at)
     order = {"asset": "remediate_finding", "state": "queued", "priority": 0, "requested_by": "h"}
     oid = db.insert("ops.run_order", work_item_id=item, repository_id=rid, **order)
     db.insert("ops.run_order", **order)  # an asset that runs no named item
@@ -581,6 +587,11 @@ def test_a_run_order_names_a_real_work_item_or_none(db: Db) -> None:
     assert str(db.run(f"SELECT work_item_id FROM {table} WHERE id = ?", (oid,))[0][0]) == item
     with pytest.raises(db.Error):  # the work item an order runs can't be deleted from under it
         db.run(f"DELETE FROM {db.t('assessment')} WHERE id = ?", (item,))
+    refs = db.t("repository_ref")
+    with pytest.raises(db.Error):  # nor its commit move to another repository
+        db.run(f"UPDATE {refs} SET repository_id = ? WHERE id = ?", (elsewhere, at))
+    unordered = ref(db, rid, name="other")
+    db.run(f"UPDATE {refs} SET repository_id = ? WHERE id = ?", (elsewhere, unordered))
 
 
 def test_run_order_work_item_upgrade_keeps_existing_orders_without_inventing_one(
@@ -593,9 +604,11 @@ def test_run_order_work_item_upgrade_keeps_existing_orders_without_inventing_one
     schema = "traust_ops." if db.engine == "postgres" else ""
     if db.engine == "postgres":
         db.run(f"DROP TRIGGER run_order_work_item_of_repository ON {table}")
+        db.run(f"DROP TRIGGER ref_of_ordered_work_item_stays ON {db.t('repository_ref')}")
     else:
         db.run("DROP TRIGGER ops_run_order_work_item_of_repository")
         db.run("DROP TRIGGER ops_run_order_work_item_of_repository_update")
+        db.run("DROP TRIGGER ops_ref_of_ordered_work_item_stays")
     db.run(f"DROP INDEX {schema}idx_ops_run_order_work_item")
     db.run(f"ALTER TABLE {table} DROP COLUMN work_item_id")
     before = db.run(f"SELECT * FROM {table} WHERE id = ?", (oid,))[0]

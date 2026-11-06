@@ -103,3 +103,14 @@ WHEN NEW.work_item_id IS NOT NULL AND EXISTS (
 BEGIN
   SELECT RAISE(ABORT, 'ops_run_order.work_item_id is not a work item of its repository');
 END;
+
+-- ...and a commit whose work item an order runs stays on that repository:
+-- assessments never change, so only the ref moving could break the pairing.
+CREATE TRIGGER IF NOT EXISTS ops_ref_of_ordered_work_item_stays
+BEFORE UPDATE OF repository_id ON repository_ref
+WHEN EXISTS (
+    SELECT 1 FROM ops_run_order o JOIN assessment a ON a.id = o.work_item_id
+    WHERE a.repository_ref_id = NEW.id AND o.repository_id IS NOT NEW.repository_id)
+BEGIN
+  SELECT RAISE(ABORT, 'a repository_ref holding an ordered work item keeps its repository');
+END;

@@ -27,3 +27,24 @@ DROP TRIGGER IF EXISTS run_order_work_item_of_repository ON traust_ops.run_order
 CREATE TRIGGER run_order_work_item_of_repository
 BEFORE INSERT OR UPDATE OF work_item_id, repository_id ON traust_ops.run_order
 FOR EACH ROW EXECUTE FUNCTION traust_ops.run_order_work_item_of_repository();
+
+-- ...and a commit whose work item an order runs stays on that repository:
+-- assessments never change, so only the ref moving could break the pairing.
+CREATE OR REPLACE FUNCTION traust_ops.ref_of_ordered_work_item_stays()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM traust_ops.run_order o
+        JOIN traust.assessment a ON a.id = o.work_item_id
+        WHERE a.repository_ref_id = NEW.id AND o.repository_id IS DISTINCT FROM NEW.repository_id
+    ) THEN
+        RAISE EXCEPTION 'repository_ref % holds a work item ordered on repository %',
+            NEW.id, OLD.repository_id USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS ref_of_ordered_work_item_stays ON traust.repository_ref;
+CREATE TRIGGER ref_of_ordered_work_item_stays
+BEFORE UPDATE OF repository_id ON traust.repository_ref
+FOR EACH ROW EXECUTE FUNCTION traust_ops.ref_of_ordered_work_item_stays();

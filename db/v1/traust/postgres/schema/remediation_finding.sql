@@ -44,3 +44,21 @@ DROP TRIGGER IF EXISTS remediation_finding_repository_of_finding ON traust.remed
 CREATE TRIGGER remediation_finding_repository_of_finding
 BEFORE INSERT OR UPDATE OF finding_id, repository_id ON traust.remediation_finding
 FOR EACH ROW EXECUTE FUNCTION traust.remediation_finding_repository_of_finding();
+
+-- ...and a finding under remediation keeps that repository: moving it would
+-- leave its links attributing it to the old one.
+CREATE OR REPLACE FUNCTION traust.finding_under_remediation_stays()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM traust.remediation_finding
+               WHERE finding_id = NEW.id AND repository_id IS DISTINCT FROM NEW.repository_id) THEN
+        RAISE EXCEPTION 'finding % is under remediation on repository %, not %',
+            NEW.id, OLD.repository_id, NEW.repository_id USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS finding_under_remediation_stays ON traust.finding;
+CREATE TRIGGER finding_under_remediation_stays
+BEFORE UPDATE OF repository_id ON traust.finding
+FOR EACH ROW EXECUTE FUNCTION traust.finding_under_remediation_stays();

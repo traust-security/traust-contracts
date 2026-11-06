@@ -47,3 +47,13 @@ WHEN EXISTS (SELECT 1 FROM finding
 BEGIN
   SELECT RAISE(ABORT, 'remediation_finding.repository_id does not own its finding');
 END;
+
+-- ...and a finding under remediation keeps that repository: moving it would
+-- leave its links attributing it to the old one.
+CREATE TRIGGER IF NOT EXISTS finding_under_remediation_stays
+BEFORE UPDATE OF repository_id ON finding
+WHEN EXISTS (SELECT 1 FROM remediation_finding
+             WHERE finding_id = NEW.id AND repository_id IS NOT NEW.repository_id)
+BEGIN
+  SELECT RAISE(ABORT, 'a finding under remediation keeps its repository');
+END;
