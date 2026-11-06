@@ -552,6 +552,44 @@ def test_run_order_names_its_asset_and_lane_only_when_routed(db: Db) -> None:
     db.rejects("ops.run_order", asset="diff_scan", lane="", **order)
 
 
+def test_a_run_order_names_a_real_work_item_or_none(db: Db) -> None:
+    item = assessment(db, ref(db, repo(db)))
+    order = {"asset": "remediate_finding", "state": "queued", "priority": 0, "requested_by": "h"}
+    oid = db.insert("ops.run_order", work_item_id=item, **order)
+    db.insert("ops.run_order", **order)  # an asset that runs no named item
+    db.rejects("ops.run_order", work_item_id=str(uuid.uuid4()), **order)
+    table = db.t("ops.run_order")
+    assert str(db.run(f"SELECT work_item_id FROM {table} WHERE id = ?", (oid,))[0][0]) == item
+    with pytest.raises(db.Error):  # the work item an order runs can't be deleted from under it
+        db.run(f"DELETE FROM {db.t('assessment')} WHERE id = ?", (item,))
+
+
+def test_run_order_work_item_upgrade_keeps_existing_orders_without_inventing_one(
+    db: Db,
+) -> None:
+    table = db.t("ops.run_order")
+    order = {"asset": "diff_scan", "state": "queued", "priority": 1, "requested_by": "h"}
+    oid = db.insert("ops.run_order", **order)
+    # Reproduce the prior table shape without recreating the populated table.
+    schema = "traust_ops." if db.engine == "postgres" else ""
+    db.run(f"DROP INDEX {schema}idx_ops_run_order_work_item")
+    db.run(f"ALTER TABLE {table} DROP COLUMN work_item_id")
+    before = db.run(f"SELECT * FROM {table} WHERE id = ?", (oid,))[0]
+    for statement in ops_sql.run_order_work_item_upgrade(db.engine):
+        db.run(statement)
+    row = db.run(f"SELECT * FROM {table} WHERE id = ?", (oid,))[0]
+    assert row[:-1] == before and row[-1] is None
+    item = assessment(db, ref(db, repo(db)))
+    db.run(f"UPDATE {table} SET work_item_id = ? WHERE id = ?", (item, oid))
+    with pytest.raises(db.Error):
+        db.run(f"UPDATE {table} SET work_item_id = ? WHERE id = ?", (str(uuid.uuid4()), oid))
+    # Normal bootstrap remains safe once the explicit upgrade has run.
+    for path in ops_sql.bootstrap_files(db.engine):
+        if path.stem == "run_order":
+            for statement in bootstrap_statements(db.engine, path):
+                db.run(statement)
+
+
 def test_one_ledger_layer_per_repository_and_line(db: Db) -> None:
     r, other = repo(db), repo(db, "https://example.com/other")
     layer = {"merkle_signing_method": "keypair"}

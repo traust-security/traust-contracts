@@ -14,6 +14,9 @@
 -- exactly when state = leased. priority: lower = sooner; ties by created_at.
 -- The run manifest (config digests, progress, budget verdict, degraded
 -- keys) is artifact_id - per-run detail is not table rows.
+-- work_item_id is the remediation assessment (work item) an order runs, for
+-- an asset that runs one named item (remediate_finding); null otherwise. It is
+-- last so a database upgraded with ALTER TABLE has the same column order.
 CREATE TABLE IF NOT EXISTS ops_run_order (
     id TEXT NOT NULL DEFAULT (uuid()),
     run_batch_id TEXT REFERENCES ops_run_batch(id) ON DELETE RESTRICT,
@@ -33,6 +36,7 @@ CREATE TABLE IF NOT EXISTS ops_run_order (
     finished_at TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    work_item_id TEXT REFERENCES assessment(id) ON DELETE RESTRICT,
     PRIMARY KEY (id),
     CHECK (rule IS NULL OR event_source IS NULL),
     CHECK ((state = 'leased') = (lease_holder IS NOT NULL)),
@@ -52,6 +56,11 @@ CREATE INDEX IF NOT EXISTS idx_ops_run_order_lease
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_batch
     ON ops_run_order (run_batch_id)
     WHERE run_batch_id IS NOT NULL;
+
+-- The order running a work item (the runner's lookup; RESTRICT checks).
+CREATE INDEX IF NOT EXISTS idx_ops_run_order_work_item
+    ON ops_run_order (work_item_id)
+    WHERE work_item_id IS NOT NULL;
 
 -- A repository's planned / running orders (router dedupe).
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_repository_state
