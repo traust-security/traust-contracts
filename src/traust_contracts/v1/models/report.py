@@ -9,6 +9,7 @@ from pydantic import ConfigDict, Field
 from traust_contracts.v1.enums import RefKind, Severity
 from traust_contracts.v1.models._base import ContractModel
 from traust_contracts.v1.models.finding import Finding
+from traust_contracts.v1.timestamps import IsoTimestamp
 
 
 class LocBreakdown(ContractModel):
@@ -93,7 +94,7 @@ class ValidityCounts(ContractModel):
 
 class DispositionSummary(ContractModel):
     layer_ref: str
-    generated_at: str
+    generated_at: IsoTimestamp
     by_resolution: ResolutionCounts
     by_validity: ValidityCounts
     severity_overrides: list[dict[str, Any]] | None = None

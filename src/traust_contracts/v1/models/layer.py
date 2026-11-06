@@ -136,12 +136,12 @@ class ReviewItem(ContractModel):
 class LayerMetadata(ContractModel):
     audit_report: str
     repository: str
-    created: str
+    created: IsoTimestamp
     harness_version: str
     audit_commit: str | None = None
     audit_report_sha256: str | None = None
     audit_report_ref: str | None = None
-    updated: str | None = None
+    updated: IsoTimestamp | None = None
     claim_hashes: dict[str, str] = Field(default_factory=dict)
     finding_aliases: dict[str, Any] = Field(default_factory=dict)
     external_refs: dict[str, list[ExternalRef]] = Field(default_factory=dict)

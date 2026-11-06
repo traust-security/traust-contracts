@@ -166,3 +166,23 @@ def test_report_optional_sections_round_trip() -> None:
         "review_surface_coverage",
     ):
         assert out[field] == REPORT[field], f"{field} was dropped"
+
+
+def test_layer_metadata_date_time_fields_are_validated() -> None:
+    """layer.schema.json declares created/updated as format: date-time, and the
+    model is the only enforcement point (jsonschema asserts format only with the
+    optional rfc3339-validator present) — the reason LayerEvent's timestamps
+    carry IsoTimestamp. The metadata fields now do too.
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    from traust_contracts.models import LayerMetadata
+
+    with pytest.raises(ValidationError):
+        LayerMetadata(
+            audit_report="r-security-audit.json",
+            repository="https://github.com/traust-security/widget",
+            created="banana",
+            harness_version="0.40.0",
+        )
