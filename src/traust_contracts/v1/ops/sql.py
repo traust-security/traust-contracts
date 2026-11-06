@@ -24,7 +24,6 @@ __all__ = [
     "VIEW_ORDER",
     "bootstrap_files",
     "bootstrap_statements",
-    "run_order_work_item_upgrade",
 ]
 
 CONTRACT_VERSION = "v1"
@@ -52,13 +51,3 @@ def bootstrap_files(dialect: Dialect) -> list[Path]:
         first_tables=TABLE_ORDER,
         view_order=VIEW_ORDER,
     )
-
-
-def run_order_work_item_upgrade(dialect: Dialect) -> list[str]:
-    """Load the explicit additive upgrade for a database missing run_order.work_item_id.
-
-    Callers must inspect run_order first and apply these statements only when the
-    column is absent. Existing orders name no work item; none is inferred.
-    """
-    path = ops_dir() / dialect / "upgrades" / "run_order_work_item.sql"
-    return list(bootstrap_statements(dialect, path))

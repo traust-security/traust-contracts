@@ -516,43 +516,6 @@ def test_a_run_order_names_a_real_work_item_or_none(db: Db) -> None:
     db.run(f"UPDATE {refs} SET repository_id = ? WHERE id = ?", (elsewhere, unordered))
 
 
-def test_run_order_work_item_upgrade_keeps_existing_orders_without_inventing_one(
-    db: Db,
-) -> None:
-    table = db.t("ops.run_order")
-    order = {"asset": "diff_scan", "state": "queued", "priority": 1, "requested_by": "h"}
-    oid = db.insert("ops.run_order", **order)
-    # Reproduce the prior table shape without recreating the populated table.
-    schema = "traust_ops." if db.engine == "postgres" else ""
-    if db.engine == "postgres":
-        db.run(f"DROP TRIGGER run_order_work_item_of_repository ON {table}")
-        db.run(f"DROP TRIGGER ref_of_ordered_work_item_stays ON {db.t('repository_ref')}")
-    else:
-        db.run("DROP TRIGGER ops_run_order_work_item_of_repository")
-        db.run("DROP TRIGGER ops_run_order_work_item_of_repository_update")
-        db.run("DROP TRIGGER ops_ref_of_ordered_work_item_stays")
-    db.run(f"DROP INDEX {schema}idx_ops_run_order_work_item")
-    for column in ("fork_branch", "fork_url", "work_item_id"):
-        db.run(f"ALTER TABLE {table} DROP COLUMN {column}")
-    before = db.run(f"SELECT * FROM {table} WHERE id = ?", (oid,))[0]
-    for statement in ops_sql.run_order_work_item_upgrade(db.engine):
-        db.run(statement)
-    row = db.run(f"SELECT * FROM {table} WHERE id = ?", (oid,))[0]
-    assert row[:-3] == before and row[-3:] == (None, None, None)
-    rid = repo(db)
-    item = assessment(db, ref(db, rid))
-    db.run(f"UPDATE {table} SET repository_id = ?, work_item_id = ? WHERE id = ?", (rid, item, oid))
-    with pytest.raises(db.Error):
-        db.run(f"UPDATE {table} SET work_item_id = ? WHERE id = ?", (str(uuid.uuid4()), oid))
-    with pytest.raises(db.Error):  # the upgrade brings the repository guard too
-        db.run(f"UPDATE {table} SET repository_id = NULL WHERE id = ?", (oid,))
-    # Normal bootstrap remains safe once the explicit upgrade has run.
-    for path in ops_sql.bootstrap_files(db.engine):
-        if path.stem == "run_order":
-            for statement in bootstrap_statements(db.engine, path):
-                db.run(statement)
-
-
 def test_one_ledger_layer_per_repository_and_line(db: Db) -> None:
     r, other = repo(db), repo(db, "https://example.com/other")
     layer = {"merkle_signing_method": "keypair"}
