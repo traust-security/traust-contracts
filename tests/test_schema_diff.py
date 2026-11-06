@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -11,6 +12,13 @@ ROOT = Path(__file__).resolve().parents[1]
 _spec = importlib.util.spec_from_file_location("schema_diff", ROOT / "ci/schema_diff.py")
 schema_diff = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(schema_diff)
+
+
+@pytest.fixture(autouse=True)
+def isolated_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in tuple(os.environ):
+        if name.startswith("GIT_"):
+            monkeypatch.delenv(name)
 
 
 def git(root: Path, *args: str) -> str:
