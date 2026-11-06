@@ -93,14 +93,21 @@ FOR EACH ROW EXECUTE FUNCTION traust_ops.touch_updated_at();
 
 -- An order runs a work item of its own repository: the work item's commit
 -- (assessment -> repository_ref) is on the repository the order names.
+-- FOR SHARE on the ref makes a concurrent move of it wait for this order (and
+-- this order wait for a move in flight, then read where it went).
 CREATE OR REPLACE FUNCTION traust_ops.run_order_work_item_of_repository()
 RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    owner UUID;
 BEGIN
-    IF NEW.work_item_id IS NOT NULL AND EXISTS (
-        SELECT 1 FROM traust.assessment a
-        JOIN traust.repository_ref r ON r.id = a.repository_ref_id
-        WHERE a.id = NEW.work_item_id AND r.repository_id IS DISTINCT FROM NEW.repository_id
-    ) THEN
+    IF NEW.work_item_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    SELECT r.repository_id INTO owner
+    FROM traust.assessment a JOIN traust.repository_ref r ON r.id = a.repository_ref_id
+    WHERE a.id = NEW.work_item_id
+    FOR SHARE OF r;
+    IF FOUND AND owner IS DISTINCT FROM NEW.repository_id THEN
         RAISE EXCEPTION 'run_order.work_item_id % is not a work item of repository %',
             NEW.work_item_id, NEW.repository_id USING ERRCODE = 'check_violation';
     END IF;
@@ -114,6 +121,8 @@ FOR EACH ROW EXECUTE FUNCTION traust_ops.run_order_work_item_of_repository();
 
 -- ...and a commit whose work item an order runs stays on that repository:
 -- assessments never change, so only the ref moving could break the pairing.
+-- This runs once the ref is locked, on a fresh snapshot, so it sees an order
+-- committed while it waited.
 CREATE OR REPLACE FUNCTION traust_ops.ref_of_ordered_work_item_stays()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN

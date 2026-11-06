@@ -28,12 +28,16 @@ FOR EACH ROW EXECUTE FUNCTION traust.touch_updated_at();
 
 -- A row names the repository that owns its finding: the per-repository view
 -- reads repository_id, so it must never attribute a finding elsewhere. A
--- missing finding is left to its foreign key.
+-- missing finding is left to its foreign key. FOR SHARE makes a concurrent
+-- move of the finding wait for this link (and this link wait for a move in
+-- flight, then read where it went).
 CREATE OR REPLACE FUNCTION traust.remediation_finding_repository_of_finding()
 RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    owner UUID;
 BEGIN
-    IF EXISTS (SELECT 1 FROM traust.finding
-               WHERE id = NEW.finding_id AND repository_id IS DISTINCT FROM NEW.repository_id) THEN
+    SELECT repository_id INTO owner FROM traust.finding WHERE id = NEW.finding_id FOR SHARE;
+    IF FOUND AND owner IS DISTINCT FROM NEW.repository_id THEN
         RAISE EXCEPTION 'remediation_finding.repository_id % does not own finding %',
             NEW.repository_id, NEW.finding_id USING ERRCODE = 'check_violation';
     END IF;
@@ -46,7 +50,8 @@ BEFORE INSERT OR UPDATE OF finding_id, repository_id ON traust.remediation_findi
 FOR EACH ROW EXECUTE FUNCTION traust.remediation_finding_repository_of_finding();
 
 -- ...and a finding under remediation keeps that repository: moving it would
--- leave its links attributing it to the old one.
+-- leave its links attributing it to the old one. This runs once the row is
+-- locked, on a fresh snapshot, so it sees a link committed while it waited.
 CREATE OR REPLACE FUNCTION traust.finding_under_remediation_stays()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
