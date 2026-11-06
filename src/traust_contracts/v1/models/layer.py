@@ -112,6 +112,9 @@ class LayerEvent(ContractModel):
     fingerprint_algo: str | None = None
     alias: dict[str, Any] | None = None
     finding: dict[str, Any] | None = None
+    # Emission-time-resolved hardening risk weight, carried on the event so
+    # ledger replays never re-derive it (schema $defs/event.risk_weight).
+    risk_weight: dict[str, Any] | None = None
     restatement: LayerRestatement | None = None
 
 
@@ -145,6 +148,18 @@ class LayerMetadata(ContractModel):
     merkle_root: str | None = None
     merkle_epoch: int | None = None
     merkle_size: int | None = None
+    # Stamped by the ledger write path; declared here for the same reason as
+    # fingerprint on the event — ContractModel ignores unknown keys, so a
+    # schema-only field round-trips to nothing.
+    merkle_root_signature: str | None = None
+    merkle_signing_method: str | None = None
+    merkle_signature_format: int | None = None
+    merkle_algorithm: str | None = None
+    leaf_format: int | None = None
+    pre_merkle_checkpoint: Annotated[str, Field(pattern="^[0-9a-f]{64}$")] | None = None
+    artifact_digests: dict[str, Annotated[str, Field(pattern="^[0-9a-f]{64}$")]] = Field(
+        default_factory=dict
+    )
 
 
 class Layer(ContractModel):
