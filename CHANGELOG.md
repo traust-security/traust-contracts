@@ -25,7 +25,7 @@ All notable changes to traust-contracts are documented here.
     (`omp`, `claude`); empty keeps the default.
   - `credential` (required): `{source: env | secret, name?, key?}` — a
     reference, never the credential itself. `source: secret` requires the
-    Secret's `name` and `key`. Registered as `credential_source`.
+    Secret's non-empty `name` and `key`. Registered as `credential_source`.
 - The block is routing data only, never credentials: the typed sections
   stay permissive (`ProviderSpec` keeps it as an extra field) and the
   schema refuses any other key on the block.

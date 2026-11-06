@@ -122,7 +122,8 @@ def test_a_provider_without_a_connection_still_loads(tmp_path):
         {"type": "gemini", "base_url": "https://gw.example", "credential": {"source": "env"}},
         {"type": "openai", "base_url": "https://gw.example", "credential": {"source": "env"}},
         # A secret credential names nothing verifiable without the Secret's
-        # name and the key within it.
+        # name and the key within it — and an empty string names nothing
+        # either, as the executor's validate() refuses.
         {
             "type": "openai-compatible",
             "base_url": "https://gw.example",
@@ -137,6 +138,16 @@ def test_a_provider_without_a_connection_still_loads(tmp_path):
             "type": "openai-compatible",
             "base_url": "https://gw.example",
             "credential": {"source": "secret"},
+        },
+        {
+            "type": "openai-compatible",
+            "base_url": "https://gw.example",
+            "credential": {"source": "secret", "name": "", "key": "ANTHROPIC_API_KEY"},
+        },
+        {
+            "type": "openai-compatible",
+            "base_url": "https://gw.example",
+            "credential": {"source": "secret", "name": "sci-enmaas-model", "key": ""},
         },
         # The block is routing data, never the credentials themselves: an
         # inline credential or any other stray key is refused.
@@ -156,6 +167,8 @@ def test_a_provider_without_a_connection_still_loads(tmp_path):
         "secret credential without the key",
         "secret credential without the Secret name",
         "secret credential without both",
+        "secret credential with an empty Secret name",
+        "secret credential with an empty key",
         "inline credential",
         "unknown connection property",
     ],

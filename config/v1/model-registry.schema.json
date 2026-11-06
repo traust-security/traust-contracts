@@ -118,7 +118,15 @@
                   "required": [
                     "name",
                     "key"
-                  ]
+                  ],
+                  "properties": {
+                    "name": {
+                      "minLength": 1
+                    },
+                    "key": {
+                      "minLength": 1
+                    }
+                  }
                 }
               }
             },
