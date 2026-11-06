@@ -641,7 +641,7 @@ wheels = [
 
 [[package]]
 name = "traust-contracts"
-version = "0.62.3"
+version = "0.63.0"
 source = { editable = "." }
 dependencies = [
     { name = "jsonschema", extra = ["format-nongpl"] },

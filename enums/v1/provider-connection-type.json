@@ -1,0 +1,22 @@
+{
+  "name": "provider_connection_type",
+  "source_schema": "model-registry.schema.json#/properties/providers/additionalProperties/properties/connection/properties/type",
+  "description": "Values of `connection.type` in model-registry.schema.json \u2014 the wire a registry provider speaks.",
+  "values": [
+    "anthropic",
+    "anthropic-compatible",
+    "gemini",
+    "openai",
+    "openai-compatible"
+  ],
+  "used_in_schemas": [
+    "model-registry.schema.json"
+  ],
+  "definitions": {
+    "anthropic": "The proprietary Anthropic endpoint; no base_url (the default endpoint serves).",
+    "anthropic-compatible": "A gateway speaking the Anthropic wire; requires a base_url endpoint override.",
+    "gemini": "Google's proprietary API; no base_url (the default endpoint serves).",
+    "openai": "The proprietary OpenAI endpoint; no base_url (the default endpoint serves).",
+    "openai-compatible": "A gateway speaking the OpenAI wire; requires a base_url endpoint override."
+  }
+}

@@ -2,6 +2,36 @@
 
 All notable changes to traust-contracts are documented here.
 
+## [0.63.0]
+
+### Added
+
+- **The provider `connection` block in the model registry**
+  (`config/v1/model-registry.schema.json`). Optional, so existing
+  registries load unchanged. sci#287 (source-code-intelligence) routes the
+  runner pool's model delivery through it; the Go executor parses the block
+  leniently, but the engine's config-completeness audit validates the
+  registry against this schema, so a registry carrying one failed startup
+  with `Additional properties are not allowed ('connection' was unexpected)`
+  (live on the dev cluster, 2026-11-06; a dev-only Containerfile patch
+  worked around it). The schema mirrors the executor's `validate()`:
+  - `type` (required): `anthropic`, `anthropic-compatible`, `gemini`,
+    `openai`, `openai-compatible` — the wire and credential format, not the
+    model family. Registered as `provider_connection_type`.
+  - `base_url`: required on the compatible types (they exist for endpoint
+    overrides), empty on the proprietary types (the default endpoint
+    serves; an empty string reads as absent, as the executor does).
+  - `harness`: the harness a gateway connection fronts its wire with
+    (`omp`, `claude`); empty keeps the default.
+  - `credential` (required): `{source: env | secret, name?, key?}` — a
+    reference, never the credential itself. `source: secret` requires the
+    Secret's `name` and `key`. Registered as `credential_source`.
+- The block is routing data only, never credentials: the typed sections
+  stay permissive (`ProviderSpec` keeps it as an extra field) and the
+  schema refuses any other key on the block.
+- traust-core/engine pin bumps pick this up (a parallel engine PR notes
+  the dependency).
+
 ## [0.62.3]
 
 ### Fixed

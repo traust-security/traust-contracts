@@ -52,6 +52,127 @@
             "type": "string",
             "minLength": 4
           },
+          "connection": {
+            "type": "object",
+            "description": "Provider routing: the wire this provider speaks, its endpoint, its harness and where its credential lives. Routing data only, never the credentials themselves \u2014 a secret credential names the Secret and the key within it, and the credential reaches the worker on the deployment's existing mechanism. Absent keeps the default routing (the Anthropic wire, the pod's existing credential).",
+            "required": [
+              "type",
+              "credential"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "anthropic",
+                  "anthropic-compatible",
+                  "gemini",
+                  "openai",
+                  "openai-compatible"
+                ],
+                "description": "The wire and credential format, not the model family: proprietary endpoints (anthropic, gemini, openai) or compatible gateways speaking an incumbent's wire (anthropic-compatible, openai-compatible). A gateway serving both wires appears as two providers."
+              },
+              "base_url": {
+                "type": "string",
+                "description": "The gateway endpoint. Required on the compatible types, which exist for endpoint overrides; empty on the proprietary types, whose default endpoint serves."
+              },
+              "harness": {
+                "type": "string",
+                "description": "The harness a gateway connection fronts its wire with (omp or claude); empty keeps the default."
+              },
+              "credential": {
+                "type": "object",
+                "description": "Where the provider's credential lives \u2014 a reference, never the credential itself. Source env reads the pod's existing environment; source secret names a Kubernetes Secret and the key within it, both required.",
+                "required": [
+                  "source"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "env",
+                      "secret"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The Secret's name (source secret)."
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "The credential's key within the Secret (source secret)."
+                  }
+                },
+                "if": {
+                  "properties": {
+                    "source": {
+                      "const": "secret"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "name",
+                    "key"
+                  ]
+                }
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "anthropic-compatible",
+                        "openai-compatible"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "base_url"
+                  ],
+                  "properties": {
+                    "base_url": {
+                      "minLength": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "type": {
+                      "enum": [
+                        "anthropic",
+                        "gemini",
+                        "openai"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "base_url": {
+                      "maxLength": 0
+                    }
+                  }
+                }
+              }
+            ]
+          },
           "models": {
             "type": "object",
             "minProperties": 1,
