@@ -113,6 +113,33 @@ runners execute from `run`, `params`, `runner`, `model`, `writes`, `riders` and
 `outcomes` in their pinned copy. The schema is strict, so a key one reader doesn't know
 fails for both.
 
+## Insight view contracts
+
+`views_schema/v1/` contains data-only JSON Schemas for ephemeral, derived
+Insight `ViewModel` output. This category is separate from persisted
+`artifacts_schema/v1` documents and SQL storage: it introduces no artifact
+discriminator, stored projection, table, migration or generated model binding.
+The schemas ship as package data in wheels and source distributions.
+
+`views_schema/v1/critical-misses.schema.json` is the Draft 2020-12 contract for
+the critical-misses view. It requires an explicit `window` (`start` and `end`
+RFC3339 timestamps) and a `misses` array, including when that array is empty.
+Each row preserves the existing finding and repository IDs, raw untrusted title,
+discovering and missed producer IDs, discovery time, reason and nullable validity.
+`missed` denotes an actual miss; `area_reported` requires adjudication. Validity
+remains an arbitrary historical string or null, not a newly closed vocabulary.
+Empty output does not establish clean coverage or a detection rate.
+
+Traust-core is the consumer and owns the typed `ViewModel`, the schema-validation
+facade, timezone-aware increasing-window checks, Insight registration and
+structured human-readable rendering. The producer remains
+`DetectionQualityService.critical_misses(TimeWindow)` using current recorded
+dispositions, not a historical `as_of` claim. Consumers reach this contract
+through Core; they do not add detection logic or import rendering internals.
+Use JSON Schema format checking to enforce UUID and date-time fields; the schema
+does not compare window endpoints. The legacy CLI JSON array remains a consumer
+compatibility surface, separate from this `{window, misses}` view contract.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
