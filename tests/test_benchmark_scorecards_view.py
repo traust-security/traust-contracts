@@ -57,6 +57,13 @@ def test_no_recorded_benchmark_audit_is_an_empty_list(validator: Draft202012Vali
     assert validator.is_valid({"scorecards": []})
 
 
+def test_a_scorecard_names_at_least_one_auditor_version(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    document["scorecards"][0]["auditor_versions"] = []  # unattributable: nothing produced it
+    assert not validator.is_valid(document)
+
+
 def test_nothing_expected_is_a_null_recall_and_unmeasured_values_are_null(
     validator: Draft202012Validator, document: dict[str, Any]
 ) -> None:
