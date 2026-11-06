@@ -14,6 +14,14 @@
 -- exactly when state = leased. priority: lower = sooner; ties by created_at.
 -- The run manifest (config digests, progress, budget verdict, degraded
 -- keys) is artifact_id - per-run detail is not table rows.
+-- work_item_id is the remediation assessment (work item) an order runs, for
+-- an asset that runs one named item (remediate_finding); null otherwise. It is
+-- last so a database upgraded with ALTER TABLE has the same column order.
+-- fork_url / fork_branch: the mirror an effort runs on and its fix branch
+-- (remediate_finding only) - operational facts, write-once at scheduling,
+-- read-once at claim; deliberately not a repository FK: mirrors are out of
+-- band, never inventory, and the durable record lives in the run's
+-- remediation artifact.
 CREATE TABLE IF NOT EXISTS ops_run_order (
     id TEXT NOT NULL DEFAULT (uuid()),
     run_batch_id TEXT REFERENCES ops_run_batch(id) ON DELETE RESTRICT,
@@ -33,6 +41,9 @@ CREATE TABLE IF NOT EXISTS ops_run_order (
     finished_at TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    work_item_id TEXT REFERENCES assessment(id) ON DELETE RESTRICT,
+    fork_url TEXT,
+    fork_branch TEXT,
     PRIMARY KEY (id),
     CHECK (rule IS NULL OR event_source IS NULL),
     CHECK ((state = 'leased') = (lease_holder IS NOT NULL)),
@@ -52,6 +63,11 @@ CREATE INDEX IF NOT EXISTS idx_ops_run_order_lease
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_batch
     ON ops_run_order (run_batch_id)
     WHERE run_batch_id IS NOT NULL;
+
+-- The order running a work item (the runner's lookup; RESTRICT checks).
+CREATE INDEX IF NOT EXISTS idx_ops_run_order_work_item
+    ON ops_run_order (work_item_id)
+    WHERE work_item_id IS NOT NULL;
 
 -- A repository's planned / running orders (router dedupe).
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_repository_state
@@ -73,4 +89,35 @@ CREATE TRIGGER IF NOT EXISTS ops_run_order_touch
 AFTER UPDATE ON ops_run_order FOR EACH ROW
 WHEN NEW.updated_at IS OLD.updated_at BEGIN
   UPDATE ops_run_order SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE id = NEW.id;
+END;
+
+-- An order runs a work item of its own repository: the work item's commit
+-- (assessment -> repository_ref) is on the repository the order names.
+CREATE TRIGGER IF NOT EXISTS ops_run_order_work_item_of_repository
+BEFORE INSERT ON ops_run_order
+WHEN NEW.work_item_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM assessment a JOIN repository_ref r ON r.id = a.repository_ref_id
+    WHERE a.id = NEW.work_item_id AND r.repository_id IS NOT NEW.repository_id)
+BEGIN
+  SELECT RAISE(ABORT, 'ops_run_order.work_item_id is not a work item of its repository');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ops_run_order_work_item_of_repository_update
+BEFORE UPDATE OF work_item_id, repository_id ON ops_run_order
+WHEN NEW.work_item_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM assessment a JOIN repository_ref r ON r.id = a.repository_ref_id
+    WHERE a.id = NEW.work_item_id AND r.repository_id IS NOT NEW.repository_id)
+BEGIN
+  SELECT RAISE(ABORT, 'ops_run_order.work_item_id is not a work item of its repository');
+END;
+
+-- ...and a commit whose work item an order runs stays on that repository:
+-- assessments never change, so only the ref moving could break the pairing.
+CREATE TRIGGER IF NOT EXISTS ops_ref_of_ordered_work_item_stays
+BEFORE UPDATE OF repository_id ON repository_ref
+WHEN EXISTS (
+    SELECT 1 FROM ops_run_order o JOIN assessment a ON a.id = o.work_item_id
+    WHERE a.repository_ref_id = NEW.id AND o.repository_id IS NOT NEW.repository_id)
+BEGIN
+  SELECT RAISE(ABORT, 'a repository_ref holding an ordered work item keeps its repository');
 END;
