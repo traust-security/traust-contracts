@@ -140,6 +140,30 @@ Use JSON Schema format checking to enforce UUID and date-time fields; the schema
 does not compare window endpoints. The legacy CLI JSON array remains a consumer
 compatibility surface, separate from this `{window, misses}` view contract.
 
+`views_schema/v1/compliance-precision.schema.json` wraps the native
+`DetectionQualityService.calibrate_compliance(framework, gate=...)` result as
+`{calibration: {framework, assessments, checks, gate}}`. Framework IDs reuse the
+packaged compliance-assessment schema's framework-id vocabulary via `$ref`;
+validators must provide a local artifact-schema registry, not fetch the reference
+over the network. Each check contains the raw untrusted `check_id`, nonnegative
+`fired` and `dismissed` counts, `gate`, nullable `precision` and boolean `flagged`.
+Gates and measured precision are numbers in [0, 1]. Unknown fields are rejected
+at the view, calibration and check boundaries.
+
+This is review precision for recorded automatic `not_satisfied` compliance check
+firings and attributed human dismissals, **not evaluator calibration**, a
+compliance score or a coverage claim. The producer considers recorded assessment
+documents deduplicated by digest for the requested framework; `assessments` is
+not a coverage denominator. With no firings, precision is null (unmeasured), not
+perfect; an empty population likewise establishes no precision or coverage.
+Core derives `(fired - dismissed) / fired` and flags measured precision
+`<= gate`, inclusively, for review only. JSON Schema checks structure and ranges,
+not arbitrary count arithmetic, derived flag correctness or cross-field gate
+equality. No check demotion, evaluator mutation, scan or persistence is implied.
+Core owns the typed wrapper, validation, Insight registration and shared human
+rendering. The CLI's flat native calibration JSON remains a separate compatibility
+surface rather than this canonical wrapper.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
