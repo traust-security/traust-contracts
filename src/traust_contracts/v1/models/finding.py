@@ -14,6 +14,7 @@ from traust_contracts.v1.enums import (
     Validity,
 )
 from traust_contracts.v1.models._base import ContractModel
+from traust_contracts.v1.timestamps import IsoTimestamp
 
 
 class Location(ContractModel):
@@ -43,7 +44,7 @@ class SeverityOverride(ContractModel):
 class Disposition(ContractModel):
     validity: Validity
     resolution: DispositionResolution
-    last_updated: str
+    last_updated: IsoTimestamp
     events: list[str] = Field(default_factory=list)
     conflict: bool | None = None
     refuted_awaiting_signoff: bool | None = None
