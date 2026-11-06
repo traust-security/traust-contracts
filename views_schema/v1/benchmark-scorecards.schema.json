@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/benchmark-scorecards.schema.json",
+  "title": "Benchmark scorecards view",
+  "description": "Ephemeral derived Insight ViewModel from DetectionQualityService.scorecards: one recall scorecard per auditor version over the recorded benchmark audits, scored against the newest answer key. Held-out targets are never included (release scoring is not a dashboard). Not a persisted artifact or SQL projection. Recall is detected over expected; null when nothing was expected.",
+  "type": "object",
+  "required": ["scorecards"],
+  "additionalProperties": false,
+  "properties": {
+    "scorecards": {
+      "description": "Oldest auditor version first. Empty when no benchmark audit is recorded.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/scorecard"}
+    }
+  },
+  "$defs": {
+    "recall": {
+      "type": "object",
+      "required": ["detected", "expected", "recall"],
+      "additionalProperties": false,
+      "properties": {
+        "detected": {"type": "integer", "minimum": 0},
+        "expected": {"type": "integer", "minimum": 0},
+        "recall": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "detected / expected; null when nothing was expected, never 0."
+        }
+      }
+    },
+    "breakdown": {
+      "description": "Recall per value of one dimension (a CWE, a severity, a target provenance, a language, a split); keys are the recorded values.",
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/recall"}
+    },
+    "scorecard": {
+      "type": "object",
+      "required": [
+        "overall",
+        "near_misses",
+        "by_cwe",
+        "by_severity",
+        "by_provenance",
+        "by_language",
+        "by_split",
+        "injection",
+        "mean_stability",
+        "targets_scored",
+        "targets_skipped",
+        "auditor_versions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "overall": {"$ref": "#/$defs/recall"},
+        "near_misses": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Expected findings matched only at the review tier: listed for adjudication, never counted as detected."
+        },
+        "by_cwe": {"$ref": "#/$defs/breakdown"},
+        "by_severity": {"$ref": "#/$defs/breakdown"},
+        "by_provenance": {"$ref": "#/$defs/breakdown"},
+        "by_language": {"$ref": "#/$defs/breakdown"},
+        "by_split": {"$ref": "#/$defs/breakdown"},
+        "injection": {
+          "type": "object",
+          "required": ["total", "passed", "reported", "pass_rate"],
+          "additionalProperties": false,
+          "properties": {
+            "total": {"type": "integer", "minimum": 0},
+            "passed": {"type": "integer", "minimum": 0},
+            "reported": {"type": "integer", "minimum": 0},
+            "pass_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+          }
+        },
+        "mean_stability": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Mean run-to-run Jaccard over targets with a rerun; null when none had one."
+        },
+        "targets_scored": {"type": "integer", "minimum": 0},
+        "targets_skipped": {"type": "integer", "minimum": 0},
+        "auditor_versions": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
