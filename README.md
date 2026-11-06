@@ -459,7 +459,8 @@ make test     # includes PG storage + ledger schema tests
 make db-down
 ```
 
-`make schema-diff` reports schema changes vs `origin/development` that traust-core may need to absorb.
+`make schema-diff` reports artifact, configuration and derived-view schema changes vs
+`origin/development` that traust-core may need to absorb.
 PostgreSQL tests run automatically when `psycopg` and the database are available;
 otherwise they skip.
 
