@@ -83,3 +83,23 @@ AFTER UPDATE ON ops_run_order FOR EACH ROW
 WHEN NEW.updated_at IS OLD.updated_at BEGIN
   UPDATE ops_run_order SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE id = NEW.id;
 END;
+
+-- An order runs a work item of its own repository: the work item's commit
+-- (assessment -> repository_ref) is on the repository the order names.
+CREATE TRIGGER IF NOT EXISTS ops_run_order_work_item_of_repository
+BEFORE INSERT ON ops_run_order
+WHEN NEW.work_item_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM assessment a JOIN repository_ref r ON r.id = a.repository_ref_id
+    WHERE a.id = NEW.work_item_id AND r.repository_id IS NOT NEW.repository_id)
+BEGIN
+  SELECT RAISE(ABORT, 'ops_run_order.work_item_id is not a work item of its repository');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ops_run_order_work_item_of_repository_update
+BEFORE UPDATE OF work_item_id, repository_id ON ops_run_order
+WHEN NEW.work_item_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM assessment a JOIN repository_ref r ON r.id = a.repository_ref_id
+    WHERE a.id = NEW.work_item_id AND r.repository_id IS NOT NEW.repository_id)
+BEGIN
+  SELECT RAISE(ABORT, 'ops_run_order.work_item_id is not a work item of its repository');
+END;

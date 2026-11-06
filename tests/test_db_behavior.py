@@ -472,7 +472,7 @@ def test_a_remediation_schedules_its_findings_and_its_status_moves(db: Db) -> No
 
 def test_scheduled_findings_cannot_be_deleted_out_from_under_the_effort(db: Db) -> None:
     rid = repo(db)
-    fid, other = finding(db, rid), finding(db, repo(db, "https://example.com/r2"))
+    fid = finding(db, rid)
     scheduled, second = remediation(db), remediation(db)
     db.insert("remediation_finding", remediation_id=scheduled, finding_id=fid, repository_id=rid)
     for table, row in (
@@ -485,7 +485,22 @@ def test_scheduled_findings_cannot_be_deleted_out_from_under_the_effort(db: Db) 
     # a finding under one effort can be scheduled by another, and an effort
     # with no findings left (GC's terminal sweep) can go
     db.insert("remediation_finding", remediation_id=second, finding_id=fid, repository_id=rid)
-    db.run(f"DELETE FROM {db.t('remediation')} WHERE id = ?", (other,))
+    empty = remediation(db)
+    db.run(f"DELETE FROM {db.t('remediation')} WHERE id = ?", (empty,))
+    assert db.run(f"SELECT id FROM {db.t('remediation')} WHERE id = ?", (empty,)) == []
+
+
+def test_a_scheduled_finding_is_on_the_repository_that_owns_it(db: Db) -> None:
+    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
+    fid = finding(db, rid)
+    effort = remediation(db)
+    db.rejects(
+        "remediation_finding", remediation_id=effort, finding_id=fid, repository_id=elsewhere
+    )
+    row = db.insert("remediation_finding", remediation_id=effort, finding_id=fid, repository_id=rid)
+    table = db.t("remediation_finding")
+    with pytest.raises(db.Error):
+        db.run(f"UPDATE {table} SET repository_id = ? WHERE id = ?", (elsewhere, row))
 
 
 def test_default_reference_requires_a_named_branch_not_a_bare_commit(db: Db) -> None:
@@ -553,11 +568,15 @@ def test_run_order_names_its_asset_and_lane_only_when_routed(db: Db) -> None:
 
 
 def test_a_run_order_names_a_real_work_item_or_none(db: Db) -> None:
-    item = assessment(db, ref(db, repo(db)))
+    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
+    item = assessment(db, ref(db, rid))
     order = {"asset": "remediate_finding", "state": "queued", "priority": 0, "requested_by": "h"}
-    oid = db.insert("ops.run_order", work_item_id=item, **order)
+    oid = db.insert("ops.run_order", work_item_id=item, repository_id=rid, **order)
     db.insert("ops.run_order", **order)  # an asset that runs no named item
-    db.rejects("ops.run_order", work_item_id=str(uuid.uuid4()), **order)
+    db.rejects("ops.run_order", work_item_id=str(uuid.uuid4()), repository_id=rid, **order)
+    # the work item is one of the order's own repository
+    db.rejects("ops.run_order", work_item_id=item, repository_id=elsewhere, **order)
+    db.rejects("ops.run_order", work_item_id=item, **order)
     table = db.t("ops.run_order")
     assert str(db.run(f"SELECT work_item_id FROM {table} WHERE id = ?", (oid,))[0][0]) == item
     with pytest.raises(db.Error):  # the work item an order runs can't be deleted from under it
@@ -572,6 +591,11 @@ def test_run_order_work_item_upgrade_keeps_existing_orders_without_inventing_one
     oid = db.insert("ops.run_order", **order)
     # Reproduce the prior table shape without recreating the populated table.
     schema = "traust_ops." if db.engine == "postgres" else ""
+    if db.engine == "postgres":
+        db.run(f"DROP TRIGGER run_order_work_item_of_repository ON {table}")
+    else:
+        db.run("DROP TRIGGER ops_run_order_work_item_of_repository")
+        db.run("DROP TRIGGER ops_run_order_work_item_of_repository_update")
     db.run(f"DROP INDEX {schema}idx_ops_run_order_work_item")
     db.run(f"ALTER TABLE {table} DROP COLUMN work_item_id")
     before = db.run(f"SELECT * FROM {table} WHERE id = ?", (oid,))[0]
@@ -579,10 +603,13 @@ def test_run_order_work_item_upgrade_keeps_existing_orders_without_inventing_one
         db.run(statement)
     row = db.run(f"SELECT * FROM {table} WHERE id = ?", (oid,))[0]
     assert row[:-1] == before and row[-1] is None
-    item = assessment(db, ref(db, repo(db)))
-    db.run(f"UPDATE {table} SET work_item_id = ? WHERE id = ?", (item, oid))
+    rid = repo(db)
+    item = assessment(db, ref(db, rid))
+    db.run(f"UPDATE {table} SET repository_id = ?, work_item_id = ? WHERE id = ?", (rid, item, oid))
     with pytest.raises(db.Error):
         db.run(f"UPDATE {table} SET work_item_id = ? WHERE id = ?", (str(uuid.uuid4()), oid))
+    with pytest.raises(db.Error):  # the upgrade brings the repository guard too
+        db.run(f"UPDATE {table} SET repository_id = NULL WHERE id = ?", (oid,))
     # Normal bootstrap remains safe once the explicit upgrade has run.
     for path in ops_sql.bootstrap_files(db.engine):
         if path.stem == "run_order":

@@ -28,3 +28,22 @@ AFTER UPDATE ON remediation_finding FOR EACH ROW
 WHEN NEW.updated_at IS OLD.updated_at BEGIN
   UPDATE remediation_finding SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE id = NEW.id;
 END;
+
+-- A row names the repository that owns its finding: the per-repository view
+-- reads repository_id, so it must never attribute a finding elsewhere. A
+-- missing finding is left to its foreign key.
+CREATE TRIGGER IF NOT EXISTS remediation_finding_repository_of_finding
+BEFORE INSERT ON remediation_finding
+WHEN EXISTS (SELECT 1 FROM finding
+             WHERE id = NEW.finding_id AND repository_id IS NOT NEW.repository_id)
+BEGIN
+  SELECT RAISE(ABORT, 'remediation_finding.repository_id does not own its finding');
+END;
+
+CREATE TRIGGER IF NOT EXISTS remediation_finding_repository_of_finding_update
+BEFORE UPDATE OF finding_id, repository_id ON remediation_finding
+WHEN EXISTS (SELECT 1 FROM finding
+             WHERE id = NEW.finding_id AND repository_id IS NOT NEW.repository_id)
+BEGIN
+  SELECT RAISE(ABORT, 'remediation_finding.repository_id does not own its finding');
+END;
