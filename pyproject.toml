@@ -34,6 +34,7 @@ exclude = ["/.ci-venv", "/.venv", "/tests/fixtures/storage"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "artifacts_schema/v1" = "traust_contracts/artifacts_schema/v1"
+"views_schema/v1" = "traust_contracts/views_schema/v1"
 "config/v1" = "traust_contracts/config/v1"
 "enums/v1" = "traust_contracts/enums/v1"
 "mappings/v1" = "traust_contracts/mappings/v1"
@@ -44,6 +45,7 @@ exclude = ["/.ci-venv", "/.venv", "/tests/fixtures/storage"]
 [tool.hatch.build]
 artifacts = [
     "artifacts_schema/v1/**",
+    "views_schema/v1/**",
     "config/v1/**",
     "enums/v1/**",
     "mappings/v1/**",

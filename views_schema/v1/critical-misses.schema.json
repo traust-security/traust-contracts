@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/critical-misses.schema.json",
+  "title": "Critical misses view",
+  "description": "Ephemeral derived Insight ViewModel from DetectionQualityService.critical_misses for an explicit time window, using current recorded dispositions. Not a persisted artifact or SQL projection. Empty misses do not establish clean coverage or a detection rate.",
+  "type": "object",
+  "required": ["window", "misses"],
+  "additionalProperties": false,
+  "properties": {
+    "window": {
+      "description": "Explicit timezone-aware time window. Core enforces start before end; JSON Schema validates the individual RFC3339 timestamps only.",
+      "type": "object",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": {"type": "string", "format": "date-time"},
+        "end": {"type": "string", "format": "date-time"}
+      }
+    },
+    "misses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "repository_id",
+          "title",
+          "found_by",
+          "found_at",
+          "missed_by",
+          "reason",
+          "validity"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "finding_id": {"type": "string", "format": "uuid"},
+          "repository_id": {"type": "string", "format": "uuid"},
+          "title": {
+            "type": "string",
+            "description": "Raw untrusted finding title, preserved as data rather than authored Markdown or HTML."
+          },
+          "found_by": {"type": "string", "format": "uuid"},
+          "found_at": {"type": "string", "format": "date-time"},
+          "missed_by": {"type": "string", "format": "uuid"},
+          "reason": {
+            "type": "string",
+            "enum": ["missed", "area_reported"],
+            "description": "missed denotes an actual miss; area_reported requires adjudication."
+          },
+          "validity": {
+            "type": ["string", "null"],
+            "description": "Recorded validity, including arbitrary historical strings; null is unknown."
+          }
+        }
+      }
+    }
+  }
+}
