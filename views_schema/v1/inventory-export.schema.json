@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/inventory-export.schema.json",
+  "title": "Inventory export view",
+  "description": "Ephemeral Insight ViewModel wrapping repository inventory rows with the legacy human-column labels. Raw strings are preserved as data; renderers are responsible for making them inert. No persisted artifact or mutation is implied.",
+  "type": "object",
+  "required": ["rows"],
+  "additionalProperties": false,
+  "properties": {
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "Repository",
+          "URL",
+          "Host",
+          "Organization/Group",
+          "Repo Name",
+          "Owner Team",
+          "Products",
+          "Accountable Contacts"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "Repository": {"type": "string"},
+          "URL": {"type": "string"},
+          "Host": {"type": "string"},
+          "Organization/Group": {"type": "string"},
+          "Repo Name": {"type": "string"},
+          "Owner Team": {"type": "array", "items": {"type": "string"}},
+          "Products": {"type": "array", "items": {"type": "string"}},
+          "Accountable Contacts": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}
