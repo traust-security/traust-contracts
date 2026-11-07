@@ -140,6 +140,30 @@ Use JSON Schema format checking to enforce UUID and date-time fields; the schema
 does not compare window endpoints. The legacy CLI JSON array remains a consumer
 compatibility surface, separate from this `{window, misses}` view contract.
 
+`views_schema/v1/pqc-worklist.schema.json` is the Draft 2020-12 contract for
+Core's ephemeral PQC worklist. Its required wrapper fields are `product_id`,
+`repository_ref_ids`, `chokepoints` and `entries`. A null ref scope means all
+refs in scope; an empty array means none. Core intersects explicit ref scope
+with the selected product's shipped refs. Chokepoints are caller-supplied URL
+fragments, not persisted configuration.
+
+Entries preserve the legacy repository/ref IDs, raw repository and SHA strings,
+priority tier (`chokepoint`, `crypto-cwe`, `tail`), route (`source`, `sbom-only`,
+`access-request`), nested liveness, reason, nullable scan state and cursor.
+Liveness preserves nullable observations and historical `pushed_at`,
+`unobserved` and reason strings. Scan currency and liveness booleans distinguish
+unknown null from measured false; neither establishes readiness. Objects are
+strict and every serialized field is required, including nullable fields.
+Use format checking for UUIDs and observation timestamps; raw repository, SHA,
+scope and historical strings have no invented URL, hash or markup restrictions.
+
+Core owns `PqcService.worklist`, scope intersection, representative-ref choice,
+ranking, routing, cursor ordering, validation and safe human-readable rendering.
+Building this view uses recorded state only: it does not scan, check out code
+or write storage. The legacy CLI JSON array remains separate from this canonical
+wrapper, and raw untrusted strings remain data rather than authored Markdown
+or HTML.
+
 `views_schema/v1/compliance-precision.schema.json` wraps the native
 `DetectionQualityService.calibrate_compliance(framework, gate=...)` result as
 `{calibration: {framework, assessments, checks, gate}}`. Framework IDs reuse the
