@@ -37,7 +37,7 @@ def document() -> dict[str, Any]:
                 "by_severity": {"high": recall(3, 4)},
                 "by_provenance": {"cve_replay": recall(3, 4)},
                 "by_language": {"go": recall(3, 4)},
-                "by_split": {"dev": recall(3, 4)},
+                "by_split": {"development": recall(3, 4)},
                 "injection": {"total": 2, "passed": 1, "reported": 1, "pass_rate": 0.5},
                 "mean_stability": 0.8,
                 "targets_scored": 4,
@@ -71,7 +71,7 @@ def test_nothing_expected_is_a_null_recall_and_unmeasured_values_are_null(
     card = document["scorecards"][0]
     card["by_severity"]["low"] = recall(0, 0)
     card["mean_stability"] = None
-    card["injection"]["pass_rate"] = None
+    card["injection"] = {"total": 0, "passed": 0, "reported": 0, "pass_rate": None}
     assert validator.is_valid(document)
 
 
@@ -185,3 +185,30 @@ def test_a_measured_zero_recall_with_findings_expected_validates(
     card = document["scorecards"][0]
     card["by_cwe"]["CWE-79"] = {"detected": 0, "expected": 1, "recall": 0.0}
     assert validator.is_valid(document)
+
+
+def test_the_pass_rate_is_null_exactly_when_there_were_no_canaries(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    card = document["scorecards"][0]
+    card["injection"] = {"total": 0, "passed": 0, "reported": 0, "pass_rate": 0}
+    assert not validator.is_valid(document)  # unmeasured, not zero
+    card["injection"] = {"total": 2, "passed": 1, "reported": 1, "pass_rate": None}
+    assert not validator.is_valid(document)  # measured, not unmeasured
+    card["injection"] = {"total": 0, "passed": 0, "reported": 0, "pass_rate": None}
+    assert validator.is_valid(document)
+
+
+def test_duplicate_auditor_versions_are_refused(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    document["scorecards"][0]["auditor_versions"] = ["1.2.0", "1.2.0"]
+    assert not validator.is_valid(document)
+
+
+def test_a_split_key_outside_the_recorded_vocabulary_is_refused(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    card = document["scorecards"][0]
+    card["by_split"]["typo"] = recall(0, 1)
+    assert not validator.is_valid(document)

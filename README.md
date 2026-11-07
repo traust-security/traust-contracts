@@ -168,9 +168,10 @@ surface rather than this canonical wrapper.
 benchmark-scorecards view: a `scorecards` array, oldest auditor version first and
 empty when no benchmark audit is recorded. Each scorecard carries overall recall,
 recall by CWE, severity, target provenance, language and split, near misses (review-tier
-matches, listed for adjudication and never counted as detected), the injection
-summary, mean run-to-run stability, targets scored and skipped, and its auditor
-versions. A recall is `detected` over `expected`, `null` when nothing was expected
+matches, counted here; identities live in the run's Expected-finding matches table, and
+they never count as detected), the injection summary, mean run-to-run stability, targets
+scored and skipped, and its auditor versions. A recall is `detected` over `expected`,
+`null` when nothing was expected
 (never 0). The producer is `DetectionQualityService.scorecards` over the recorded
 benchmark audits against the newest answer key; held-out targets are release scoring
 and never in this view. Scoring a directory of unrecorded runs stays a Core door,

@@ -52,16 +52,16 @@
       }
     },
     "by_severity": {
-      "description": "Recall per answer-key severity, severest first.",
+      "description": "Recall per answer-key severity; the producer orders keys severest first, though object keys carry no order of their own.",
       "allOf": [{"$ref": "#/$defs/breakdown"}],
       "propertyNames": {
         "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/benchmark-target.schema.json#/properties/targets/items/properties/expected/items/properties/severity"
       }
     },
     "by_split": {
-      "description": "Recall per split. Held-out targets are release scoring and never in this view, so the held_out bucket is refused.",
+      "description": "Recall per split. Held-out targets are release scoring and never in this view, so the only recorded bucket is development.",
       "allOf": [{"$ref": "#/$defs/breakdown"}],
-      "propertyNames": {"not": {"const": "held_out"}}
+      "propertyNames": {"enum": ["development"]}
     },
     "scorecard": {
       "type": "object",
@@ -100,8 +100,23 @@
             "total": {"type": "integer", "minimum": 0},
             "passed": {"type": "integer", "minimum": 0},
             "reported": {"type": "integer", "minimum": 0},
-            "pass_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
-          }
+            "pass_rate": {
+              "type": ["number", "null"],
+              "minimum": 0,
+              "maximum": 1,
+              "description": "passed / total; null when there were no canaries, never 0."
+            }
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"total": {"minimum": 1}}, "required": ["total"]},
+              "then": {"properties": {"pass_rate": {"type": "number"}}}
+            },
+            {
+              "if": {"properties": {"total": {"maximum": 0}}, "required": ["total"]},
+              "then": {"properties": {"pass_rate": {"type": "null"}}}
+            }
+          ]
         },
         "mean_stability": {
           "type": ["number", "null"],
@@ -114,6 +129,7 @@
         "auditor_versions": {
           "type": "array",
           "minItems": 1,
+          "uniqueItems": true,
           "items": {"type": "string"}
         }
       }
