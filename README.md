@@ -220,9 +220,11 @@ techniques, adapters, classifications and scope modes reuse the validation repor
 Unknown fields and invalid types fail, including agent-supplied approval or scope grants.
 
 A step may contain a structured `target.http` probe with method, destination
-selection, headers and authentication preconditions. Such a step cannot carry
-command or rollback text. The shape does not grant endpoint access; the
-executor checks the engagement and method before issuing the request.
+selection, headers and authentication preconditions. Direct probes require a
+nonempty URL; route and service plans can retain empty discovery candidates.
+Such a step cannot carry command or rollback text. The shape does not grant
+endpoint access; the executor checks the engagement and method before issuing
+the request.
 
 This schema **does not authorize execution**. A caller must bind the approved artifact digest
 to a verified principal and current scope, classify each command against its actual operands,
@@ -236,8 +238,10 @@ needs a new authorization decision.
 Its optional `expires_at` is a timezone-aware deadline; date-only `expires` retains
 its existing meaning. The snapshot includes exact `http_targets` and each cluster's
 API identity and HTTP discovery policy, including route domains, node networks,
-credential permissions and TLS/session settings. These fields record grants; the
-execution service enforces their expiry and scope.
+credential permissions and TLS/session settings. When a discovery policy or a
+route or node grant is present, all of its snapshot fields are required; older
+snapshots may omit the policy. These fields record grants; the execution service
+enforces their expiry and scope.
 
 ## Complete impact preparation snapshots
 

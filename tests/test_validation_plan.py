@@ -113,6 +113,84 @@ def test_structured_http_probe_is_a_valid_plan(validator: Draft202012Validator) 
     validator.validate(http_plan())
 
 
+@pytest.mark.parametrize(
+    ("probe", "resource"),
+    [
+        ({"namespaces": ["example-a"]}, "routes"),
+        ({"mode": "route", "namespaces": ["example-a", "example-b"]}, "routes"),
+        ({"mode": "service", "namespaces": ["example-a"]}, "services"),
+        ({"mode": "node"}, "nodes"),
+        ({"mode": "direct", "url": "https://example.invalid"}, "http_targets"),
+    ],
+)
+def test_probe_snapshots_remain_readable_through_cli_validator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, probe: dict[str, Any], resource: str
+) -> None:
+    # This validates proposed snapshots, not permission to run them. Route
+    # discovery without namespaces is rejected by the execution consumers.
+    monkeypatch.syspath_prepend(str(SCHEMA.parents[2]))
+    from validate import validate_artifact
+
+    plan = http_plan()
+    plan["steps"][0]["target"] = {
+        "context": "authorized-lab",
+        "resource": resource,
+        "http": probe,
+    }
+    artifact = tmp_path / "plan.json"
+    artifact.write_text(json.dumps(plan), encoding="utf-8")
+    assert validate_artifact("validation-plan", artifact)
+
+
+@pytest.mark.parametrize(
+    "probe", [{"mode": "direct"}, {"mode": "direct", "url": None}, {"mode": "direct", "url": ""}]
+)
+def test_direct_probe_requires_url_through_cli_validator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, probe: dict[str, Any]
+) -> None:
+    monkeypatch.syspath_prepend(str(SCHEMA.parents[2]))
+    from validate import validate_artifact
+
+    plan = http_plan()
+    plan["steps"][0]["target"] = {
+        "context": "authorized-lab",
+        "resource": "http_targets",
+        "http": probe,
+    }
+    artifact = tmp_path / "plan.json"
+    artifact.write_text(json.dumps(plan), encoding="utf-8")
+    assert not validate_artifact("validation-plan", artifact)
+
+
+def test_generated_direct_probe_without_explicit_port_is_valid(
+    validator: Draft202012Validator,
+) -> None:
+    plan = http_plan()
+    target = plan["steps"][0]["target"]
+    target["resource"] = "http_targets"
+    target["http"]["mode"] = "direct"
+    target["http"]["url"] = "https://example.invalid"
+    validator.validate(plan)
+
+
+@pytest.mark.parametrize("mode", ["route", "service"])
+@pytest.mark.parametrize("skipped", [False, True])
+def test_generated_probe_without_discovery_candidates_remains_readable(
+    validator: Draft202012Validator, mode: str, skipped: bool
+) -> None:
+    # The planner serializes empty candidates when no discovery grant is usable;
+    # even an unskipped proposed plan is not executable without further checks.
+    plan = http_plan()
+    step = plan["steps"][0]
+    step["target"]["namespace"] = None
+    step["target"]["resource"] = "routes" if mode == "route" else "services"
+    step["target"]["http"]["mode"] = mode
+    step["target"]["http"]["namespaces"] = []
+    if skipped:
+        step["skip"] = "blocked_by_scope: no discovery candidates"
+    validator.validate(plan)
+
+
 @pytest.mark.parametrize("field", ["cmd", "rollback"])
 def test_structured_http_probe_rejects_command_text(
     validator: Draft202012Validator, field: str
@@ -125,7 +203,15 @@ def test_structured_http_probe_rejects_command_text(
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("method", "CONNECT"), ("port", 0), ("unexpected", True), ("headers", {"X": 1})],
+    [
+        ("mode", "unknown"),
+        ("method", "CONNECT"),
+        ("port", 0),
+        ("url", 12),
+        ("namespaces", None),
+        ("unexpected", True),
+        ("headers", {"X": 1}),
+    ],
 )
 def test_structured_http_probe_rejects_invalid_fields(
     validator: Draft202012Validator, field: str, value: object

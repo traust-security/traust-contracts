@@ -97,6 +97,7 @@
     },
     "http_discovery": {
       "type": "object",
+      "required": ["routes", "nodes", "port_forward_credentials", "kube_env", "ca_bundle", "insecure_tls", "session_check_path", "session_check_contains"],
       "additionalProperties": false,
       "properties": {
         "routes": {"type": "array", "items": {"$ref": "#/$defs/http_route_grant"}},
@@ -111,7 +112,7 @@
     },
     "http_route_grant": {
       "type": "object",
-      "required": ["namespace"],
+      "required": ["namespace", "names", "domains", "credentials"],
       "additionalProperties": false,
       "properties": {
         "namespace": {"type": "string", "minLength": 1},
@@ -122,6 +123,7 @@
     },
     "http_node_grant": {
       "type": "object",
+      "required": ["names", "networks", "address_types", "credentials"],
       "additionalProperties": false,
       "properties": {
         "names": {"type": "array", "items": {"type": "string", "minLength": 1}},
