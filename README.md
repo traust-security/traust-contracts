@@ -201,6 +201,16 @@ benchmark audits against the newest answer key; held-out targets are release sco
 and never in this view. Scoring a directory of unrecorded runs stays a Core door,
 not a view.
 
+`views_schema/v1/inventory-export.schema.json` defines the ephemeral global inventory
+view as `{rows: [...]}`. Each row requires the eight existing inventory columns:
+`Repository`, `URL`, `Host`, `Organization/Group`, `Repo Name`, `Owner Team`,
+`Products` and `Accountable Contacts`. The first five are strings; the last three
+are string arrays, including empty arrays. Unknown fields and null lists are refused.
+Raw text has no new URL or markup restrictions; Core owns safe rendering, bounded
+composition and ordering. No inventory declaration, stored projection or new artifact
+kind is introduced. The CLI retains its legacy bare JSON array separately from this
+canonical wrapper, with CSV produced by Core's shared renderer.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
