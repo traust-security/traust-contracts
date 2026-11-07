@@ -52,7 +52,7 @@
       }
     },
     "by_severity": {
-      "description": "Recall per answer-key severity; the producer orders keys severest first, though object keys carry no order of their own.",
+      "description": "Recall per answer-key severity; keys are unordered.",
       "allOf": [{"$ref": "#/$defs/breakdown"}],
       "propertyNames": {
         "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/benchmark-target.schema.json#/properties/targets/items/properties/expected/items/properties/severity"
