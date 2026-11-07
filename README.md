@@ -188,6 +188,19 @@ Core owns the typed wrapper, validation, Insight registration and shared human
 rendering. The CLI's flat native calibration JSON remains a separate compatibility
 surface rather than this canonical wrapper.
 
+`views_schema/v1/benchmark-scorecards.schema.json` is the contract for the
+benchmark-scorecards view: a `scorecards` array, oldest auditor version first and
+empty when no benchmark audit is recorded. Each scorecard carries overall recall,
+recall by CWE, severity, target provenance, language and split, near misses (review-tier
+matches, counted here; identities live in the run's Expected-finding matches table, and
+they never count as detected), the injection summary, mean run-to-run stability, targets
+scored and skipped, and its auditor versions. A recall is `detected` over `expected`,
+`null` when nothing was expected
+(never 0). The producer is `DetectionQualityService.scorecards` over the recorded
+benchmark audits against the newest answer key; held-out targets are release scoring
+and never in this view. Scoring a directory of unrecorded runs stays a Core door,
+not a view.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
