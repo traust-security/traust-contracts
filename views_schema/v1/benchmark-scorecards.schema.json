@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/benchmark-scorecards.schema.json",
+  "title": "Benchmark scorecards view",
+  "description": "Ephemeral derived Insight ViewModel from DetectionQualityService.scorecards: one recall scorecard per auditor version over the recorded benchmark audits, scored against the newest answer key. Held-out targets are never included (release scoring is not a dashboard). Not a persisted artifact or SQL projection. Recall is detected over expected; null when nothing was expected.",
+  "type": "object",
+  "required": ["scorecards"],
+  "additionalProperties": false,
+  "properties": {
+    "scorecards": {
+      "description": "Oldest auditor version first. Empty when no benchmark audit is recorded.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/scorecard"}
+    }
+  },
+  "$defs": {
+    "recall": {
+      "type": "object",
+      "required": ["detected", "expected", "recall"],
+      "additionalProperties": false,
+      "properties": {
+        "detected": {"type": "integer", "minimum": 0},
+        "expected": {"type": "integer", "minimum": 0},
+        "recall": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "detected / expected; null when nothing was expected, never 0."
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"expected": {"minimum": 1}}, "required": ["expected"]},
+          "then": {"properties": {"recall": {"type": "number"}}}
+        },
+        {
+          "if": {"properties": {"expected": {"maximum": 0}}, "required": ["expected"]},
+          "then": {"properties": {"recall": {"type": "null"}}}
+        }
+      ]
+    },
+    "breakdown": {
+      "description": "Recall per value of one dimension (a CWE, a severity, a target provenance, a language, a split); keys are the recorded values.",
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/recall"}
+    },
+    "by_provenance": {
+      "description": "Recall per answer-key provenance; keys are the benchmark-target vocabulary.",
+      "allOf": [{"$ref": "#/$defs/breakdown"}],
+      "propertyNames": {
+        "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/benchmark-target.schema.json#/properties/targets/items/properties/provenance"
+      }
+    },
+    "by_severity": {
+      "description": "Recall per answer-key severity, severest first.",
+      "allOf": [{"$ref": "#/$defs/breakdown"}],
+      "propertyNames": {
+        "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/benchmark-target.schema.json#/properties/targets/items/properties/expected/items/properties/severity"
+      }
+    },
+    "by_split": {
+      "description": "Recall per split. Held-out targets are release scoring and never in this view, so the held_out bucket is refused.",
+      "allOf": [{"$ref": "#/$defs/breakdown"}],
+      "propertyNames": {"not": {"const": "held_out"}}
+    },
+    "scorecard": {
+      "type": "object",
+      "required": [
+        "overall",
+        "near_misses",
+        "by_cwe",
+        "by_severity",
+        "by_provenance",
+        "by_language",
+        "by_split",
+        "injection",
+        "mean_stability",
+        "targets_scored",
+        "targets_skipped",
+        "auditor_versions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "overall": {"$ref": "#/$defs/recall"},
+        "near_misses": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of expected findings matched only at the review tier. A summary count, never counted as detected; the per-match identities for adjudication are the run's Expected-finding matches table, not this view."
+        },
+        "by_cwe": {"$ref": "#/$defs/breakdown"},
+        "by_severity": {"$ref": "#/$defs/by_severity"},
+        "by_provenance": {"$ref": "#/$defs/by_provenance"},
+        "by_language": {"$ref": "#/$defs/breakdown"},
+        "by_split": {"$ref": "#/$defs/by_split"},
+        "injection": {
+          "type": "object",
+          "required": ["total", "passed", "reported", "pass_rate"],
+          "additionalProperties": false,
+          "properties": {
+            "total": {"type": "integer", "minimum": 0},
+            "passed": {"type": "integer", "minimum": 0},
+            "reported": {"type": "integer", "minimum": 0},
+            "pass_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+          }
+        },
+        "mean_stability": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Mean run-to-run Jaccard over targets with a rerun; null when none had one."
+        },
+        "targets_scored": {"type": "integer", "minimum": 0},
+        "targets_skipped": {"type": "integer", "minimum": 0},
+        "auditor_versions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}
