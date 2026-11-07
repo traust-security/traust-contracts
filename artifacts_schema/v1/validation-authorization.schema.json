@@ -47,6 +47,7 @@
         "authorized_by": {"type": ["string", "null"]},
         "environment": {"type": ["string", "null"]},
         "expires": {"oneOf": [{"type": "string", "format": "date"}, {"type": "null"}]},
+        "expires_at": {"oneOf": [{"type": "string", "format": "date-time"}, {"type": "null"}]},
         "modes": {
           "type": "array", "minItems": 1, "uniqueItems": true,
           "items": {
@@ -57,6 +58,7 @@
           }
         },
         "clusters": {"type": "array", "items": {"$ref": "#/$defs/cluster"}},
+        "http_targets": {"type": "array", "items": {"$ref": "#/$defs/http_target"}},
         "off_limits": {"type": "array", "items": {"$ref": "#/$defs/off_limit"}},
         "browser": {"type": "array", "items": {"$ref": "#/$defs/browser"}},
         "containers": {"$ref": "#/$defs/names"},
@@ -75,7 +77,57 @@
         "context": {"type": "string", "minLength": 1},
         "namespaces": {"$ref": "#/$defs/names"},
         "explicit_namespaces": {"$ref": "#/$defs/names"},
-        "verbs_denied": {"$ref": "#/$defs/names"}
+        "verbs_denied": {"$ref": "#/$defs/names"},
+        "api": {"type": ["string", "null"]},
+        "http_discovery": {"oneOf": [{"$ref": "#/$defs/http_discovery"}, {"type": "null"}]}
+      }
+    },
+    "http_target": {
+      "type": "object",
+      "required": ["host", "context"],
+      "additionalProperties": false,
+      "properties": {
+        "host": {"type": "string", "minLength": 1},
+        "context": {"type": "string", "minLength": 1},
+        "namespace": {"type": ["string", "null"]},
+        "resource": {"enum": ["routes", "nodes", "http_targets", null]},
+        "name": {"type": ["string", "null"]},
+        "credentials": {"type": "boolean"}
+      }
+    },
+    "http_discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "routes": {"type": "array", "items": {"$ref": "#/$defs/http_route_grant"}},
+        "nodes": {"oneOf": [{"$ref": "#/$defs/http_node_grant"}, {"type": "null"}]},
+        "port_forward_credentials": {"type": "boolean"},
+        "kube_env": {"type": "array", "items": {"type": "string"}},
+        "ca_bundle": {"type": ["string", "null"]},
+        "insecure_tls": {"type": "boolean"},
+        "session_check_path": {"type": ["string", "null"]},
+        "session_check_contains": {"type": ["string", "null"]}
+      }
+    },
+    "http_route_grant": {
+      "type": "object",
+      "required": ["namespace"],
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {"type": "string", "minLength": 1},
+        "names": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "domains": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "credentials": {"type": "boolean"}
+      }
+    },
+    "http_node_grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "names": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "networks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "address_types": {"type": "array", "items": {"enum": ["InternalIP", "ExternalIP"]}},
+        "credentials": {"type": "boolean"}
       }
     },
     "off_limit": {

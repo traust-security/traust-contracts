@@ -1,0 +1,7 @@
+{
+  "name": "validation_http_probe_mode",
+  "source_schema": "validation-plan.schema.json#/$defs/http_probe/properties/mode",
+  "description": "How a structured HTTP validation probe selects its endpoint.",
+  "values": ["route", "service", "node", "direct"],
+  "used_in_schemas": ["validation-plan.schema.json"]
+}

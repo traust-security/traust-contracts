@@ -78,6 +78,64 @@ def test_validate_findings_plan_shape(validator: Draft202012Validator) -> None:
     validator.validate({**PLAN, "steps": [recon]})
 
 
+def http_plan() -> dict[str, Any]:
+    plan = deepcopy(PLAN)
+    step = plan["steps"][0]
+    step.pop("payload")
+    step.pop("rollback")
+    step["verb"] = "port-forward+http"
+    step["target"] = {
+        "context": "authorized-lab",
+        "namespace": "example-a",
+        "resource": "routes",
+        "method": "GET",
+        "path": "/healthz",
+        "http": {
+            "mode": "route",
+            "method": "GET",
+            "path": "/healthz",
+            "port": None,
+            "scheme": "auto",
+            "hint": "console",
+            "namespaces": ["example-a"],
+            "name": None,
+            "url": None,
+            "headers": {},
+            "authenticate": False,
+            "csrf": False,
+            "service_account": None,
+        },
+    }
+    return plan
+
+
+def test_structured_http_probe_is_a_valid_plan(validator: Draft202012Validator) -> None:
+    validator.validate(http_plan())
+
+
+@pytest.mark.parametrize("field", ["cmd", "rollback"])
+def test_structured_http_probe_rejects_command_text(
+    validator: Draft202012Validator, field: str
+) -> None:
+    plan = http_plan()
+    plan["steps"][0][field] = "curl https://example.invalid"
+    with pytest.raises(ValidationError):
+        validator.validate(plan)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("method", "CONNECT"), ("port", 0), ("unexpected", True), ("headers", {"X": 1})],
+)
+def test_structured_http_probe_rejects_invalid_fields(
+    validator: Draft202012Validator, field: str, value: object
+) -> None:
+    plan = http_plan()
+    plan["steps"][0]["target"]["http"][field] = value
+    with pytest.raises(ValidationError):
+        validator.validate(plan)
+
+
 @pytest.mark.parametrize(
     ("path", "value"),
     [
