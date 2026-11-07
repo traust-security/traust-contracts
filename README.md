@@ -219,6 +219,11 @@ chains. Its allowed keys come from `Step.to_dict()`, `Chain.to_dict()` and `writ
 techniques, adapters, classifications and scope modes reuse the validation report's vocabularies.
 Unknown fields and invalid types fail, including agent-supplied approval or scope grants.
 
+A step may contain a structured `target.http` probe with method, destination
+selection, headers and authentication preconditions. Such a step cannot carry
+command or rollback text. The shape does not grant endpoint access; the
+executor checks the engagement and method before issuing the request.
+
 This schema **does not authorize execution**. A caller must bind the approved artifact digest
 to a verified principal and current scope, classify each command against its actual operands,
 and re-check the target immediately before dispatch. Browser plans use a different envelope and
@@ -226,6 +231,13 @@ object-valued payloads; they are not accepted by this initial contract. Duplicat
 precondition references and chain links also need service checks: JSON Schema validates each
 item, not relationships among items. An edited or recon-extended plan is a new artifact and
 needs a new authorization decision.
+
+`validation-authorization.schema.json` also preserves the approved scope snapshot.
+Its optional `expires_at` is a timezone-aware deadline; date-only `expires` retains
+its existing meaning. The snapshot includes exact `http_targets` and each cluster's
+API identity and HTTP discovery policy, including route domains, node networks,
+credential permissions and TLS/session settings. These fields record grants; the
+execution service enforces their expiry and scope.
 
 ## Complete impact preparation snapshots
 

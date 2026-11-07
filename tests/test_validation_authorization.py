@@ -68,6 +68,59 @@ def test_authorization_pins_plan_and_complete_scope(validator: Draft202012Valida
 
 
 @pytest.mark.parametrize(
+    "nodes",
+    [
+        None,
+        {
+            "names": ["worker-0"],
+            "networks": ["10.0.0.0/24"],
+            "address_types": ["InternalIP"],
+            "credentials": False,
+        },
+    ],
+)
+def test_authorization_preserves_complete_http_grants_and_expiry(
+    validator: Draft202012Validator, nodes: dict[str, Any] | None
+) -> None:
+    approval = deepcopy(APPROVAL)
+    scope = approval["scope"]
+    scope["expires_at"] = "2026-12-31T16:30:00Z"
+    scope["http_targets"] = [
+        {
+            "host": "console.example",
+            "context": "example-lab",
+            "namespace": "example-a",
+            "resource": "routes",
+            "name": "console",
+            "credentials": True,
+        }
+    ]
+    cluster = scope["clusters"][0]
+    cluster["api"] = "https://api.example:6443"
+    cluster["http_discovery"] = {
+        "routes": [
+            {
+                "namespace": "example-a",
+                "names": ["console"],
+                "domains": ["apps.example"],
+                "credentials": True,
+            }
+        ],
+        "nodes": nodes,
+        "port_forward_credentials": False,
+        "kube_env": [],
+        "ca_bundle": None,
+        "insecure_tls": False,
+        "session_check_path": None,
+        "session_check_contains": None,
+    }
+    validator.validate(approval)
+    scope["expires_at"] = None
+    cluster["http_discovery"] = None
+    validator.validate(approval)
+
+
+@pytest.mark.parametrize(
     ("path", "value"),
     [
         (("approval",), "yes"),
@@ -84,6 +137,10 @@ def test_authorization_pins_plan_and_complete_scope(validator: Draft202012Valida
         (("scope", "clusters", 0, "unsafe"), True),
         (("scope", "off_limits", 0, "unsafe"), True),
         (("scope", "expires"), "tomorrow"),
+        (("scope", "expires_at"), "2026-12-31T16:30:00"),
+        (("scope", "http_targets"), [{"context": "example-lab"}]),
+        (("scope", "clusters", 0, "http_discovery"), {"nodes": {"address_types": ["DNS"]}}),
+        (("scope", "clusters", 0, "api"), 1),
         (("scope", "wasm_artifact_ids"), ["file:///var/example.wasm"]),
     ],
 )

@@ -1,0 +1,7 @@
+{
+  "name": "validation_http_scheme",
+  "source_schema": "validation-plan.schema.json#/$defs/http_probe/properties/scheme",
+  "description": "Transport choices for structured HTTP validation probes.",
+  "values": ["auto", "http", "https"],
+  "used_in_schemas": ["validation-plan.schema.json"]
+}
