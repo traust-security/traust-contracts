@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/compliance-precision.schema.json",
+  "title": "Compliance precision view",
+  "description": "Ephemeral Insight ViewModel wrapping DetectionQualityService.calibrate_compliance output. Review precision for recorded automatic compliance check firings and attributed human dismissals, not evaluator calibration, compliance coverage or a compliance score. Core derives counts, precision and inclusive precision <= gate flags; this schema validates their shape and ranges, not count arithmetic. No mutations or persisted artifact are implied.",
+  "type": "object",
+  "required": ["calibration"],
+  "additionalProperties": false,
+  "properties": {
+    "calibration": {
+      "type": "object",
+      "required": ["framework", "assessments", "checks", "gate"],
+      "additionalProperties": false,
+      "properties": {
+        "framework": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/compliance-assessment.schema.json#/properties/metadata/properties/frameworks/items/properties/id"
+        },
+        "assessments": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of distinct recorded assessment documents considered by the producer, deduplicated by digest. Not a coverage denominator."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["check_id", "fired", "dismissed", "gate", "precision", "flagged"],
+            "additionalProperties": false,
+            "properties": {
+              "check_id": {
+                "type": "string",
+                "description": "Raw untrusted check identifier, preserved as data rather than authored Markdown or HTML."
+              },
+              "fired": {"type": "integer", "minimum": 0},
+              "dismissed": {"type": "integer", "minimum": 0},
+              "gate": {"type": "number", "minimum": 0, "maximum": 1},
+              "precision": {
+                "type": ["number", "null"],
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Producer-derived (fired - dismissed) / fired; null means unmeasured because there were no firings, never perfect precision."
+              },
+              "flagged": {
+                "type": "boolean",
+                "description": "Producer-derived review flag: measured precision <= gate, inclusive. Does not demote or disable a check."
+              }
+            }
+          }
+        },
+        "gate": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    }
+  }
+}

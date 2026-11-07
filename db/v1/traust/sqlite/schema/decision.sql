@@ -58,6 +58,11 @@ CREATE INDEX IF NOT EXISTS idx_decision_finding_occurred
 CREATE INDEX IF NOT EXISTS idx_decision_occurred
     ON decision (occurred_at);
 
+-- A work item's decisions (the remediation fold: lanes, in-flight queries).
+CREATE INDEX IF NOT EXISTS idx_decision_assessment
+    ON decision (assessment_id)
+    WHERE assessment_id IS NOT NULL;
+
 CREATE TRIGGER IF NOT EXISTS decision_reject_update
 BEFORE UPDATE ON decision BEGIN
   SELECT RAISE(ABORT, 'decision rows are append-only');

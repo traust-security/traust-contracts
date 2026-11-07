@@ -9,6 +9,7 @@ from pydantic import ConfigDict, Field
 from traust_contracts.v1.enums import RefKind, Severity
 from traust_contracts.v1.models._base import ContractModel
 from traust_contracts.v1.models.finding import Finding
+from traust_contracts.v1.timestamps import IsoTimestamp
 
 
 class LocBreakdown(ContractModel):
@@ -93,7 +94,7 @@ class ValidityCounts(ContractModel):
 
 class DispositionSummary(ContractModel):
     layer_ref: str
-    generated_at: str
+    generated_at: IsoTimestamp
     by_resolution: ResolutionCounts
     by_validity: ValidityCounts
     severity_overrides: list[dict[str, Any]] | None = None
@@ -111,6 +112,60 @@ class ScannerCorrelation(ContractModel):
     model_config = ConfigDict(extra="allow")
 
 
+class AsvsChapter(ContractModel):
+    chapter: str
+    area: str
+    requirements_assessed: int | None = None
+    violations: int | None = None
+    highest_severity: Severity | None = None
+
+
+class DependencyAuditEntry(ContractModel):
+    package: str
+    version: str
+    status: str
+    notes: str | None = None
+
+
+class DependencyAudit(ContractModel):
+    omit_unset_empty_fields = frozenset({"entries"})
+
+    prose: str | None = None
+    entries: list[DependencyAuditEntry] = Field(default_factory=list)
+
+
+class PeachInterface(ContractModel):
+    omit_unset_empty_fields = frozenset({"hardening_gaps", "finding_ids"})
+
+    name: str
+    complexity: str
+    shared: bool
+    boundary_type: str
+    hardening_gaps: list[str] = Field(default_factory=list)
+    finding_ids: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+
+class PeachIsolationReview(ContractModel):
+    """PEACH tenant-isolation review; required for harness >= 0.15.0."""
+
+    omit_unset_empty_fields = frozenset({"interfaces"})
+
+    applicable: bool
+    rationale: str | None = None
+    interfaces: list[PeachInterface] = Field(default_factory=list)
+
+
+class ReviewSurfaceEntry(ContractModel):
+    """One review surface's outcome; conditional requirements stay schema-side."""
+
+    omit_unset_empty_fields = frozenset({"finding_ids"})
+
+    status: str
+    finding_ids: list[str] = Field(default_factory=list)
+    note: str | None = None
+
+
 class Report(ContractModel):
     """Security audit/assessment report."""
 
@@ -125,3 +180,7 @@ class Report(ContractModel):
     disposition_summary: DispositionSummary | None = None
     negative_results: list[NegativeResult] = Field(default_factory=list)
     scanner_correlation: ScannerCorrelation | None = None
+    asvs_coverage: list[AsvsChapter] | None = None
+    dependency_audit: DependencyAudit | None = None
+    peach_isolation_review: PeachIsolationReview | None = None
+    review_surface_coverage: dict[str, ReviewSurfaceEntry] | None = None

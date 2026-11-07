@@ -17,6 +17,11 @@
 -- work_item_id is the remediation assessment (work item) an order runs, for
 -- an asset that runs one named item (remediate_finding); null otherwise. It is
 -- last so a database upgraded with ALTER TABLE has the same column order.
+-- fork_url / fork_branch: the mirror an effort runs on and its fix branch
+-- (remediate_finding only) - operational facts, write-once at scheduling,
+-- read-once at claim; deliberately not a repository FK: mirrors are out of
+-- band, never inventory, and the durable record lives in the run's
+-- remediation artifact.
 CREATE TABLE IF NOT EXISTS traust_ops.run_order (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     run_batch_id UUID REFERENCES traust_ops.run_batch(id) ON DELETE RESTRICT,
@@ -37,6 +42,8 @@ CREATE TABLE IF NOT EXISTS traust_ops.run_order (
     created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
     work_item_id UUID REFERENCES traust.assessment(id) ON DELETE RESTRICT,
+    fork_url TEXT,
+    fork_branch TEXT,
     PRIMARY KEY (id),
     CHECK (rule IS NULL OR event_source IS NULL),
     CHECK ((state = 'leased') = (lease_holder IS NOT NULL)),
