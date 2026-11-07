@@ -27,12 +27,41 @@
           "maximum": 1,
           "description": "detected / expected; null when nothing was expected, never 0."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"expected": {"minimum": 1}}, "required": ["expected"]},
+          "then": {"properties": {"recall": {"type": "number"}}}
+        },
+        {
+          "if": {"properties": {"expected": {"maximum": 0}}, "required": ["expected"]},
+          "then": {"properties": {"recall": {"type": "null"}}}
+        }
+      ]
     },
     "breakdown": {
       "description": "Recall per value of one dimension (a CWE, a severity, a target provenance, a language, a split); keys are the recorded values.",
       "type": "object",
       "additionalProperties": {"$ref": "#/$defs/recall"}
+    },
+    "by_provenance": {
+      "description": "Recall per answer-key provenance; keys are the benchmark-target vocabulary.",
+      "allOf": [{"$ref": "#/$defs/breakdown"}],
+      "propertyNames": {
+        "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/benchmark-target.schema.json#/properties/targets/items/properties/provenance"
+      }
+    },
+    "by_severity": {
+      "description": "Recall per answer-key severity, severest first.",
+      "allOf": [{"$ref": "#/$defs/breakdown"}],
+      "propertyNames": {
+        "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/benchmark-target.schema.json#/properties/targets/items/properties/expected/items/properties/severity"
+      }
+    },
+    "by_split": {
+      "description": "Recall per split. Held-out targets are release scoring and never in this view, so the held_out bucket is refused.",
+      "allOf": [{"$ref": "#/$defs/breakdown"}],
+      "propertyNames": {"not": {"const": "held_out"}}
     },
     "scorecard": {
       "type": "object",
@@ -56,13 +85,13 @@
         "near_misses": {
           "type": "integer",
           "minimum": 0,
-          "description": "Expected findings matched only at the review tier: listed for adjudication, never counted as detected."
+          "description": "Count of expected findings matched only at the review tier. A summary count, never counted as detected; the per-match identities for adjudication are the run's Expected-finding matches table, not this view."
         },
         "by_cwe": {"$ref": "#/$defs/breakdown"},
-        "by_severity": {"$ref": "#/$defs/breakdown"},
-        "by_provenance": {"$ref": "#/$defs/breakdown"},
+        "by_severity": {"$ref": "#/$defs/by_severity"},
+        "by_provenance": {"$ref": "#/$defs/by_provenance"},
         "by_language": {"$ref": "#/$defs/breakdown"},
-        "by_split": {"$ref": "#/$defs/breakdown"},
+        "by_split": {"$ref": "#/$defs/by_split"},
         "injection": {
           "type": "object",
           "required": ["total", "passed", "reported", "pass_rate"],

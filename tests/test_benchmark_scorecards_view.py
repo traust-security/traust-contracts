@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from jsonschema import Draft202012Validator, FormatChecker
+from jsonschema import Draft202012Validator
+from test_contracts import build_registry
 
 SCHEMA = Path(__file__).parents[1] / "views_schema/v1/benchmark-scorecards.schema.json"
 
@@ -14,7 +15,7 @@ SCHEMA = Path(__file__).parents[1] / "views_schema/v1/benchmark-scorecards.schem
 def validator() -> Draft202012Validator:
     schema = json.loads(SCHEMA.read_text())
     Draft202012Validator.check_schema(schema)
-    return Draft202012Validator(schema, format_checker=FormatChecker())
+    return Draft202012Validator(schema, registry=build_registry())
 
 
 def recall(detected: int, expected: int) -> dict[str, Any]:
@@ -131,3 +132,56 @@ def test_unknown_fields_are_refused(
     document["scorecards"][0].pop("held_out")
     document["window"] = {"start": "2026-10-01T00:00:00Z"}
     assert not validator.is_valid(document)
+
+
+@pytest.mark.parametrize(
+    ("field", "key"),
+    [
+        ("by_split", "held_out"),  # release scoring never reaches this view
+        ("by_provenance", "imagined"),  # not a benchmark-target provenance
+        ("by_severity", "severe"),  # not a severity of the answer key
+    ],
+)
+def test_breakdown_keys_outside_the_recorded_vocabularies_are_refused(
+    validator: Draft202012Validator, document: dict[str, Any], field: str, key: str
+) -> None:
+    card = document["scorecards"][0]
+    card[field][key] = recall(0, 1)
+    assert not validator.is_valid(document)
+
+
+def test_the_development_split_bucket_still_validates(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    card = document["scorecards"][0]
+    card["by_split"] = {"development": recall(3, 4)}
+    assert validator.is_valid(document)
+
+
+@pytest.mark.parametrize(
+    ("values", "invalid"),
+    [
+        ({"detected": 0, "expected": 0, "recall": 0}, "a zero rate for nothing expected"),
+        (
+            {"detected": 2, "expected": 3, "recall": None},
+            "an unmeasured rate for findings expected",
+        ),
+    ],
+)
+def test_a_recall_is_null_exactly_when_nothing_was_expected(
+    validator: Draft202012Validator, document: dict[str, Any], values: dict[str, Any], invalid: str
+) -> None:
+    card = document["scorecards"][0]
+    card["overall"] = values  # {invalid}
+    assert not validator.is_valid(document)
+    card["overall"] = recall(3, 4)
+    card["by_cwe"]["CWE-79"] = values  # the same coupling holds per bucket
+    assert not validator.is_valid(document)
+
+
+def test_a_measured_zero_recall_with_findings_expected_validates(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    card = document["scorecards"][0]
+    card["by_cwe"]["CWE-79"] = {"detected": 0, "expected": 1, "recall": 0.0}
+    assert validator.is_valid(document)
