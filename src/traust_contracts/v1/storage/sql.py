@@ -25,6 +25,7 @@ __all__ = [
     "VIEW_ORDER",
     "bootstrap_files",
     "bootstrap_statements",
+    "default_named_at_upgrade",
     "manifest_sbom_binding_upgrade",
 ]
 
@@ -95,4 +96,16 @@ def manifest_sbom_binding_upgrade(dialect: Dialect) -> list[str]:
     or infer bindings for existing SBOMs: old coverage remains unknown.
     """
     path = storage_dir() / dialect / "upgrades" / "manifest_sbom_binding.sql"
+    return list(bootstrap_statements(dialect, path))
+
+
+def default_named_at_upgrade(dialect: Dialect) -> list[str]:
+    """Load the explicit additive upgrade for a database missing the naming column.
+
+    Callers must inspect repository_ref first and apply these statements only
+    when default_named_at is absent. This does not run on bootstrap or invent
+    naming times for existing default flags: they stay unknown until the line
+    is named again.
+    """
+    path = storage_dir() / dialect / "upgrades" / "default_named_at.sql"
     return list(bootstrap_statements(dialect, path))
