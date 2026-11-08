@@ -356,6 +356,30 @@ def test_artifact_is_one_row_per_producer_and_document(db: Db) -> None:
     db.rejects("artifact", assessment_id=first, digest="c" * 64, kind="report", uri="")
 
 
+def test_an_artifact_names_the_order_whose_run_recorded_it(db: Db) -> None:
+    rid = repo(db)
+    work = assessment(db, ref(db, rid))
+    order = db.insert(
+        "ops.run_order",
+        asset="remediate_finding",
+        state="queued",
+        priority=1,
+        requested_by="h",
+        repository_id=rid,
+    )
+    doc = {"kind": "report", "uri": "file:///artifacts/a.json"}
+    db.insert("artifact", assessment_id=work, run_order_id=order, digest="a" * 64, **doc)
+    db.insert("artifact", assessment_id=work, digest="b" * 64, **doc)  # recorded by hand
+    db.rejects(
+        "artifact", assessment_id=work, run_order_id=str(uuid.uuid4()), digest="c" * 64, **doc
+    )
+    table = db.t("artifact")
+    rows = db.run(f"SELECT digest FROM {table} WHERE run_order_id = ?", (order,))
+    assert [r[0] for r in rows] == ["a" * 64]
+    with pytest.raises(db.Error):  # append-only: the order a document names never changes
+        db.run(f"UPDATE {table} SET run_order_id = NULL WHERE run_order_id = ?", (order,))
+
+
 def test_finding_identity_and_advisory_pairing(db: Db) -> None:
     rid = repo(db)
     finding(db, rid)

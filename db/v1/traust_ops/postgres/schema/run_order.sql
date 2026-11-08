@@ -83,14 +83,18 @@ CREATE INDEX IF NOT EXISTS idx_ops_run_order_asset_state
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_updated
     ON traust_ops.run_order (updated_at, id);
 
--- Cross-namespace link, closing the cycle: assessment.run_order_id ->
--- traust_ops.run_order. SQLite carries this FK inline (parent existence is
+-- Cross-namespace links, closing the cycle: assessment.run_order_id and
+-- artifact.run_order_id -> traust_ops.run_order. SQLite carries this FK inline (parent existence is
 -- not checked at CREATE); Postgres cannot, because run_order references
 -- storage tables back (repository, artifact) - the namespaces are mutually
 -- recursive, and storage bootstraps first.
 ALTER TABLE traust.assessment DROP CONSTRAINT IF EXISTS assessment_run_order_id_fkey;
 ALTER TABLE traust.assessment
     ADD CONSTRAINT assessment_run_order_id_fkey
+    FOREIGN KEY (run_order_id) REFERENCES traust_ops.run_order(id) ON DELETE RESTRICT;
+ALTER TABLE traust.artifact DROP CONSTRAINT IF EXISTS artifact_run_order_id_fkey;
+ALTER TABLE traust.artifact
+    ADD CONSTRAINT artifact_run_order_id_fkey
     FOREIGN KEY (run_order_id) REFERENCES traust_ops.run_order(id) ON DELETE RESTRICT;
 
 DROP TRIGGER IF EXISTS run_order_touch ON traust_ops.run_order;

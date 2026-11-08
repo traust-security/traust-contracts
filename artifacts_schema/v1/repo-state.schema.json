@@ -24,13 +24,19 @@
     "comparison": {
       "$ref": "#/$defs/comparison"
     },
+    "fork": {
+      "type": "boolean",
+      "description": "Whether the forge calls this repository a fork; absent when it didn't say. false is the forge's answer that it isn't one, which an absent fork_of alone cannot tell from no answer."
+    },
     "fork_of": {
       "type": "string",
       "format": "uri",
       "pattern": "^https://",
-      "description": "The repository this one forks, as the forge reported it (https URL); absent when it isn't a fork. The observation that brings an upstream into the inventory."
+      "description": "The repository this one forks, as the forge reported it (https URL); absent when it isn't a fork or the forge named no parent. The observation that brings an upstream into the inventory."
     }
   },
+  "if": {"required": ["fork_of"]},
+  "then": {"not": {"properties": {"fork": {"const": false}}, "required": ["fork"]}},
   "additionalProperties": false,
   "$defs": {
     "comparison_status": {

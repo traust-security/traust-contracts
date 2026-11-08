@@ -461,6 +461,23 @@ def test_repo_state_records_an_observation_with_or_without_a_comparison() -> Non
     validator.validate({**unchanged, "fork_of": "https://github.com/org/upstream"})
 
 
+@pytest.mark.parametrize(
+    ("fork", "valid"),
+    [
+        ({}, True),  # the forge didn't say
+        ({"fork": False}, True),  # the forge's answer: not a fork
+        ({"fork": True}, True),  # a fork whose parent it didn't name
+        ({"fork": True, "fork_of": "https://github.com/org/upstream"}, True),
+        ({"fork_of": "https://github.com/org/upstream"}, True),
+        ({"fork": False, "fork_of": "https://github.com/org/upstream"}, False),
+        ({"fork": "no"}, False),
+    ],
+)
+def test_repo_state_tells_a_non_fork_from_no_answer(fork: dict[str, object], valid: bool) -> None:
+    document = {"observed_at": "2026-10-22T09:00:00Z", "status": "ok", **fork}
+    assert _repo_state_validator().is_valid(document) is valid
+
+
 def test_repo_state_comparison_carries_the_router_file_counts() -> None:
     comparison = {
         "ahead_by": 3,

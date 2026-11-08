@@ -7,12 +7,16 @@
 -- digest is the sha256 of the exact bytes: proves the bytes at uri are the
 -- ones recorded (verify, ledger evidence) and makes a retried publish a
 -- no-op. kind is a contracts schema id, checked at intake. assessment_id
--- null = imported. One row per producer and document: the same bytes from
+-- null = imported. run_order_id: the order whose run recorded it (ops
+-- namespace), so a run can tell its own document from an earlier one on the
+-- same assessment; null = recorded outside an order, or imported. One row per
+-- producer and document: the same bytes from
 -- two assessments are two rows; the store keeps them once. A storage move
 -- is a deliberate relocation migration, not a routine update.
 CREATE TABLE IF NOT EXISTS artifact (
     id TEXT NOT NULL DEFAULT (uuid()),
     assessment_id TEXT REFERENCES assessment(id) ON DELETE RESTRICT,
+    run_order_id TEXT REFERENCES ops_run_order(id) ON DELETE RESTRICT,
     digest TEXT NOT NULL CHECK (digest <> ''),
     kind TEXT NOT NULL CHECK (kind <> ''),
     uri TEXT NOT NULL CHECK (uri <> ''),
@@ -30,6 +34,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_artifact_imported
 CREATE INDEX IF NOT EXISTS idx_artifact_assessment
     ON artifact (assessment_id)
     WHERE assessment_id IS NOT NULL;
+
+-- What an order's run recorded.
+CREATE INDEX IF NOT EXISTS idx_artifact_run_order
+    ON artifact (run_order_id)
+    WHERE run_order_id IS NOT NULL;
 
 -- The latest imported document of a kind (configuration documents such as the
 -- corpus registry, versioned as whole documents).
