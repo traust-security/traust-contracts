@@ -417,6 +417,11 @@ def test_an_artifact_names_the_order_whose_run_recorded_it(db: Db) -> None:
     db.insert("artifact", assessment_id=work, digest="b" * 64, **doc)  # recorded by hand
     for crossed in (elsewhere, scanning, str(uuid.uuid4())):  # another's item, none, no order
         db.rejects("artifact", assessment_id=work, run_order_id=crossed, digest="c" * 64, **doc)
+    db.rejects("artifact", run_order_id=scanning, digest="e" * 64, **doc)  # imported: no order
+    orders = db.t("ops.run_order")
+    with pytest.raises(db.Error):  # a credited order keeps the work item it ran
+        db.run(f"UPDATE {orders} SET work_item_id = ? WHERE id = ?", (other, fixing))
+    db.run(f"UPDATE {orders} SET work_item_id = ? WHERE id = ?", (work, elsewhere))  # uncredited
     table = db.t("artifact")
     rows = db.run(f"SELECT digest FROM {table} WHERE run_order_id = ?", (fixing,))
     assert [r[0] for r in rows] == ["a" * 64]
@@ -431,6 +436,8 @@ def _before_artifact_run_order(db: Db) -> Db:
         for statement in (
             "DROP TRIGGER artifact_order_owns_its_assessment ON traust.artifact",
             "DROP FUNCTION traust_ops.artifact_order_owns_its_assessment()",
+            "DROP TRIGGER credited_order_keeps_its_work_item ON traust_ops.run_order",
+            "DROP FUNCTION traust_ops.credited_order_keeps_its_work_item()",
             "DROP INDEX traust.idx_artifact_run_order",
             "ALTER TABLE traust.artifact DROP COLUMN run_order_id",
         ):
@@ -445,7 +452,10 @@ def _before_artifact_run_order(db: Db) -> Db:
     for module in MODULES:
         for path in module.bootstrap_files("sqlite"):
             for statement in bootstrap_statements("sqlite", path):
-                if "idx_artifact_run_order" in statement or "artifact_order_owns" in statement:
+                if any(
+                    name in statement
+                    for name in ("idx_artifact_run_order", "artifact_order_owns", "credited_order")
+                ):
                     continue
                 if "TABLE IF NOT EXISTS artifact (" in statement:
                     assert column in statement
@@ -475,6 +485,28 @@ def test_artifact_run_order_upgrade_adds_the_link_without_inventing_one(db: Db) 
         for statement in bootstrap_statements(old.engine, path):
             old.run(statement)
     assert len(old.run(f"SELECT id FROM {table} WHERE run_order_id = ?", (fixing,))) == 1
+
+
+def test_the_artifact_upgrade_needs_the_work_item_column_and_guards_before_the_column(
+    db: Db,
+) -> None:
+    statements = storage_sql.artifact_run_order_upgrade(db.engine)
+    text = "\n".join(statements)  # Postgres loads the file as one statement, SQLite as many
+    # an interrupted upgrade never leaves the column unguarded
+    assert text.index("CREATE TRIGGER") < text.index("ADD COLUMN run_order_id")
+    old = _before_artifact_run_order(db)
+    for statement in ROLLBACK[old.engine]:  # back to before contracts#117
+        old.run(statement)
+    with pytest.raises(old.Error):
+        old.run(statements[0])  # the prerequisite check fails first, changing nothing
+    table = old.t("artifact")
+    columns = (
+        f"PRAGMA table_info({table})"
+        if old.engine == "sqlite"
+        else "SELECT column_name FROM information_schema.columns WHERE table_name = 'artifact'"
+    )
+    at = 1 if old.engine == "sqlite" else 0
+    assert "run_order_id" not in {c[at] for c in old.run(columns)}
 
 
 def test_finding_identity_and_advisory_pairing(db: Db) -> None:
@@ -889,9 +921,11 @@ def test_a_concurrent_ref_move_and_order_never_both_commit(
 
 ROLLBACK = {
     "postgres": (
-        # contracts#128's guard reads run_order.work_item_id: it goes first
+        # contracts#128's guards read run_order.work_item_id: they go first
         "DROP TRIGGER IF EXISTS artifact_order_owns_its_assessment ON traust.artifact",
         "DROP FUNCTION IF EXISTS traust_ops.artifact_order_owns_its_assessment()",
+        "DROP TRIGGER IF EXISTS credited_order_keeps_its_work_item ON traust_ops.run_order",
+        "DROP FUNCTION IF EXISTS traust_ops.credited_order_keeps_its_work_item()",
         "DROP TRIGGER IF EXISTS ref_of_ordered_work_item_stays ON traust.repository_ref",
         "DROP FUNCTION IF EXISTS traust_ops.ref_of_ordered_work_item_stays()",
         "DROP TRIGGER IF EXISTS run_order_work_item_of_repository ON traust_ops.run_order",
@@ -904,6 +938,7 @@ ROLLBACK = {
     ),
     "sqlite": (
         "DROP TRIGGER IF EXISTS ops_artifact_order_owns_its_assessment",
+        "DROP TRIGGER IF EXISTS ops_credited_order_keeps_its_work_item",
         "DROP TRIGGER IF EXISTS ops_ref_of_ordered_work_item_stays",
         "DROP TRIGGER IF EXISTS ops_run_order_work_item_of_repository",
         "DROP TRIGGER IF EXISTS ops_run_order_work_item_of_repository_update",

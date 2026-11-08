@@ -104,8 +104,10 @@ def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
     """Load the explicit additive upgrade for a database missing artifact.run_order_id.
 
     Callers must inspect artifact first and apply these statements only when
-    run_order_id is absent. It brings the column, its index and the guard that
-    an artifact's order owns its assessment; existing artifacts name no order.
+    run_order_id is absent, on a database that has run_order.work_item_id
+    (contracts#117; the first statement fails otherwise). The guards that an
+    artifact's order owns its assessment come before the column, so a retry
+    after an interruption completes it; existing artifacts name no order.
     """
     path = storage_dir() / dialect / "upgrades" / "artifact_run_order.sql"
     return list(bootstrap_statements(dialect, path))
