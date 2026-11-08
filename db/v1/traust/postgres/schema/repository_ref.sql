@@ -8,7 +8,12 @@
 -- Dockerfile FROM).
 -- manifest_sbom_assessment_id: the exact scan that produced current coverage,
 -- even when the SBOM content is unchanged; null means coverage is unknown.
--- Its FK closes a cycle and is added after assessment exists in assessment.sql.
+-- default_named_at: when this row was last named the default head (import or
+-- observation) — a line is immutable once recorded, and a re-import of an old
+-- head must still win over an earlier observation, so the row's creation time
+-- can't carry it.
+-- manifest_sbom_assessment_id's FK closes a cycle and is added after
+-- assessment exists in assessment.sql.
 CREATE TABLE IF NOT EXISTS traust.repository_ref (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     repository_id UUID NOT NULL REFERENCES traust.repository(id) ON DELETE RESTRICT,
@@ -16,6 +21,7 @@ CREATE TABLE IF NOT EXISTS traust.repository_ref (
     kind TEXT,
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
     sha TEXT NOT NULL CHECK (sha <> ''),
+    default_named_at TIMESTAMPTZ,
     manifest_sbom_id UUID REFERENCES traust.sbom(id) ON DELETE RESTRICT,
     manifest_sbom_assessment_id UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
@@ -50,6 +56,12 @@ CREATE INDEX IF NOT EXISTS idx_repository_ref_manifest_sbom
 CREATE INDEX IF NOT EXISTS idx_repository_ref_manifest_sbom_assessment
     ON traust.repository_ref (manifest_sbom_assessment_id)
     WHERE manifest_sbom_assessment_id IS NOT NULL;
+
+-- The default-head lookup (portfolio's default line); partial like the unique
+-- indexes above, and ordered by the naming time, not the row's creation.
+CREATE INDEX IF NOT EXISTS idx_repository_ref_default
+    ON traust.repository_ref (repository_id, default_named_at)
+    WHERE is_default;
 
 DROP TRIGGER IF EXISTS repository_ref_touch ON traust.repository_ref;
 CREATE TRIGGER repository_ref_touch

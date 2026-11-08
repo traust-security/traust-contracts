@@ -104,6 +104,15 @@ The authored SQL preserves existing rows and leaves their scan pointers null;
 no timestamps, historical assessments or deduplicated SBOM artifacts are used to
 invent bindings. Core exposes the upgrade through its contracts facade.
 
+## Default-head naming time
+
+`repository_ref.default_named_at` records when the row was last named the default
+head (an import or an observation). A line is immutable once recorded, so the
+row's creation time cannot order competing namings: a re-import of a previously
+recorded head must still win over an earlier observation. Existing databases
+apply `storage.sql.default_named_at_upgrade(dialect)` when the column is absent;
+already-flagged rows keep an unknown naming time until the line is named again.
+
 ## Pack spec
 
 `config/v1/pack.schema.json` is the shape of a workload pack's `assets.yaml` (the

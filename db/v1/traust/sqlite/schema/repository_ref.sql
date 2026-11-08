@@ -8,6 +8,10 @@
 -- Dockerfile FROM).
 -- manifest_sbom_assessment_id: the exact scan that produced current coverage,
 -- even when the SBOM content is unchanged; null means coverage is unknown.
+-- default_named_at: when this row was last named the default head (import or
+-- observation) — the row's creation time can't carry it, because a line is
+-- immutable once recorded and a re-import of an old head must still win over
+-- an earlier observation.
 CREATE TABLE IF NOT EXISTS repository_ref (
     id TEXT NOT NULL DEFAULT (uuid()),
     repository_id TEXT NOT NULL REFERENCES repository(id) ON DELETE RESTRICT,
@@ -15,6 +19,7 @@ CREATE TABLE IF NOT EXISTS repository_ref (
     kind TEXT,
     is_default BOOLEAN NOT NULL DEFAULT FALSE CHECK (is_default IN (0, 1)),
     sha TEXT NOT NULL CHECK (sha <> ''),
+    default_named_at TEXT,
     manifest_sbom_id TEXT REFERENCES sbom(id) ON DELETE RESTRICT,
     manifest_sbom_assessment_id TEXT REFERENCES assessment(id) ON DELETE RESTRICT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -49,6 +54,12 @@ CREATE INDEX IF NOT EXISTS idx_repository_ref_manifest_sbom
 CREATE INDEX IF NOT EXISTS idx_repository_ref_manifest_sbom_assessment
     ON repository_ref (manifest_sbom_assessment_id)
     WHERE manifest_sbom_assessment_id IS NOT NULL;
+
+-- The default-head lookup (portfolio's default line); partial like the unique
+-- indexes above, and ordered by the naming time, not the row's creation.
+CREATE INDEX IF NOT EXISTS idx_repository_ref_default
+    ON repository_ref (repository_id, default_named_at)
+    WHERE is_default;
 
 -- The database owns updated_at; the guard keeps it stable under recursive
 -- triggers and respects a manually set value.
