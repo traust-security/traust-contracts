@@ -336,6 +336,44 @@ def test_manifest_scan_upgrade_preserves_existing_rows_without_inventing_coverag
     )
 
 
+def test_default_named_at_upgrade_preserves_rows_without_inventing_times(db: Db) -> None:
+    rid = repo(db)
+    named = ref(db, rid)
+    other = db.insert("repository_ref", repository_id=rid, name="main", kind="branch", sha="e" * 40)
+    table = db.t("repository_ref")
+    flagged = True if db.engine == "postgres" else 1
+    db.run(f"UPDATE {table} SET is_default = ? WHERE id = ?", (flagged, named))
+    assert db.run(f"SELECT is_default FROM {table} WHERE id = ?", (named,))[0][0] in (1, True)
+    # Reproduce the prior table shape without recreating any populated table.
+    db.run(f"DROP INDEX {db.t('idx_repository_ref_default')}")
+    db.run(f"ALTER TABLE {table} DROP COLUMN default_named_at")
+    for statement in storage_sql.default_named_at_upgrade(db.engine):
+        db.run(statement)
+    # The flagged row keeps an unknown naming time; the column is additive.
+    listed = (
+        f"PRAGMA table_info({table})"
+        if db.engine == "sqlite"
+        else (
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'repository_ref'"
+        )
+    )
+    at = 1 if db.engine == "sqlite" else 0
+    assert "default_named_at" in {d[at] for d in db.run(listed)}
+    assert db.run(f"SELECT is_default FROM {table} WHERE id = ?", (named,))[0][0] in (1, True)
+    assert db.run(f"SELECT default_named_at FROM {table} WHERE id = ?", (named,))[0][0] is None
+    assert db.run(f"SELECT default_named_at FROM {table} WHERE id = ?", (other,))[0][0] is None
+    # Stamping a naming time is a plain update once the column exists.
+    db.run(f"UPDATE {table} SET default_named_at = ? WHERE id = ?", (NOW, named))
+    named_at = db.run(f"SELECT default_named_at FROM {table} WHERE id = ?", (named,))[0][0]
+    assert str(named_at).replace(" ", "T").startswith("2026-10-20T12:00:00")
+    # Normal bootstrap remains safe once the explicit upgrade has run.
+    for path in storage_sql.bootstrap_files(db.engine):
+        for statement in bootstrap_statements(db.engine, path):
+            db.run(statement)
+    again = db.run(f"SELECT default_named_at FROM {table} WHERE id = ?", (named,))[0][0]
+    assert str(again).replace(" ", "T").startswith("2026-10-20T12:00:00")
+
+
 def test_one_open_owner_row_per_team(db: Db) -> None:
     rid = repo(db)
     tid = db.insert("team", name="installer")
