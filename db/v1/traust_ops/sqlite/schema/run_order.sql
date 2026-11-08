@@ -111,6 +111,22 @@ BEGIN
   SELECT RAISE(ABORT, 'ops_run_order.work_item_id is not a work item of its repository');
 END;
 
+-- An artifact names the order whose run recorded it only for an assessment
+-- that order owns: the work item it runs, or an assessment it produced.
+-- Artifacts never change, so the insert is the only check.
+CREATE TRIGGER IF NOT EXISTS ops_artifact_order_owns_its_assessment
+BEFORE INSERT ON artifact
+WHEN NEW.run_order_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM ops_run_order o
+    WHERE o.id = NEW.run_order_id AND o.work_item_id IS NEW.assessment_id)
+  AND NOT EXISTS (
+    SELECT 1 FROM assessment a
+    WHERE a.id = NEW.assessment_id AND a.run_order_id = NEW.run_order_id)
+BEGIN
+  SELECT RAISE(ABORT, 'artifact.run_order_id owns neither its work item nor its assessment');
+END;
+
 -- ...and a commit whose work item an order runs stays on that repository:
 -- assessments never change, so only the ref moving could break the pairing.
 CREATE TRIGGER IF NOT EXISTS ops_ref_of_ordered_work_item_stays

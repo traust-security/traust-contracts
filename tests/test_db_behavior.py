@@ -358,26 +358,32 @@ def test_artifact_is_one_row_per_producer_and_document(db: Db) -> None:
 
 def test_an_artifact_names_the_order_whose_run_recorded_it(db: Db) -> None:
     rid = repo(db)
-    work = assessment(db, ref(db, rid))
-    order = db.insert(
-        "ops.run_order",
-        asset="remediate_finding",
-        state="queued",
-        priority=1,
-        requested_by="h",
-        repository_id=rid,
+    work, other = assessment(db, ref(db, rid)), assessment(db, ref(db, rid, "dev"))
+    order = {"state": "queued", "priority": 1, "requested_by": "h", "repository_id": rid}
+    fixing = db.insert("ops.run_order", asset="remediate_finding", work_item_id=work, **order)
+    elsewhere = db.insert("ops.run_order", asset="remediate_finding", work_item_id=other, **order)
+    scanning = db.insert("ops.run_order", asset="diff_scan", **order)
+    produced = db.insert(
+        "assessment",
+        repository_ref_id=ref(db, rid, "scan"),
+        run_order_id=scanning,
+        kind="audit",
+        status="completed",
+        assessor="skill:vuln-scan",
+        assessor_version="1",
+        occurred_at=NOW,
     )
     doc = {"kind": "report", "uri": "file:///artifacts/a.json"}
-    db.insert("artifact", assessment_id=work, run_order_id=order, digest="a" * 64, **doc)
+    db.insert("artifact", assessment_id=work, run_order_id=fixing, digest="a" * 64, **doc)
+    db.insert("artifact", assessment_id=produced, run_order_id=scanning, digest="d" * 64, **doc)
     db.insert("artifact", assessment_id=work, digest="b" * 64, **doc)  # recorded by hand
-    db.rejects(
-        "artifact", assessment_id=work, run_order_id=str(uuid.uuid4()), digest="c" * 64, **doc
-    )
+    for crossed in (elsewhere, scanning, str(uuid.uuid4())):  # another's item, none, no order
+        db.rejects("artifact", assessment_id=work, run_order_id=crossed, digest="c" * 64, **doc)
     table = db.t("artifact")
-    rows = db.run(f"SELECT digest FROM {table} WHERE run_order_id = ?", (order,))
+    rows = db.run(f"SELECT digest FROM {table} WHERE run_order_id = ?", (fixing,))
     assert [r[0] for r in rows] == ["a" * 64]
     with pytest.raises(db.Error):  # append-only: the order a document names never changes
-        db.run(f"UPDATE {table} SET run_order_id = NULL WHERE run_order_id = ?", (order,))
+        db.run(f"UPDATE {table} SET run_order_id = NULL WHERE run_order_id = ?", (fixing,))
 
 
 def test_finding_identity_and_advisory_pairing(db: Db) -> None:
@@ -792,6 +798,9 @@ def test_a_concurrent_ref_move_and_order_never_both_commit(
 
 ROLLBACK = {
     "postgres": (
+        # contracts#128's guard reads run_order.work_item_id: it goes first
+        "DROP TRIGGER IF EXISTS artifact_order_owns_its_assessment ON traust.artifact",
+        "DROP FUNCTION IF EXISTS traust_ops.artifact_order_owns_its_assessment()",
         "DROP TRIGGER IF EXISTS ref_of_ordered_work_item_stays ON traust.repository_ref",
         "DROP FUNCTION IF EXISTS traust_ops.ref_of_ordered_work_item_stays()",
         "DROP TRIGGER IF EXISTS run_order_work_item_of_repository ON traust_ops.run_order",
@@ -803,6 +812,7 @@ ROLLBACK = {
         "DROP INDEX IF EXISTS traust.idx_decision_assessment",
     ),
     "sqlite": (
+        "DROP TRIGGER IF EXISTS ops_artifact_order_owns_its_assessment",
         "DROP TRIGGER IF EXISTS ops_ref_of_ordered_work_item_stays",
         "DROP TRIGGER IF EXISTS ops_run_order_work_item_of_repository",
         "DROP TRIGGER IF EXISTS ops_run_order_work_item_of_repository_update",
