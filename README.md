@@ -104,6 +104,15 @@ The authored SQL preserves existing rows and leaves their scan pointers null;
 no timestamps, historical assessments or deduplicated SBOM artifacts are used to
 invent bindings. Core exposes the upgrade through its contracts facade.
 
+## Artifact recording order
+
+`artifact.run_order_id` names the order whose run recorded the document, so a run
+can tell its own report from an earlier one on the same assessment; null means it
+was recorded outside an order or imported. An insert guard requires the order to
+own the artifact's assessment: the work item it runs, or an assessment it
+produced. Existing databases apply `storage.sql.artifact_run_order_upgrade(dialect)`
+when the column is absent; existing artifacts name no order.
+
 ## Default-head naming time
 
 `repository_ref.default_named_at` records when the row was last named the default

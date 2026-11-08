@@ -23,6 +23,7 @@ __all__ = [
     "REVISION",
     "TABLE_ORDER",
     "VIEW_ORDER",
+    "artifact_run_order_upgrade",
     "bootstrap_files",
     "bootstrap_statements",
     "default_named_at_upgrade",
@@ -96,6 +97,17 @@ def manifest_sbom_binding_upgrade(dialect: Dialect) -> list[str]:
     or infer bindings for existing SBOMs: old coverage remains unknown.
     """
     path = storage_dir() / dialect / "upgrades" / "manifest_sbom_binding.sql"
+    return list(bootstrap_statements(dialect, path))
+
+
+def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
+    """Load the explicit additive upgrade for a database missing artifact.run_order_id.
+
+    Callers must inspect artifact first and apply these statements only when
+    run_order_id is absent. It brings the column, its index and the guard that
+    an artifact's order owns its assessment; existing artifacts name no order.
+    """
+    path = storage_dir() / dialect / "upgrades" / "artifact_run_order.sql"
     return list(bootstrap_statements(dialect, path))
 
 

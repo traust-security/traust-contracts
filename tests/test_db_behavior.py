@@ -424,6 +424,59 @@ def test_an_artifact_names_the_order_whose_run_recorded_it(db: Db) -> None:
         db.run(f"UPDATE {table} SET run_order_id = NULL WHERE run_order_id = ?", (fixing,))
 
 
+def _before_artifact_run_order(db: Db) -> Db:
+    """The engine as it was before artifact.run_order_id: no column, index or guard. Postgres
+    drops them; SQLite can't drop a column a foreign key uses, so it is rebuilt without."""
+    if db.engine == "postgres":
+        for statement in (
+            "DROP TRIGGER artifact_order_owns_its_assessment ON traust.artifact",
+            "DROP FUNCTION traust_ops.artifact_order_owns_its_assessment()",
+            "DROP INDEX traust.idx_artifact_run_order",
+            "ALTER TABLE traust.artifact DROP COLUMN run_order_id",
+        ):
+            db.run(statement)
+        return db
+    conn = sqlite3.connect(":memory:")
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.create_function("uuid", 0, lambda: str(uuid.uuid4()))
+    conn.isolation_level = None
+    old = Db("sqlite", conn, sqlite3.Error)
+    column = "    run_order_id TEXT REFERENCES ops_run_order(id) ON DELETE RESTRICT,\n"
+    for module in MODULES:
+        for path in module.bootstrap_files("sqlite"):
+            for statement in bootstrap_statements("sqlite", path):
+                if "idx_artifact_run_order" in statement or "artifact_order_owns" in statement:
+                    continue
+                if "TABLE IF NOT EXISTS artifact (" in statement:
+                    assert column in statement
+                    statement = statement.replace(column, "")
+                old.run(statement)
+    return old
+
+
+def test_artifact_run_order_upgrade_adds_the_link_without_inventing_one(db: Db) -> None:
+    old = _before_artifact_run_order(db)
+    rid = repo(old)
+    work, other = assessment(old, ref(old, rid)), assessment(old, ref(old, rid, "dev"))
+    doc = {"kind": "report", "uri": "file:///artifacts/a.json"}
+    old.insert("artifact", assessment_id=work, digest="a" * 64, **doc)
+    order = {"state": "queued", "priority": 1, "requested_by": "h", "repository_id": rid}
+    fixing = old.insert("ops.run_order", asset="remediate_finding", work_item_id=work, **order)
+    with pytest.raises(old.Error):  # no column yet
+        old.insert("artifact", assessment_id=work, run_order_id=fixing, digest="b" * 64, **doc)
+    for statement in storage_sql.artifact_run_order_upgrade(old.engine):
+        old.run(statement)
+    table = old.t("artifact")
+    rows = old.run(f"SELECT digest, run_order_id FROM {table} WHERE assessment_id = ?", (work,))
+    assert [(d, o) for d, o in rows] == [("a" * 64, None)]  # nothing inferred
+    old.insert("artifact", assessment_id=work, run_order_id=fixing, digest="b" * 64, **doc)
+    old.rejects("artifact", assessment_id=other, run_order_id=fixing, digest="c" * 64, **doc)
+    for path in storage_sql.bootstrap_files(old.engine):  # bootstrap stays safe afterwards
+        for statement in bootstrap_statements(old.engine, path):
+            old.run(statement)
+    assert len(old.run(f"SELECT id FROM {table} WHERE run_order_id = ?", (fixing,))) == 1
+
+
 def test_finding_identity_and_advisory_pairing(db: Db) -> None:
     rid = repo(db)
     finding(db, rid)
