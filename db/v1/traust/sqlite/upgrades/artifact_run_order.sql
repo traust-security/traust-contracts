@@ -1,11 +1,14 @@
 -- Explicit additive upgrade for existing databases missing this column.
 -- Existing artifacts name no recording order: none is inferred.
+-- One transaction (SQLite DDL is transactional): an upgrade interrupted or
+-- failing part-way rolls back whole, so the guards never stand without the
+-- column nor the column without them. Apply it outside an open transaction.
+BEGIN;
+
 -- Needs ops_run_order.work_item_id (contracts#117): this fails, changing
 -- nothing, on a database that predates it.
 SELECT work_item_id FROM ops_run_order LIMIT 0;
 
--- The guards come before the column, so an upgrade interrupted part-way never
--- leaves the column unguarded (callers retry while the column is absent).
 -- An artifact names the order whose run recorded it only for an assessment
 -- that order owns: the work item it runs, or an assessment it produced. An
 -- imported artifact (no assessment) names none. Artifacts never change, so
@@ -40,3 +43,5 @@ ALTER TABLE artifact
 CREATE INDEX IF NOT EXISTS idx_artifact_run_order
     ON artifact (run_order_id)
     WHERE run_order_id IS NOT NULL;
+
+COMMIT;

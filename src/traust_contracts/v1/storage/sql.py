@@ -105,9 +105,9 @@ def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
 
     Callers must inspect artifact first and apply these statements only when
     run_order_id is absent, on a database that has run_order.work_item_id
-    (contracts#117; the first statement fails otherwise). The guards that an
-    artifact's order owns its assessment come before the column, so a retry
-    after an interruption completes it; existing artifacts name no order.
+    (contracts#117; it fails first otherwise). It applies whole or not at all:
+    one statement on Postgres, one explicit transaction on SQLite (apply it
+    outside an open transaction). Existing artifacts name no order.
     """
     path = storage_dir() / dialect / "upgrades" / "artifact_run_order.sql"
     return list(bootstrap_statements(dialect, path))

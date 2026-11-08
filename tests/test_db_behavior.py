@@ -487,26 +487,41 @@ def test_artifact_run_order_upgrade_adds_the_link_without_inventing_one(db: Db) 
     assert len(old.run(f"SELECT id FROM {table} WHERE run_order_id = ?", (fixing,))) == 1
 
 
-def test_the_artifact_upgrade_needs_the_work_item_column_and_guards_before_the_column(
-    db: Db,
-) -> None:
-    statements = storage_sql.artifact_run_order_upgrade(db.engine)
-    text = "\n".join(statements)  # Postgres loads the file as one statement, SQLite as many
-    # an interrupted upgrade never leaves the column unguarded
-    assert text.index("CREATE TRIGGER") < text.index("ADD COLUMN run_order_id")
+def _columns(db: Db, table: str) -> set[str]:
+    if db.engine == "sqlite":
+        return {c[1] for c in db.run(f"PRAGMA table_info({db.t(table)})")}
+    query = "SELECT column_name FROM information_schema.columns WHERE table_name = ?"
+    return {c[0] for c in db.run(query, (table,))}
+
+
+def test_an_interrupted_sqlite_artifact_upgrade_rolls_back_whole() -> None:
+    statements = storage_sql.artifact_run_order_upgrade("sqlite")
+    assert statements[0].rstrip(";\n").endswith("BEGIN") and "COMMIT" in statements[-1]
+    old = _before_artifact_run_order(_sqlite())
+    work = assessment(old, ref(old, repo(old)))
+    doc = {"kind": "report", "uri": "file:///artifacts/a.json"}
+    upto = next(i for i, st in enumerate(statements) if "CREATE TRIGGER" in st)
+    for statement in statements[: upto + 1]:  # stopped after the first guard
+        old.run(statement)
+    old.run("ROLLBACK")
+    assert "run_order_id" not in _columns(old, "artifact")
+    old.insert("artifact", assessment_id=work, digest="a" * 64, **doc)  # writes still work
+    for statement in statements:  # and a retry completes
+        old.run(statement)
+    assert "run_order_id" in _columns(old, "artifact")
+    old.insert("artifact", assessment_id=work, digest="b" * 64, **doc)
+
+
+def test_the_artifact_upgrade_needs_contracts_117_and_changes_nothing_without_it(db: Db) -> None:
     old = _before_artifact_run_order(db)
     for statement in ROLLBACK[old.engine]:  # back to before contracts#117
         old.run(statement)
-    with pytest.raises(old.Error):
-        old.run(statements[0])  # the prerequisite check fails first, changing nothing
-    table = old.t("artifact")
-    columns = (
-        f"PRAGMA table_info({table})"
-        if old.engine == "sqlite"
-        else "SELECT column_name FROM information_schema.columns WHERE table_name = 'artifact'"
-    )
-    at = 1 if old.engine == "sqlite" else 0
-    assert "run_order_id" not in {c[at] for c in old.run(columns)}
+    with pytest.raises(old.Error):  # its prerequisite check fails first
+        for statement in storage_sql.artifact_run_order_upgrade(old.engine):
+            old.run(statement)
+    if old.engine == "sqlite":
+        old.run("ROLLBACK")
+    assert "run_order_id" not in _columns(old, "artifact")
 
 
 def test_finding_identity_and_advisory_pairing(db: Db) -> None:

@@ -4,8 +4,7 @@
 -- nothing, on a database that predates it.
 SELECT work_item_id FROM traust_ops.run_order LIMIT 0;
 
--- The guards come before the column, so an upgrade interrupted part-way never
--- leaves the column unguarded (callers retry while the column is absent).
+-- The file runs as one statement, so it applies whole or not at all.
 -- An artifact names the order whose run recorded it only for an assessment
 -- that order owns: the work item it runs, or an assessment it produced. An
 -- imported artifact (no assessment) names none. Artifacts never change, so
