@@ -524,6 +524,32 @@ def test_the_artifact_upgrade_needs_contracts_117_and_changes_nothing_without_it
     assert "run_order_id" not in _columns(old, "artifact")
 
 
+def test_run_order_fork_scheduled_upgrade_stamps_nothing_it_did_not_see(db: Db) -> None:
+    rid = repo(db)
+    work = assessment(db, ref(db, rid))
+    table = db.t("ops.run_order")
+    order = {"state": "queued", "priority": 1, "requested_by": "h", "repository_id": rid}
+    fork = {
+        "work_item_id": work,
+        "fork_url": "https://github.com/mirror-org/r",
+        "fork_branch": "fix/a",
+    }
+    stamped = db.insert(
+        "ops.run_order", asset="remediate_finding", fork_scheduled_at=NOW, **fork, **order
+    )
+    assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (stamped,))[0][0]
+    db.run(f"ALTER TABLE {table} DROP COLUMN fork_scheduled_at")  # the shape before
+    legacy = db.insert("ops.run_order", asset="remediate_finding", **fork, **order)
+    for statement in ops_sql.run_order_fork_scheduled_upgrade(db.engine):
+        db.run(statement)
+    assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (legacy,))[0][0] is None
+    db.run(f"UPDATE {table} SET fork_scheduled_at = ? WHERE id = ?", (NOW, legacy))
+    for path in ops_sql.bootstrap_files(db.engine):  # bootstrap stays safe afterwards
+        for statement in bootstrap_statements(db.engine, path):
+            db.run(statement)
+    assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (legacy,))[0][0]
+
+
 def test_finding_identity_and_advisory_pairing(db: Db) -> None:
     rid = repo(db)
     finding(db, rid)

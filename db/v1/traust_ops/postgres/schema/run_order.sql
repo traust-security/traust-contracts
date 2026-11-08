@@ -21,7 +21,12 @@
 -- (remediate_finding only) - operational facts, write-once at scheduling,
 -- read-once at claim; deliberately not a repository FK: mirrors are out of
 -- band, never inventory, and the durable record lives in the run's
--- remediation artifact.
+-- remediation artifact. fork_scheduled_at: when the scheduling door set the
+-- fork facts, after its fork-policy and branch checks (service clock) - the
+-- order's own proof that they were checked, so a later policy change never
+-- unvouches them; null on an order with none, or on one an earlier generic
+-- orders door took unchecked. A stamp vouches only with both fork facts set
+-- (no CHECK: #117's by-hand rollback must still drop those columns).
 CREATE TABLE IF NOT EXISTS traust_ops.run_order (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     run_batch_id UUID REFERENCES traust_ops.run_batch(id) ON DELETE RESTRICT,
@@ -44,6 +49,7 @@ CREATE TABLE IF NOT EXISTS traust_ops.run_order (
     work_item_id UUID REFERENCES traust.assessment(id) ON DELETE RESTRICT,
     fork_url TEXT,
     fork_branch TEXT,
+    fork_scheduled_at TIMESTAMPTZ,
     PRIMARY KEY (id),
     CHECK (rule IS NULL OR event_source IS NULL),
     CHECK ((state = 'leased') = (lease_holder IS NOT NULL)),

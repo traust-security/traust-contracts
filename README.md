@@ -104,6 +104,15 @@ The authored SQL preserves existing rows and leaves their scan pointers null;
 no timestamps, historical assessments or deduplicated SBOM artifacts are used to
 invent bindings. Core exposes the upgrade through its contracts facade.
 
+## Scheduled fork facts
+
+`run_order.fork_scheduled_at` records when the scheduling door set an order's
+fork facts, after its fork-policy and branch checks: the order's own proof that
+they were checked, so a later policy change never unvouches them. A stamp
+vouches only with both `fork_url` and `fork_branch` set. Older orders carry no
+stamp and are checked against the current policy. Existing databases apply
+`ops.sql.run_order_fork_scheduled_upgrade(dialect)` when the column is absent.
+
 ## Artifact recording order
 
 `artifact.run_order_id` names the order whose run recorded the document, so a run
