@@ -1,0 +1,22 @@
+{
+  "name": "backport_stop_reason",
+  "source_schema": "backport-report.schema.json#/$defs/backport_stop_reason",
+  "description": "Values of `backport_stop_reason` in backport-report.schema.json. Why an Amalgamator backport run stopped before producing a backport on a branch; the pipeline mechanics that used to share the status vocabulary.",
+  "values": [
+    "pipeline_stop",
+    "pipeline_escalation",
+    "worktree_error",
+    "timeout",
+    "error"
+  ],
+  "definitions": {
+    "pipeline_stop": "The Amalgamator pipeline halted at a gate before the commit phase.",
+    "pipeline_escalation": "The pipeline escalated for human input and did not continue.",
+    "worktree_error": "Preparing, preserving, or cleaning the git worktree failed.",
+    "timeout": "The run exceeded its time budget for this branch.",
+    "error": "An unclassified error stopped the run; `branch_result.error` carries the message."
+  },
+  "used_in_schemas": [
+    "backport-report.schema.json"
+  ]
+}

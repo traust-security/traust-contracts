@@ -1,0 +1,427 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/backport-report.schema.json",
+  "title": "Backport Report Schema",
+  "description": "Schema for *-backport-report.json reports produced by the backport-fix skill. Records the outcome of propagating a security fix to multiple release branches via the Amalgamator pipeline. Every string below is untrusted when it reaches a consumer: repositories are clone targets, refs are checkout targets, paths are open targets, so each is constrained to what the consumer can safely act on. The artifact declares what happened; it never declares a command to run.",
+  "type": "object",
+  "required": [
+    "title",
+    "metadata",
+    "source_fix",
+    "target_branches",
+    "summary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "pattern": "(?i)(backport|remediat|patch|fix)"
+    },
+    "metadata": {
+      "$ref": "#/$defs/backport_metadata"
+    },
+    "source_fix": {
+      "$ref": "#/$defs/source_fix"
+    },
+    "target_branches": {
+      "description": "Per-branch backport results. One entry per target release branch, and exactly one entry per branch.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/branch_result"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-form notes \u2014 caveats, manual steps needed, anything a reviewer should know."
+    },
+    "verification_hint": {
+      "$ref": "#/$defs/verification_hint"
+    },
+    "footer": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "git_ref": {
+      "type": "string",
+      "pattern": "^(?!-)[A-Za-z0-9._/-]{1,200}$",
+      "description": "A branch or ref name. Same charset as remediation.schema.json $defs/fork.fix_branch, minus a leading '-': the value is handed to git checkout/fetch, where a leading dash is read as an option."
+    },
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\.\\.)",
+      "description": "A workspace-relative path. Not absolute and never containing '..': consumers open these, and a path from an artifact must not escape the workspace it is resolved in."
+    },
+    "repo_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^(https://|ssh://)",
+      "description": "A clone URL. Only https and ssh are accepted: consumers hand this to git clone, where the ext:: transport executes arbitrary commands and file: (or a bare path) reads outside the workspace."
+    },
+    "full_commit_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "A full 40-hex commit SHA. Abbreviated SHAs are not identities: verification.schema.json requires the same of the patched_commit this value is passed as."
+    },
+    "backport_status": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "failed",
+        "skipped"
+      ]
+    },
+    "backport_stop_reason": {
+      "type": "string",
+      "enum": [
+        "pipeline_stop",
+        "pipeline_escalation",
+        "worktree_error",
+        "timeout",
+        "error"
+      ]
+    },
+    "check_outcome": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "skip",
+        "error"
+      ]
+    },
+    "check": {
+      "type": "object",
+      "description": "A build or test invocation recorded as evidence. `command` is a historical record of what ran, never an instruction for a consumer to execute.",
+      "required": [
+        "name",
+        "outcome"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "e.g. 'go build', 'go test ./...', 'bundle exec rspec'."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The command that was run, recorded for audit. Never executed by a consumer."
+        },
+        "outcome": {
+          "$ref": "#/$defs/check_outcome"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "log_path": {
+          "$ref": "#/$defs/relative_path"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "backport_metadata": {
+      "type": "object",
+      "required": [
+        "date",
+        "harness_version",
+        "repository"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "harness_version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9a-f]{7,40})?$"
+        },
+        "repository": {
+          "$ref": "#/$defs/repo_url",
+          "description": "Upstream repository URL the fix was applied to."
+        },
+        "logical_product": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Logical product this repo belongs to."
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operator": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Tool that produced this report (e.g. 'amalgamator')."
+        },
+        "additional": {
+          "type": "object",
+          "description": "Producer-declared run records the contract does not declare yet (run_id, model, registry_sha, ...). Open on purpose: a closed metadata object turns every new producer field into a breaking contract change."
+        }
+      }
+    },
+    "source_fix": {
+      "type": "object",
+      "required": [
+        "commit",
+        "branch"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "SHA of the fix commit being backported. A reference, so abbreviations are accepted here; the backport side requires the full SHA."
+        },
+        "branch": {
+          "$ref": "#/$defs/git_ref",
+          "description": "Branch the fix was originally applied to."
+        },
+        "fork_url": {
+          "$ref": "#/$defs/repo_url",
+          "description": "URL of the private fork where the fix lives."
+        },
+        "remediation_path": {
+          "$ref": "#/$defs/relative_path",
+          "description": "Path to the *-remediation.json that produced the fix."
+        },
+        "finding_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Finding references from the source remediation."
+        },
+        "cwes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^CWE-\\d{1,5}$"
+          }
+        }
+      }
+    },
+    "branch_result": {
+      "type": "object",
+      "description": "One target branch. A success carries evidence of what landed; a failure names why the run stopped.",
+      "required": [
+        "branch",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "$ref": "#/$defs/git_ref",
+          "description": "Target release branch name."
+        },
+        "status": {
+          "$ref": "#/$defs/backport_status"
+        },
+        "stop_reason": {
+          "$ref": "#/$defs/backport_stop_reason",
+          "description": "Why the run did not produce a backport on this branch. Required when status is failed."
+        },
+        "phase_reached": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Highest Amalgamator phase reached (e.g. 'Phase 4a', 'Phase 4b')."
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/check"
+          },
+          "description": "Build and test runs for this branch, each with its outcome. A run that was never attempted is absent, which is a different claim from a skipped one."
+        },
+        "cost_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "LLM API cost for this branch's backport run."
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "tokens_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "has_patch": {
+          "type": "boolean",
+          "description": "Whether a candidate.patch was produced."
+        },
+        "patch_path": {
+          "$ref": "#/$defs/relative_path",
+          "description": "Path to the candidate.patch file."
+        },
+        "patch_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "patch_files_changed": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of files changed in the candidate patch."
+        },
+        "backport_commit": {
+          "$ref": "#/$defs/full_commit_sha",
+          "description": "SHA of the backport commit on the target branch (from Amalgamator's preserved branch). Passed to verify-remediation as the patched_commit."
+        },
+        "backport_branch": {
+          "$ref": "#/$defs/git_ref",
+          "description": "Branch where Amalgamator committed the backport (e.g. 'amalgamator/backport-crio-stats-nil-panic-release-1-33'). Can be passed to verify-remediation as the patched ref."
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message if the backport failed."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "const": "succeeded"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "has_patch",
+              "patch_sha256"
+            ],
+            "properties": {
+              "has_patch": {
+                "const": true
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "backport_commit"
+                ]
+              },
+              {
+                "required": [
+                  "backport_branch"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "stop_reason"
+            ]
+          }
+        }
+      ]
+    },
+    "verification_hint": {
+      "type": "object",
+      "description": "Pre-filled inputs for verify-remediation, so downstream automation can trigger verification without assembling them by hand. Present when at least one branch succeeded. It declares inputs only and deliberately carries no example command line: a string from an artifact is never executed by a consumer.",
+      "additionalProperties": false,
+      "properties": {
+        "original_audit_report": {
+          "$ref": "#/$defs/relative_path",
+          "description": "Path to the *-security-audit.json the findings came from."
+        },
+        "repository": {
+          "$ref": "#/$defs/repo_url",
+          "description": "Repository URL to clone for verification."
+        },
+        "branches": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Per-branch verification targets \u2014 only branches whose status is succeeded.",
+          "items": {
+            "type": "object",
+            "required": [
+              "target_branch"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "target_branch": {
+                "$ref": "#/$defs/git_ref",
+                "description": "Branch name to verify against."
+              },
+              "backport_commit": {
+                "$ref": "#/$defs/full_commit_sha",
+                "description": "Commit SHA to check out for verification."
+              },
+              "backport_branch": {
+                "$ref": "#/$defs/git_ref",
+                "description": "Named branch to check out for verification."
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "Counts DERIVED from target_branches. JSON Schema cannot express the arithmetic, so BackportReport (models/backport.py) enforces total == len(target_branches) and succeeded + failed + skipped == total, and readers recompute rather than trust these numbers.",
+      "$comment": "total == len(target_branches); succeeded + failed + skipped == total; succeeded counts status == succeeded.",
+      "required": [
+        "total",
+        "succeeded",
+        "failed"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of target branches attempted."
+        },
+        "succeeded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_cost_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "total_duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

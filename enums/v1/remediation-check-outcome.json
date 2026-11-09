@@ -9,6 +9,7 @@
     "error"
   ],
   "used_in_schemas": [
+    "backport-report.schema.json",
     "remediation.schema.json"
   ]
 }

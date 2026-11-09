@@ -1,6 +1,19 @@
 """Typed Pydantic models derived from contract JSON schemas."""
 
 from traust_contracts.v1.models.adapter import AdapterMetadata, AdapterResult, AdapterSummary
+from traust_contracts.v1.models.backport import (
+    BackportMetadata,
+    BackportReport,
+    BackportStatus,
+    BackportStopReason,
+    BackportSummary,
+    BranchResult,
+    Check,
+    CheckOutcome,
+    SourceFix,
+    VerificationHint,
+    VerificationTarget,
+)
 from traust_contracts.v1.models.compliance import ComplianceAssessment, ComplianceScope
 from traust_contracts.v1.models.finding import (
     CVSS,
@@ -44,6 +57,14 @@ __all__ = [
     "AdapterMetadata",
     "AdapterResult",
     "AdapterSummary",
+    "BackportMetadata",
+    "BackportReport",
+    "BackportStatus",
+    "BackportStopReason",
+    "BackportSummary",
+    "BranchResult",
+    "Check",
+    "CheckOutcome",
     "ComplianceAssessment",
     "ComplianceScope",
     "DependencyProvenance",
@@ -70,9 +91,12 @@ __all__ = [
     "ScanResult",
     "ScanSummary",
     "SeverityOverride",
+    "SourceFix",
     "TriageReport",
     "Validation",
     "Verification",
+    "VerificationHint",
     "VerificationMetadata",
+    "VerificationTarget",
     "VerifiedFinding",
 ]
