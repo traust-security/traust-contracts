@@ -17,6 +17,10 @@ UPDATE traust.artifact SET publication_revision = ranked.revision
 FROM ranked WHERE ranked.id = artifact.id;
 ALTER TABLE traust.artifact ENABLE TRIGGER artifact_reject_mutation;
 
+-- Install only after historical imports have received their revisions.
+ALTER TABLE traust.artifact ADD CONSTRAINT artifact_imported_revision_required CHECK (
+    assessment_id IS NOT NULL OR publication_revision IS NOT NULL);
+
 DROP INDEX IF EXISTS traust.idx_artifact_imported_kind;
 CREATE UNIQUE INDEX idx_artifact_imported_kind
     ON traust.artifact (kind, publication_revision DESC) WHERE assessment_id IS NULL;

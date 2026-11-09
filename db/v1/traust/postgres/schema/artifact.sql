@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS traust.artifact (
     uri TEXT NOT NULL CHECK (uri <> ''),
     created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
     PRIMARY KEY (id),
+    CONSTRAINT artifact_imported_revision_required CHECK (
+        assessment_id IS NOT NULL OR publication_revision IS NOT NULL),
     UNIQUE (assessment_id, digest)
 );
 -- Imported documents (no assessment) dedupe on digest alone; a plain UNIQUE

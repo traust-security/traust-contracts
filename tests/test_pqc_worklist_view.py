@@ -6,6 +6,8 @@ from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
+from referencing import Registry
+from test_contracts import build_registry
 
 SCHEMA = Path(__file__).parents[1] / "views_schema/v1/pqc-worklist.schema.json"
 REPOSITORY_ID = "00000000-0000-4000-8000-000000000001"
@@ -19,7 +21,12 @@ HOSTILE = '<script>alert("repo")</script>\n| fake | row |\n[jump](javascript:ale
 def validator() -> Draft202012Validator:
     schema = json.loads(SCHEMA.read_text())
     Draft202012Validator.check_schema(schema)
-    return Draft202012Validator(schema, format_checker=FormatChecker())
+
+    def reject_retrieval(uri: str) -> None:
+        raise AssertionError(f"View schema must resolve locally: {uri}")
+
+    registry = Registry(retrieve=reject_retrieval).with_resources(build_registry().items())
+    return Draft202012Validator(schema, registry=registry, format_checker=FormatChecker())
 
 
 @pytest.fixture
@@ -39,6 +46,7 @@ def document() -> dict[str, Any]:
                 "access": {
                     "repository_id": REPOSITORY_ID,
                     "url": "https://example.com/repo",
+                    "status": "active",
                     "observed_at": "2026-11-01T09:30:00+02:00",
                     "archived": False,
                     "pushed_at": "historical date",
@@ -121,6 +129,9 @@ def test_unregistered_repository_preserves_null_ref_sha_and_scan(
         reason="no-registered-commit",
     )
     entry["access"].update(
+        status="unknown",
+        status_since=None,
+        canonical_url=None,
         observed_at=None,
         archived=None,
         pushed_at=None,
@@ -143,6 +154,47 @@ def test_unknown_and_measured_liveness_and_scan_states_are_distinct(
     assert restored["scan"]["current"] is state
     assert restored["access"]["archived"] is state
     assert restored["access"]["dormant"] is state
+
+
+@pytest.mark.parametrize(
+    "status", ["active", "archived", "moved", "missing", "disabled", "unknown"]
+)
+def test_recorded_status_vocabulary_resolves_locally(
+    validator: Draft202012Validator, document: dict[str, Any], status: str
+) -> None:
+    access = document["entries"][0]["access"]
+    access.update(status=status, status_since=None, canonical_url=None)
+    validator.validate(document)
+    assert json.loads(json.dumps(document))["entries"][0]["access"]["status"] == status
+
+
+@pytest.mark.parametrize("status", [None, True, 1, "", "deleted-or-private"])
+def test_access_status_rejects_unknown_labels_and_non_strings(
+    validator: Draft202012Validator, document: dict[str, Any], status: Any
+) -> None:
+    document["entries"][0]["access"]["status"] = status
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+def test_access_status_is_required(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    del document["entries"][0]["access"]["status"]
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize("status_since", [None, "2026-11-01T09:30:00+02:00"])
+@pytest.mark.parametrize("canonical_url", [None, "https://example.com/renamed"])
+def test_access_status_metadata_remains_nullable(
+    validator: Draft202012Validator,
+    document: dict[str, Any],
+    status_since: str | None,
+    canonical_url: str | None,
+) -> None:
+    document["entries"][0]["access"].update(status_since=status_since, canonical_url=canonical_url)
+    validator.validate(document)
 
 
 @pytest.mark.parametrize("raw", ["", "legacy-value", HOSTILE])

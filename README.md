@@ -127,6 +127,10 @@ when the column is absent; existing artifacts name no order.
 Imported artifact streams use a positive `publication_revision` per kind. Core's metadata
 owner serializes publication, including raw feed/SBOM imports; latest/history never break
 equal timestamps by UUID. Successor publication checks its exact prior under the same lock.
+SQLite requires non-null revisions to be stored as positive integers after affinity conversion
+(a numeric string such as `'1'` becomes an integer). New imported inserts must carry a revision;
+assessment-linked artifacts must keep their revision null. Stop old writers before the guarded
+schema upgrade, then deploy the revision-allocating Core owner; new unversioned writes refuse.
 
 Before upgrading Core on an existing database, inspect `artifact.publication_revision`.
 When absent, apply `storage.sql.artifact_publication_revision_upgrade(dialect)` once.
@@ -161,7 +165,11 @@ and commit. Unretained historical sources cannot authorize a correction by guess
 `cve-replay` snapshots bind one real audit and its exact report artifact, per-audit watermark,
 revision and advisory checks. Structural validation is not authority: only a verified human
 with evidence can confirm historical presence. Discovery alone never establishes a missed
-vulnerability or admits benchmark truth.
+vulnerability or admits benchmark truth. A `detected` advisory can retain unknown presence
+when named in the original report, but cannot contradict human-confirmed absence.
+`not_applicable` requires human-confirmed absence or recorded source withdrawal.
+Candidates retain the source `withdrawn` boolean (optional, default false) so withdrawal
+does not invent historical absence or require fabricated human presence evidence.
 
 
 ## Default-head naming time
@@ -192,14 +200,19 @@ dependency commit pin selects this schema addition.
 `finding_external_ref.assessment_id` optionally attributes an external link to one
 assessment, including a remediation work item's PR. Finding-wide historical Jira
 links remain null; the contract does not infer an attempt from a shared finding.
-The assessment FK rejects nonexistent attempts and the scoped index supports
-attempt reads. Existing `(system, ref, finding_id)` identity remains unchanged.
+Scoped links must pair a finding and assessment from the same repository, including
+remediation assessments that have no occurrence. Insert/update and parent-mutation guards
+reject wrong associations without freezing unrelated fields. Existing `(system, ref, finding_id)`
+identity remains unchanged.
 
 Existing databases inspect the column and apply
 `storage.sql.finding_external_ref_assessment_upgrade(dialect)` only when absent.
-The additive SQLite/PostgreSQL upgrade adds the nullable FK column and index;
-it leaves existing rows unscoped and rewrites no reports. The current additive
-upgrade convention remains `CONTRACT_VERSION = "v1"`, `REVISION = 1`.
+The additive SQLite/PostgreSQL upgrade adds the nullable FK column, index and scope guards;
+it leaves existing rows unscoped and rewrites no reports. SQLite runs outside an existing
+transaction and applies atomically. Stores that already have the column apply the idempotent
+`storage.sql.finding_external_ref_scope_upgrade(dialect)` to install guards and repair a missing
+attempt index. Existing scoped mismatches refuse without rewriting links. Schema review by
+a contracts owner remains required; author self-approval does not replace it.
 
 ## Pack spec
 
@@ -247,11 +260,13 @@ fragments, not persisted configuration.
 Entries preserve the legacy repository/ref IDs, raw repository and SHA strings,
 priority tier (`chokepoint`, `crypto-cwe`, `tail`), route (`source`, `sbom-only`,
 `access-request`), nested liveness, reason, nullable scan state and cursor.
-Liveness preserves nullable observations and historical `pushed_at`,
-`unobserved` and reason strings. Scan currency and liveness booleans distinguish
-unknown null from measured false; neither establishes readiness. Objects are
-strict and every serialized field is required, including nullable fields.
-Use format checking for UUIDs and observation timestamps; raw repository, SHA,
+Liveness requires `status` from the artifact liveness vocabulary, including `unknown`;
+register the local artifact schemas alongside the view schema to resolve this reference offline.
+Liveness preserves nullable observations, optional nullable `status_since` and `canonical_url`,
+and historical `pushed_at`, `unobserved` and reason strings. Scan currency and liveness
+booleans distinguish unknown null from measured false; neither establishes readiness.
+Objects are strict and all other serialized fields are required, including nullable fields.
+Use format checking for UUIDs and observation/status timestamps; raw repository, SHA,
 scope and historical strings have no invented URL, hash or markup restrictions.
 
 Core owns `PqcService.worklist`, scope intersection, representative-ref choice,

@@ -7,7 +7,10 @@ CREATE UNIQUE INDEX artifact_revision_upgrade_unambiguous
     ON artifact (kind, created_at) WHERE assessment_id IS NULL;
 
 ALTER TABLE artifact ADD COLUMN publication_revision INTEGER CHECK (
-    publication_revision IS NULL OR (assessment_id IS NULL AND publication_revision > 0));
+    publication_revision IS NULL OR (
+        assessment_id IS NULL
+        AND typeof(publication_revision) = 'integer'
+        AND publication_revision > 0));
 
 DROP TRIGGER artifact_reject_update;
 WITH ranked AS (
@@ -20,6 +23,13 @@ UPDATE artifact SET publication_revision = (
 CREATE TRIGGER artifact_reject_update
 BEFORE UPDATE ON artifact BEGIN
     SELECT RAISE(ABORT, 'artifact rows are append-only');
+END;
+
+-- Install only after historical imports have received their revisions.
+CREATE TRIGGER artifact_imported_revision_required
+BEFORE INSERT ON artifact
+WHEN NEW.assessment_id IS NULL AND NEW.publication_revision IS NULL BEGIN
+    SELECT RAISE(ABORT, 'imported artifacts require a publication revision');
 END;
 
 DROP INDEX IF EXISTS idx_artifact_imported_kind;

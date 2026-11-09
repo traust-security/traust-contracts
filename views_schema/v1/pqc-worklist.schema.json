@@ -53,7 +53,7 @@
     "liveness": {
       "type": "object",
       "required": [
-        "repository_id", "url", "observed_at", "archived", "pushed_at", "dormant",
+        "repository_id", "url", "status", "observed_at", "archived", "pushed_at", "dormant",
         "unobserved", "reason"
       ],
       "additionalProperties": false,

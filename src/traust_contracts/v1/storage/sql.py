@@ -23,11 +23,13 @@ __all__ = [
     "REVISION",
     "TABLE_ORDER",
     "VIEW_ORDER",
+    "artifact_publication_revision_upgrade",
     "artifact_run_order_upgrade",
     "bootstrap_files",
     "bootstrap_statements",
     "default_named_at_upgrade",
     "finding_external_ref_assessment_upgrade",
+    "finding_external_ref_scope_upgrade",
     "finding_fingerprint_index_upgrade",
     "manifest_sbom_binding_upgrade",
 ]
@@ -91,6 +93,11 @@ def bootstrap_files(dialect: Dialect) -> list[Path]:
     )
 
 
+def _additive_upgrade(dialect: Dialect, name: str) -> list[str]:
+    path = storage_dir() / dialect / "upgrades" / f"{name}.sql"
+    return list(bootstrap_statements(dialect, path))
+
+
 def manifest_sbom_binding_upgrade(dialect: Dialect) -> list[str]:
     """Load the explicit additive upgrade for a database missing the scan column.
 
@@ -98,8 +105,7 @@ def manifest_sbom_binding_upgrade(dialect: Dialect) -> list[str]:
     when manifest_sbom_assessment_id is absent. This does not run on bootstrap
     or infer bindings for existing SBOMs: old coverage remains unknown.
     """
-    path = storage_dir() / dialect / "upgrades" / "manifest_sbom_binding.sql"
-    return list(bootstrap_statements(dialect, path))
+    return _additive_upgrade(dialect, "manifest_sbom_binding")
 
 
 def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
@@ -111,8 +117,7 @@ def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
     one statement on Postgres, one explicit transaction on SQLite (apply it
     outside an open transaction). Existing artifacts name no order.
     """
-    path = storage_dir() / dialect / "upgrades" / "artifact_run_order.sql"
-    return list(bootstrap_statements(dialect, path))
+    return _additive_upgrade(dialect, "artifact_run_order")
 
 
 def artifact_publication_revision_upgrade(dialect: Dialect) -> list[str]:
@@ -121,8 +126,7 @@ def artifact_publication_revision_upgrade(dialect: Dialect) -> list[str]:
     Apply only when publication_revision is absent, outside an open transaction
     on SQLite. Bootstrap does not run this upgrade. IDs and timestamps stay unchanged.
     """
-    path = storage_dir() / dialect / "upgrades" / "artifact_publication_revision.sql"
-    return list(bootstrap_statements(dialect, path))
+    return _additive_upgrade(dialect, "artifact_publication_revision")
 
 
 def default_named_at_upgrade(dialect: Dialect) -> list[str]:
@@ -133,17 +137,19 @@ def default_named_at_upgrade(dialect: Dialect) -> list[str]:
     naming times for existing default flags: they stay unknown until the line
     is named again.
     """
-    path = storage_dir() / dialect / "upgrades" / "default_named_at.sql"
-    return list(bootstrap_statements(dialect, path))
+    return _additive_upgrade(dialect, "default_named_at")
 
 
 def finding_fingerprint_index_upgrade(dialect: Dialect) -> list[str]:
     """Load the idempotent additive index upgrade for algorithm-free identity reads."""
-    path = storage_dir() / dialect / "upgrades" / "finding_fingerprint_index.sql"
-    return list(bootstrap_statements(dialect, path))
+    return _additive_upgrade(dialect, "finding_fingerprint_index")
 
 
 def finding_external_ref_assessment_upgrade(dialect: Dialect) -> list[str]:
     """Load the additive attempt scope for external references; old links stay unscoped."""
-    path = storage_dir() / dialect / "upgrades" / "finding_external_ref_assessment.sql"
-    return list(bootstrap_statements(dialect, path))
+    return _additive_upgrade(dialect, "finding_external_ref_assessment")
+
+
+def finding_external_ref_scope_upgrade(dialect: Dialect) -> list[str]:
+    """Guard existing scoped references and repair a missing attempt index."""
+    return _additive_upgrade(dialect, "finding_external_ref_scope")
