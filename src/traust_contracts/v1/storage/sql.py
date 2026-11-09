@@ -27,6 +27,8 @@ __all__ = [
     "bootstrap_files",
     "bootstrap_statements",
     "default_named_at_upgrade",
+    "finding_external_ref_assessment_upgrade",
+    "finding_fingerprint_index_upgrade",
     "manifest_sbom_binding_upgrade",
 ]
 
@@ -122,4 +124,16 @@ def default_named_at_upgrade(dialect: Dialect) -> list[str]:
     is named again.
     """
     path = storage_dir() / dialect / "upgrades" / "default_named_at.sql"
+    return list(bootstrap_statements(dialect, path))
+
+
+def finding_fingerprint_index_upgrade(dialect: Dialect) -> list[str]:
+    """Load the idempotent additive index upgrade for algorithm-free identity reads."""
+    path = storage_dir() / dialect / "upgrades" / "finding_fingerprint_index.sql"
+    return list(bootstrap_statements(dialect, path))
+
+
+def finding_external_ref_assessment_upgrade(dialect: Dialect) -> list[str]:
+    """Load the additive attempt scope for external references; old links stay unscoped."""
+    path = storage_dir() / dialect / "upgrades" / "finding_external_ref_assessment.sql"
     return list(bootstrap_statements(dialect, path))

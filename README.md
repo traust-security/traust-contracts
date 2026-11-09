@@ -131,6 +131,34 @@ recorded head must still win over an earlier observation. Existing databases
 apply `storage.sql.default_named_at_upgrade(dialect)` when the column is absent;
 already-flagged rows keep an unknown naming time until the line is named again.
 
+## Algorithm-free finding identity
+
+Exact finding reads that omit `fingerprint_algo` use the schema-owned
+`idx_finding_repository_fingerprint` index on `(repository_id, fingerprint)`,
+on both SQLite and PostgreSQL. The existing unique `(repository_id,
+fingerprint_algo, fingerprint)` constraint remains the identity owner; multiple
+matching recipes remain ambiguous, not merged or ranked.
+
+Existing databases apply the idempotent
+`storage.sql.finding_fingerprint_index_upgrade(dialect)` before using this read.
+It adds only the index and preserves all rows. As with the existing additive
+upgrades, `CONTRACT_VERSION = "v1"` and `REVISION = 1` remain unchanged; the
+dependency commit pin selects this schema addition.
+
+## Attempt-scoped external references
+
+`finding_external_ref.assessment_id` optionally attributes an external link to one
+assessment, including a remediation work item's PR. Finding-wide historical Jira
+links remain null; the contract does not infer an attempt from a shared finding.
+The assessment FK rejects nonexistent attempts and the scoped index supports
+attempt reads. Existing `(system, ref, finding_id)` identity remains unchanged.
+
+Existing databases inspect the column and apply
+`storage.sql.finding_external_ref_assessment_upgrade(dialect)` only when absent.
+The additive SQLite/PostgreSQL upgrade adds the nullable FK column and index;
+it leaves existing rows unscoped and rewrites no reports. The current additive
+upgrade convention remains `CONTRACT_VERSION = "v1"`, `REVISION = 1`.
+
 ## Pack spec
 
 `config/v1/pack.schema.json` is the shape of a workload pack's `assets.yaml` (the

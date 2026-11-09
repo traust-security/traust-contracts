@@ -1001,3 +1001,67 @@ def test_the_documented_rollback_leaves_findings_refs_and_orders_working(db: Db)
     db.run(f"UPDATE {db.t('repository_ref')} SET repository_id = ? WHERE id = ?", (elsewhere, at))
     order = {"asset": "diff_scan", "state": "queued", "priority": 1, "requested_by": "h"}
     db.insert("ops.run_order", repository_id=elsewhere, **order)
+
+
+def test_algorithm_free_fingerprint_upgrade_preserves_rows_and_recipe_ambiguity(db: Db) -> None:
+    repository = repo(db)
+    first = finding(db, repository, "opaque identity")
+    second = db.insert(
+        "finding",
+        repository_id=repository,
+        fingerprint_algo="other",
+        fingerprint="opaque identity",
+        title="Another recipe",
+    )
+    table = db.t("finding")
+    query = f"SELECT * FROM {table} ORDER BY id"
+    before = db.run(query)
+    db.run(f"DROP INDEX {db.t('idx_finding_repository_fingerprint')}")
+    for _ in range(2):
+        for statement in storage_sql.finding_fingerprint_index_upgrade(db.engine):
+            db.run(statement)
+    assert db.run(query) == before
+    matches = db.run(
+        f"SELECT id FROM {table} WHERE repository_id = ? AND fingerprint = ? LIMIT 2",
+        (repository, "opaque identity"),
+    )
+    assert {str(row[0]) for row in matches} == {first, second}
+    assert (
+        db.run(
+            f"SELECT id FROM {table} WHERE repository_id = ? AND fingerprint = ? LIMIT 2",
+            (repository, "missing"),
+        )
+        == []
+    )
+
+
+def test_external_reference_attempt_upgrade_leaves_historical_links_unattributed(db: Db) -> None:
+    repository = repo(db)
+    found = finding(db, repository)
+    old = db.insert("finding_external_ref", finding_id=found, system="jira", ref="SEC-1")
+    table = db.t("finding_external_ref")
+    db.run(f"DROP INDEX {db.t('idx_finding_external_ref_assessment')}")
+    db.run(f"ALTER TABLE {table} DROP COLUMN assessment_id")
+    for statement in storage_sql.finding_external_ref_assessment_upgrade(db.engine):
+        db.run(statement)
+    assert db.run(f"SELECT assessment_id FROM {table} WHERE id = ?", (old,)) == [(None,)]
+    first = assessment(db, ref(db, repository))
+    second = assessment(db, ref(db, repository, sha="b" * 40))
+    attached = db.insert(
+        "finding_external_ref",
+        finding_id=found,
+        assessment_id=first,
+        system="github",
+        ref="https://github.com/example/service/pull/1",
+    )
+    assert [
+        str(row[0]) for row in db.run(f"SELECT id FROM {table} WHERE assessment_id = ?", (first,))
+    ] == [attached]
+    assert db.run(f"SELECT id FROM {table} WHERE assessment_id = ?", (second,)) == []
+    db.rejects(
+        "finding_external_ref",
+        finding_id=found,
+        assessment_id=str(uuid.uuid4()),
+        system="github",
+        ref="https://github.com/example/service/pull/2",
+    )
