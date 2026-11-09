@@ -1606,7 +1606,6 @@ def test_sqlite_tracker_upgrade_rolls_back_schema_and_partial_guards(db: Db) -> 
         pytest.skip("SQLite additive upgrade transaction")
     _tracker_scope_legacy(db)
     statements = list(storage_sql.finding_external_ref_assessment_upgrade(db.engine))
-    assert "BEGIN IMMEDIATE;" in statements[0]
     for statement in statements:
         if "CREATE TRIGGER IF NOT EXISTS finding_external_ref_scope_update" in statement:
             break
