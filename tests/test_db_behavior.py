@@ -1349,3 +1349,16 @@ def test_interrupted_revision_upgrade_rolls_back_the_column_rows_and_append_only
         db.run(f"UPDATE {db.t('artifact')} SET uri = 'changed.json'")
     _upgrade(db)
     assert db.run(f"SELECT publication_revision FROM {db.t('artifact')}") == [(1,)]
+
+
+def test_revision_upgrade_accepts_historical_stores_without_the_old_read_index(db: Db) -> None:
+    _before_revision(db)
+    prefix = "traust." if db.engine == "postgres" else ""
+    db.run(f"DROP INDEX {prefix}idx_artifact_imported_kind")
+    original = db.insert("artifact", digest="old", kind="corpus-registry", uri="old.json")
+    _upgrade(db)
+    assert db.run(f"SELECT id, publication_revision FROM {db.t('artifact')}") == [
+        (original if db.engine == "sqlite" else uuid.UUID(original), 1)
+    ]
+    with pytest.raises(db.Error):
+        db.run(f"UPDATE {db.t('artifact')} SET uri = 'rewritten.json'")

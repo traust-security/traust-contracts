@@ -22,7 +22,7 @@ BEFORE UPDATE ON artifact BEGIN
     SELECT RAISE(ABORT, 'artifact rows are append-only');
 END;
 
-DROP INDEX idx_artifact_imported_kind;
+DROP INDEX IF EXISTS idx_artifact_imported_kind;
 CREATE UNIQUE INDEX idx_artifact_imported_kind
     ON artifact (kind, publication_revision DESC) WHERE assessment_id IS NULL;
 DROP INDEX artifact_revision_upgrade_unambiguous;

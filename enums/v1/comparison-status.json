@@ -28,11 +28,9 @@
     "network-skipped": "Skipped: the run was told not to use the network.",
     "never-audited": "Not observed: there is no audit to compare against (bootstrap)."
   },
-  "standard": {
-    "none": "Project-defined observation outcomes; no external standard applies."
-  },
+  "standard": { "none": "Project-defined observation outcomes; no external standard applies." },
   "used_in_schemas": [
-    "repo-liveness.schema.json",
-    "repo-state.schema.json"
+    "repo-state.schema.json",
+    "repo-liveness.schema.json"
   ]
 }
