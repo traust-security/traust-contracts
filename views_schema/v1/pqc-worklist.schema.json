@@ -60,6 +60,11 @@
       "properties": {
         "repository_id": {"type": "string", "format": "uuid"},
         "url": {"type": "string"},
+        "status": {
+          "$ref": "../../artifacts_schema/v1/repo-liveness.schema.json#/$defs/liveness/properties/status"
+        },
+        "status_since": {"type": ["string", "null"], "format": "date-time"},
+        "canonical_url": {"type": ["string", "null"]},
         "observed_at": {"type": ["string", "null"], "format": "date-time"},
         "archived": {"type": ["boolean", "null"]},
         "pushed_at": {

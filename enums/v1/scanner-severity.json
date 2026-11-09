@@ -12,6 +12,7 @@
   ],
   "used_in_schemas": [
     "cloud-config-audit.schema.json",
-    "cloud-config-findings-current.schema.json"
+    "cloud-config-findings-current.schema.json",
+    "cve-replay.schema.json"
   ]
 }

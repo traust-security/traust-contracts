@@ -9,6 +9,12 @@
 CREATE TABLE IF NOT EXISTS traust_ops.spend_event (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     run_order_id UUID REFERENCES traust_ops.run_order(id) ON DELETE RESTRICT,
+    repository_id UUID REFERENCES traust.repository(id) ON DELETE RESTRICT,
+    -- Raw supplied reference, retained even when canonical identity is unresolved.
+    repository_label TEXT,
+    loc BIGINT CHECK (loc >= 0),
+    batch TEXT,
+    note TEXT,
     provider TEXT NOT NULL CHECK (provider <> ''),
     model TEXT NOT NULL CHECK (model <> ''),
     skill TEXT,
@@ -30,6 +36,11 @@ CREATE INDEX IF NOT EXISTS idx_ops_spend_event_run_order
 -- Spend in a window (spend dashboard, budget month-to-date).
 CREATE INDEX IF NOT EXISTS idx_ops_spend_event_occurred
     ON traust_ops.spend_event (occurred_at);
+
+-- A canonical repository's spend in a window, independent of order attribution.
+CREATE INDEX IF NOT EXISTS idx_ops_spend_event_repository_occurred
+    ON traust_ops.spend_event (repository_id, occurred_at)
+    WHERE repository_id IS NOT NULL;
 
 -- A lane's spend in a window (budget month-to-date, lane cost).
 CREATE INDEX IF NOT EXISTS idx_ops_spend_event_lane_occurred

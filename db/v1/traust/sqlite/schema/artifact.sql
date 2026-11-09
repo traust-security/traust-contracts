@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS artifact (
     id TEXT NOT NULL DEFAULT (uuid()),
     assessment_id TEXT REFERENCES assessment(id) ON DELETE RESTRICT,
     run_order_id TEXT REFERENCES ops_run_order(id) ON DELETE RESTRICT,
+    publication_revision INTEGER CHECK (
+        publication_revision IS NULL OR (assessment_id IS NULL AND publication_revision > 0)),
     digest TEXT NOT NULL CHECK (digest <> ''),
     kind TEXT NOT NULL CHECK (kind <> ''),
     uri TEXT NOT NULL CHECK (uri <> ''),
@@ -42,8 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_artifact_run_order
 
 -- The latest imported document of a kind (configuration documents such as the
 -- corpus registry, versioned as whole documents).
-CREATE INDEX IF NOT EXISTS idx_artifact_imported_kind
-    ON artifact (kind, created_at DESC, id DESC)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_imported_kind
+    ON artifact (kind, publication_revision DESC)
     WHERE assessment_id IS NULL;
 
 CREATE TRIGGER IF NOT EXISTS artifact_reject_update

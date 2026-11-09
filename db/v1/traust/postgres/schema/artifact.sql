@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS traust.artifact (
     id UUID NOT NULL DEFAULT gen_random_uuid(),
     assessment_id UUID REFERENCES traust.assessment(id) ON DELETE RESTRICT,
     run_order_id UUID,
+    publication_revision BIGINT CHECK (
+        publication_revision IS NULL OR (assessment_id IS NULL AND publication_revision > 0)),
     digest TEXT NOT NULL CHECK (digest <> ''),
     kind TEXT NOT NULL CHECK (kind <> ''),
     uri TEXT NOT NULL CHECK (uri <> ''),
@@ -42,8 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_artifact_run_order
 
 -- The latest imported document of a kind (configuration documents such as the
 -- corpus registry, versioned as whole documents).
-CREATE INDEX IF NOT EXISTS idx_artifact_imported_kind
-    ON traust.artifact (kind, created_at DESC, id DESC)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_imported_kind
+    ON traust.artifact (kind, publication_revision DESC)
     WHERE assessment_id IS NULL;
 
 -- sbom.artifact_id closes a cycle (sbom -> artifact -> assessment -> image

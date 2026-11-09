@@ -1065,3 +1065,287 @@ def test_external_reference_attempt_upgrade_leaves_historical_links_unattributed
         system="github",
         ref="https://github.com/example/service/pull/2",
     )
+
+
+def _event(db: Db, **metadata: object) -> str:
+    return db.insert(
+        "ops.spend_event",
+        provider="provider",
+        model="model",
+        tokens_in=11,
+        tokens_out=7,
+        cost_usd=0.125,
+        occurred_at=NOW,
+        **metadata,
+    )
+
+
+def _metadata(db: Db, event_id: str) -> tuple:
+    rows = db.run(
+        f"SELECT repository_id, repository_label, loc, batch, note "
+        f"FROM {db.t('ops.spend_event')} WHERE id = ?",
+        (event_id,),
+    )
+    canonical, label, loc, batch, note = rows[0]
+    return (str(canonical) if canonical is not None else None, label, loc, batch, note)
+
+
+def test_spend_metadata_roundtrips_with_canonical_repository(db: Db) -> None:
+    canonical = repo(db)
+    supplied = (canonical, "../adopter/raw-reference", 1234, "batch-42", "cost note\nverbatim")
+    event = _event(
+        db,
+        **dict(
+            zip(
+                ("repository_id", "repository_label", "loc", "batch", "note"), supplied, strict=True
+            )
+        ),
+    )
+    assert _metadata(db, event) == supplied
+    rows = db.run(
+        f"SELECT tokens_in, tokens_out, cost_usd FROM {db.t('ops.spend_event')} WHERE id = ?",
+        (event,),
+    )
+    assert rows[0] == (11, 7, 0.125)
+
+
+def test_legacy_spend_keeps_new_metadata_null(db: Db) -> None:
+    assert _metadata(db, _event(db)) == (None, None, None, None, None)
+
+
+def test_ambiguous_spend_label_retains_cost_without_guessing_identity(db: Db) -> None:
+    first = repo(db, "https://example.com/team-a/shared")
+    second = repo(db, "https://example.com/team-b/shared")
+    for canonical in (None, first, second):
+        event = _event(
+            db, repository_id=canonical, repository_label="shared", loc=0, batch="", note=""
+        )
+        assert _metadata(db, event) == (canonical, "shared", 0, "", "")
+    rows = db.run(
+        f"SELECT count(*), sum(cost_usd) FROM {db.t('ops.spend_event')} WHERE repository_label = ?",
+        ("shared",),
+    )
+    assert rows[0] == (3, 0.375)
+
+
+def test_spend_rejects_unknown_canonical_repository(db: Db) -> None:
+    with pytest.raises(db.Error):
+        _event(db, repository_id=str(uuid.uuid4()), repository_label="still-raw")
+
+
+@pytest.mark.parametrize("loc", [-1, "not-an-integer", "1.5", b"invalid"])
+def test_spend_rejects_invalid_loc(db: Db, loc: object) -> None:
+    with pytest.raises(db.Error):
+        _event(db, loc=loc)
+
+
+def test_rich_spend_remains_append_only_and_retains_repository(db: Db) -> None:
+    canonical = repo(db)
+    event = _event(db, repository_id=canonical, repository_label="raw", loc=12)
+    table = db.t("ops.spend_event")
+    for statement in (
+        f"UPDATE {table} SET note = 'changed' WHERE id = ?",
+        f"DELETE FROM {table} WHERE id = ?",
+    ):
+        with pytest.raises(db.Error):
+            db.run(statement, (event,))
+    with pytest.raises(db.Error):
+        db.run(f"DELETE FROM {db.t('repository')} WHERE id = ?", (canonical,))
+    assert _metadata(db, event) == (canonical, "raw", 12, None, None)
+
+
+def test_rich_spend_preserves_lane_order_guard(db: Db) -> None:
+    canonical = repo(db)
+    order = db.insert(
+        "ops.run_order",
+        asset="diff_scan",
+        state="queued",
+        priority=1,
+        requested_by="human",
+        repository_id=canonical,
+        lane="interactive",
+    )
+    event = _event(
+        db, run_order_id=order, lane="interactive", repository_id=canonical, note="retained"
+    )
+    assert _metadata(db, event)[-1] == "retained"
+    with pytest.raises(db.Error):
+        _event(db, run_order_id=order, lane="other", repository_id=canonical)
+    with pytest.raises(db.Error):
+        _event(db, lane="interactive", repository_label="unattributed")
+
+
+def _before_spend_metadata(db: Db) -> None:
+    prefix = "traust_ops." if db.engine == "postgres" else ""
+    db.run(f"DROP INDEX {prefix}idx_ops_spend_event_repository_occurred")
+    for column in ("repository_id", "repository_label", "loc", "batch", "note"):
+        db.run(f"ALTER TABLE {db.t('ops.spend_event')} DROP COLUMN {column}")
+
+
+def test_spend_metadata_upgrade_preserves_history_and_accepts_rich_events(db: Db) -> None:
+    _before_spend_metadata(db)
+    canonical = repo(db)
+    old_event = _event(db)
+    table = db.t("ops.spend_event")
+    old_history = db.run(
+        f"SELECT id, tokens_in, tokens_out, cost_usd, occurred_at, created_at FROM {table}"
+    )
+    if db.engine == "postgres":
+        db.run("BEGIN")
+    for statement in ops_sql.spend_event_metadata_upgrade(db.engine):
+        db.run(statement)
+    if db.engine == "postgres":
+        db.run("COMMIT")
+    assert (
+        db.run(f"SELECT id, tokens_in, tokens_out, cost_usd, occurred_at, created_at FROM {table}")
+        == old_history
+    )
+    assert _metadata(db, old_event) == (None, None, None, None, None)
+    event = _event(
+        db, repository_id=canonical, repository_label="raw", loc=42, batch="batch", note="note"
+    )
+    assert _metadata(db, event) == (canonical, "raw", 42, "batch", "note")
+    assert _metadata(db, _event(db, repository_label="ambiguous")) == (
+        None,
+        "ambiguous",
+        None,
+        None,
+        None,
+    )
+    with pytest.raises(db.Error):
+        _event(db, repository_id=str(uuid.uuid4()))
+    for loc in (-1, "bad", "1.5"):
+        with pytest.raises(db.Error):
+            _event(db, loc=loc)
+    with pytest.raises(db.Error):
+        db.run(f"UPDATE {table} SET note = 'changed' WHERE id = ?", (old_event,))
+    with pytest.raises(db.Error):
+        db.run(f"DELETE FROM {table} WHERE id = ?", (event,))
+    with pytest.raises(db.Error):
+        _event(db, lane="interactive")
+    for path in ops_sql.bootstrap_files(db.engine):
+        for statement in bootstrap_statements(db.engine, path):
+            db.run(statement)
+    assert _metadata(db, old_event) == (None, None, None, None, None)
+
+
+def _before_revision(db: Db) -> None:
+    prefix = "traust." if db.engine == "postgres" else ""
+    db.run(f"DROP INDEX {prefix}idx_artifact_imported_kind")
+    db.run(f"ALTER TABLE {db.t('artifact')} DROP COLUMN publication_revision")
+    db.run(
+        f"CREATE INDEX idx_artifact_imported_kind ON {db.t('artifact')} "
+        "(kind, created_at DESC, id DESC) WHERE assessment_id IS NULL"
+    )
+
+
+def _upgrade(db: Db) -> None:
+    for statement in storage_sql.artifact_publication_revision_upgrade(db.engine):
+        db.run(statement)
+
+
+def test_imported_revisions_are_positive_unique_per_stream_and_not_assessment_metadata(
+    db: Db,
+) -> None:
+    document = {"kind": "corpus-registry", "uri": "artifacts/example.json"}
+    db.insert("artifact", digest="first", publication_revision=1, **document)
+    db.rejects("artifact", digest="second", publication_revision=1, **document)
+    for revision in (0, -1):
+        db.rejects(
+            "artifact", digest=f"invalid-{revision}", publication_revision=revision, **document
+        )
+    db.insert(
+        "artifact", digest="other-stream", kind="policy", uri="policy.json", publication_revision=1
+    )
+    work = assessment(db, ref(db, repo(db)))
+    db.rejects(
+        "artifact", assessment_id=work, digest="produced", publication_revision=2, **document
+    )
+    db.insert("artifact", assessment_id=work, digest="produced", **document)
+    db.insert("artifact", digest="raw-import", **document)
+
+
+def test_revision_upgrade_preserves_every_original_row_and_orders_unambiguous_history(
+    db: Db,
+) -> None:
+    _before_revision(db)
+    work = assessment(db, ref(db, repo(db)))
+    document = {"kind": "corpus-registry", "uri": "artifacts/example.json"}
+    db.insert("artifact", digest="second", created_at=LATER, **document)
+    db.insert("artifact", digest="first", created_at=NOW, **document)
+    db.insert("artifact", digest="other-stream", kind="policy", uri="policy.json", created_at=NOW)
+    db.insert("artifact", assessment_id=work, digest="produced", created_at=NOW, **document)
+    table = db.t("artifact")
+    original = db.run(
+        f"SELECT id, assessment_id, digest, kind, uri, created_at FROM {table} ORDER BY digest"
+    )
+    _upgrade(db)
+    assert (
+        db.run(
+            f"SELECT id, assessment_id, digest, kind, uri, created_at FROM {table} ORDER BY digest"
+        )
+        == original
+    )
+    assert db.run(f"SELECT digest, publication_revision FROM {table} ORDER BY digest") == [
+        ("first", 1),
+        ("other-stream", 1),
+        ("produced", None),
+        ("second", 2),
+    ]
+    db.insert("artifact", digest="third", publication_revision=3, **document)
+    db.rejects("artifact", digest="duplicate-revision", publication_revision=3, **document)
+    with pytest.raises(db.Error):
+        db.run(f"UPDATE {table} SET publication_revision = 4 WHERE digest = 'third'")
+    with pytest.raises(db.Error):
+        db.run(f"DELETE FROM {table} WHERE digest = 'third'")
+    for path in storage_sql.bootstrap_files(db.engine):
+        for statement in bootstrap_statements(db.engine, path):
+            db.run(statement)
+    assert len(db.run(f"SELECT id FROM {table}")) == 5
+
+
+def test_revision_upgrade_refuses_ambiguous_real_database_timestamps_without_mutation(
+    db: Db,
+) -> None:
+    _before_revision(db)
+    table = db.t("artifact")
+    db.run(
+        f"INSERT INTO {table} (digest, kind, uri) VALUES "
+        "('first', 'corpus-registry', 'first.json'), "
+        "('second', 'corpus-registry', 'second.json')"
+    )
+    before = db.run(f"SELECT * FROM {table} ORDER BY digest")
+    assert len({row[-1] for row in before}) == 1
+    with pytest.raises(db.Error):
+        _upgrade(db)
+    if db.engine == "sqlite":
+        db.run("ROLLBACK")
+    assert "publication_revision" not in _columns(db, "artifact")
+    assert db.run(f"SELECT * FROM {table} ORDER BY digest") == before
+    with pytest.raises(db.Error):
+        db.run(f"UPDATE {table} SET uri = 'changed.json'")
+
+
+def test_interrupted_revision_upgrade_rolls_back_the_column_rows_and_append_only_guard(
+    db: Db,
+) -> None:
+    _before_revision(db)
+    db.insert("artifact", digest="first", kind="corpus-registry", uri="first.json")
+    before = db.run(f"SELECT * FROM {db.t('artifact')}")
+    statements = storage_sql.artifact_publication_revision_upgrade(db.engine)
+    if db.engine == "sqlite":
+        stop = next(
+            index for index, statement in enumerate(statements) if "UPDATE artifact" in statement
+        )
+        for statement in statements[: stop + 1]:
+            db.run(statement)
+    else:
+        db.run("BEGIN")
+        _upgrade(db)
+    db.run("ROLLBACK")
+    assert "publication_revision" not in _columns(db, "artifact")
+    assert db.run(f"SELECT * FROM {db.t('artifact')}") == before
+    with pytest.raises(db.Error):
+        db.run(f"UPDATE {db.t('artifact')} SET uri = 'changed.json'")
+    _upgrade(db)
+    assert db.run(f"SELECT publication_revision FROM {db.t('artifact')}") == [(1,)]

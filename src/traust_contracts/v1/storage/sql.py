@@ -115,6 +115,16 @@ def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
     return list(bootstrap_statements(dialect, path))
 
 
+def artifact_publication_revision_upgrade(dialect: Dialect) -> list[str]:
+    """Version existing imported streams; refuse ambiguous historical timestamp ties.
+
+    Apply only when publication_revision is absent, outside an open transaction
+    on SQLite. Bootstrap does not run this upgrade. IDs and timestamps stay unchanged.
+    """
+    path = storage_dir() / dialect / "upgrades" / "artifact_publication_revision.sql"
+    return list(bootstrap_statements(dialect, path))
+
+
 def default_named_at_upgrade(dialect: Dialect) -> list[str]:
     """Load the explicit additive upgrade for a database missing the naming column.
 

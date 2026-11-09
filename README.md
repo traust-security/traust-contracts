@@ -122,6 +122,48 @@ own the artifact's assessment: the work item it runs, or an assessment it
 produced. Existing databases apply `storage.sql.artifact_run_order_upgrade(dialect)`
 when the column is absent; existing artifacts name no order.
 
+## Imported publication history
+
+Imported artifact streams use a positive `publication_revision` per kind. Core's metadata
+owner serializes publication, including raw feed/SBOM imports; latest/history never break
+equal timestamps by UUID. Successor publication checks its exact prior under the same lock.
+
+Before upgrading Core on an existing database, inspect `artifact.publication_revision`.
+When absent, apply `storage.sql.artifact_publication_revision_upgrade(dialect)` once.
+SQLite owns its `BEGIN IMMEDIATE`/`COMMIT` and requires no open transaction; submit the
+PostgreSQL script as one atomic driver operation. Existing IDs, timestamps and bytes stay
+unchanged. Equal historical timestamps within one imported kind refuse the upgrade atomically:
+reconcile from proven publication history, never infer order from UUIDs.
+Core applies this upgrade automatically to its local SQLite store; a configured database
+refuses startup until its schema owner applies it. Both paths retain the same tie refusal.
+
+## Spend declaration attribution
+
+`spend_event` retains nullable `repository_id`, raw `repository_label`, nonnegative integer
+`loc`, `batch` and `note`. Canonical repository identity is a foreign key, not a slug inferred
+from a label. Historical metadata stays null; unresolvable labels still retain their cost.
+
+Existing databases inspect all five columns. If all are absent, apply
+`ops.sql.spend_event_metadata_upgrade(dialect)` once. SQLite owns its transaction and needs
+no open transaction; PostgreSQL requires a caller-owned transaction. A partial-column
+installation needs explicit reconciliation rather than replaying the upgrade.
+Local SQLite stores use the same upgrade on open; configured databases fail before their
+first query when the metadata is missing or partially installed.
+
+## Reviewed claim and advisory replay artifacts
+
+`finding-claim` pins the finding, repository, source assessment and label, retained replacement
+claim, prior fingerprint/title/accepted decision and complete original occurrence-ID set.
+Core verifies the snapshot under review; acceptance appends decisions, not rewritten occurrences.
+`finding-intake` retains native scanner label/fingerprint bindings for the exact repository
+and commit. Unretained historical sources cannot authorize a correction by guessed label.
+
+`cve-replay` snapshots bind one real audit and its exact report artifact, per-audit watermark,
+revision and advisory checks. Structural validation is not authority: only a verified human
+with evidence can confirm historical presence. Discovery alone never establishes a missed
+vulnerability or admits benchmark truth.
+
+
 ## Default-head naming time
 
 `repository_ref.default_named_at` records when the row was last named the default
