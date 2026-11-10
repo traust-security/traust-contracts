@@ -4,11 +4,20 @@
 -- skill name - deployment data, checked at intake. run_order_id null =
 -- unattributed. lane is the order's lane at the time of spend (null when
 -- unattributed or not routed), copied so lane rollups read this table alone:
--- budget month-to-date runs on every admission tick. Retention: rolled up
--- monthly after N months.
+-- budget month-to-date runs on every admission tick. repository_id holds the
+-- resolved canonical identity of an order-less imported declaration's label -
+-- it has no other home; an order-attributed event's repository is derived
+-- through run_order_id, not stored here. Retention: rolled up monthly after
+-- N months.
 CREATE TABLE IF NOT EXISTS ops_spend_event (
     id TEXT NOT NULL DEFAULT (uuid()),
     run_order_id TEXT REFERENCES ops_run_order(id) ON DELETE RESTRICT,
+    repository_id TEXT REFERENCES repository(id) ON DELETE RESTRICT,
+    -- Raw supplied reference, retained even when canonical identity is unresolved.
+    repository_label TEXT,
+    loc INTEGER CHECK (loc IS NULL OR (typeof(loc) = 'integer' AND loc >= 0)),
+    batch TEXT,
+    note TEXT,
     provider TEXT NOT NULL CHECK (provider <> ''),
     model TEXT NOT NULL CHECK (model <> ''),
     skill TEXT,
@@ -19,7 +28,8 @@ CREATE TABLE IF NOT EXISTS ops_spend_event (
     occurred_at TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     PRIMARY KEY (id),
-    CHECK (tokens_in >= 0 AND tokens_out >= 0 AND cost_usd >= 0)
+    CHECK (tokens_in >= 0 AND tokens_out >= 0 AND cost_usd >= 0),
+    CHECK (run_order_id IS NULL OR repository_id IS NULL)
 );
 
 -- Spend for an order (spend per scan, lane cost).
@@ -30,6 +40,11 @@ CREATE INDEX IF NOT EXISTS idx_ops_spend_event_run_order
 -- Spend in a window (spend dashboard, budget month-to-date).
 CREATE INDEX IF NOT EXISTS idx_ops_spend_event_occurred
     ON ops_spend_event (occurred_at);
+
+-- A canonical repository's declared spend in a window (order-less imports).
+CREATE INDEX IF NOT EXISTS idx_ops_spend_event_repository_occurred
+    ON ops_spend_event (repository_id, occurred_at)
+    WHERE repository_id IS NOT NULL;
 
 -- A lane's spend in a window (budget month-to-date, lane cost).
 CREATE INDEX IF NOT EXISTS idx_ops_spend_event_lane_occurred

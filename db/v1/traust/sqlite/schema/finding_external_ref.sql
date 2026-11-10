@@ -31,3 +31,19 @@ AFTER UPDATE ON finding_external_ref FOR EACH ROW
 WHEN NEW.updated_at IS OLD.updated_at BEGIN
   UPDATE finding_external_ref SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE id = NEW.id;
 END;
+
+-- Scoped trackers name an assessment of the finding's repository, not an
+-- occurrence: remediation assessments need not have reported the finding.
+-- NULL retains historical, finding-wide links without inferred attribution.
+-- Core owns pairing and finding identity at its write boundary; UNIQUE alone
+-- does not make repository identity immutable. This guard protects ref moves.
+CREATE TRIGGER IF NOT EXISTS finding_external_ref_repository_ref_scope_update
+BEFORE UPDATE OF repository_id ON repository_ref FOR EACH ROW
+WHEN NEW.repository_id IS NOT OLD.repository_id AND EXISTS (
+    SELECT 1 FROM assessment a
+    JOIN finding_external_ref e ON e.assessment_id = a.id
+    JOIN finding f ON f.id = e.finding_id
+    WHERE a.repository_ref_id = OLD.id AND f.repository_id IS NOT NEW.repository_id
+) BEGIN
+  SELECT RAISE(ABORT, 'repository ref change would invalidate tracker scope');
+END;

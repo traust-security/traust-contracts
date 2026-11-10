@@ -494,6 +494,24 @@ def _columns(db: Db, table: str) -> set[str]:
     return {c[0] for c in db.run(query, (table,))}
 
 
+def _indexes(db: Db, table: str) -> list[dict]:
+    if db.engine == "sqlite":
+        return [
+            {"name": row[1], "column_names": [c[2] for c in db.run(f"PRAGMA index_info({row[1]})")]}
+            for row in db.run(f"PRAGMA index_list({db.t(table)})")
+        ]
+    import re
+
+    def columns(definition: str) -> list[str]:
+        return re.findall(r"[a-z_]+", definition.split("(", 1)[1].rsplit(")", 1)[0])
+
+    query = "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = %s AND tablename = %s"
+    return [
+        {"name": row[0], "column_names": columns(row[1])}
+        for row in db.run(query, ("traust", table))
+    ]
+
+
 def test_an_interrupted_sqlite_artifact_upgrade_rolls_back_whole() -> None:
     statements = storage_sql.artifact_run_order_upgrade("sqlite")
     assert statements[0].rstrip(";\n").endswith("BEGIN") and "COMMIT" in statements[-1]
@@ -1003,7 +1021,7 @@ def test_the_documented_rollback_leaves_findings_refs_and_orders_working(db: Db)
     db.insert("ops.run_order", repository_id=elsewhere, **order)
 
 
-def test_algorithm_free_fingerprint_upgrade_preserves_rows_and_recipe_ambiguity(db: Db) -> None:
+def test_algorithm_free_fingerprint_reads_are_indexed_for_recipe_ambiguity(db: Db) -> None:
     repository = repo(db)
     first = finding(db, repository, "opaque identity")
     second = db.insert(
@@ -1014,13 +1032,6 @@ def test_algorithm_free_fingerprint_upgrade_preserves_rows_and_recipe_ambiguity(
         title="Another recipe",
     )
     table = db.t("finding")
-    query = f"SELECT * FROM {table} ORDER BY id"
-    before = db.run(query)
-    db.run(f"DROP INDEX {db.t('idx_finding_repository_fingerprint')}")
-    for _ in range(2):
-        for statement in storage_sql.finding_fingerprint_index_upgrade(db.engine):
-            db.run(statement)
-    assert db.run(query) == before
     matches = db.run(
         f"SELECT id FROM {table} WHERE repository_id = ? AND fingerprint = ? LIMIT 2",
         (repository, "opaque identity"),
@@ -1033,18 +1044,17 @@ def test_algorithm_free_fingerprint_upgrade_preserves_rows_and_recipe_ambiguity(
         )
         == []
     )
+    indexed = {
+        (index["name"], tuple(index["column_names"][:2]))
+        for index in _indexes(db, "finding")
+        if index["name"] == "idx_finding_repository_fingerprint"
+    }
+    assert indexed == {("idx_finding_repository_fingerprint", ("repository_id", "fingerprint"))}
 
 
-def test_external_reference_attempt_upgrade_leaves_historical_links_unattributed(db: Db) -> None:
+def test_external_reference_attempts_stay_separate_from_finding_wide_tickets(db: Db) -> None:
     repository = repo(db)
     found = finding(db, repository)
-    old = db.insert("finding_external_ref", finding_id=found, system="jira", ref="SEC-1")
-    table = db.t("finding_external_ref")
-    db.run(f"DROP INDEX {db.t('idx_finding_external_ref_assessment')}")
-    db.run(f"ALTER TABLE {table} DROP COLUMN assessment_id")
-    for statement in storage_sql.finding_external_ref_assessment_upgrade(db.engine):
-        db.run(statement)
-    assert db.run(f"SELECT assessment_id FROM {table} WHERE id = ?", (old,)) == [(None,)]
     first = assessment(db, ref(db, repository))
     second = assessment(db, ref(db, repository, sha="b" * 40))
     attached = db.insert(
@@ -1054,14 +1064,230 @@ def test_external_reference_attempt_upgrade_leaves_historical_links_unattributed
         system="github",
         ref="https://github.com/example/service/pull/1",
     )
+    historical = db.insert("finding_external_ref", finding_id=found, system="jira", ref="SEC-1")
+    table = db.t("finding_external_ref")
     assert [
         str(row[0]) for row in db.run(f"SELECT id FROM {table} WHERE assessment_id = ?", (first,))
     ] == [attached]
     assert db.run(f"SELECT id FROM {table} WHERE assessment_id = ?", (second,)) == []
-    db.rejects(
+    assert db.run(f"SELECT assessment_id FROM {table} WHERE id = ?", (historical,)) == [(None,)]
+
+
+def _event(db: Db, **metadata: object) -> str:
+    return db.insert(
+        "ops.spend_event",
+        provider="provider",
+        model="model",
+        tokens_in=11,
+        tokens_out=7,
+        cost_usd=0.125,
+        occurred_at=NOW,
+        **metadata,
+    )
+
+
+def _metadata(db: Db, event_id: str) -> tuple:
+    rows = db.run(
+        f"SELECT repository_id, repository_label, loc, batch, note "
+        f"FROM {db.t('ops.spend_event')} WHERE id = ?",
+        (event_id,),
+    )
+    canonical, label, loc, batch, note = rows[0]
+    return (str(canonical) if canonical is not None else None, label, loc, batch, note)
+
+
+def test_spend_metadata_roundtrips_with_canonical_repository(db: Db) -> None:
+    canonical = repo(db)
+    supplied = (canonical, "../adopter/raw-reference", 1234, "batch-42", "cost note\nverbatim")
+    event = _event(
+        db,
+        **dict(
+            zip(
+                ("repository_id", "repository_label", "loc", "batch", "note"), supplied, strict=True
+            )
+        ),
+    )
+    assert _metadata(db, event) == supplied
+    rows = db.run(
+        f"SELECT tokens_in, tokens_out, cost_usd FROM {db.t('ops.spend_event')} WHERE id = ?",
+        (event,),
+    )
+    assert rows[0] == (11, 7, 0.125)
+
+
+def test_legacy_spend_keeps_new_metadata_null(db: Db) -> None:
+    assert _metadata(db, _event(db)) == (None, None, None, None, None)
+
+
+def test_ambiguous_spend_label_retains_cost_without_guessing_identity(db: Db) -> None:
+    first = repo(db, "https://example.com/team-a/shared")
+    second = repo(db, "https://example.com/team-b/shared")
+    for canonical in (None, first, second):
+        event = _event(
+            db, repository_id=canonical, repository_label="shared", loc=0, batch="", note=""
+        )
+        assert _metadata(db, event) == (canonical, "shared", 0, "", "")
+    rows = db.run(
+        f"SELECT count(*), sum(cost_usd) FROM {db.t('ops.spend_event')} WHERE repository_label = ?",
+        ("shared",),
+    )
+    assert rows[0] == (3, 0.375)
+
+
+def test_spend_rejects_unknown_canonical_repository(db: Db) -> None:
+    with pytest.raises(db.Error):
+        _event(db, repository_id=str(uuid.uuid4()), repository_label="still-raw")
+
+
+@pytest.mark.parametrize("loc", [-1, "not-an-integer", "1.5", b"invalid"])
+def test_spend_rejects_invalid_loc(db: Db, loc: object) -> None:
+    with pytest.raises(db.Error):
+        _event(db, loc=loc)
+
+
+def test_order_charged_spend_derives_its_repository(db: Db) -> None:
+    canonical, elsewhere = repo(db), repo(db, "https://example.com/r2")
+    order = db.insert(
+        "ops.run_order",
+        asset="diff_scan",
+        state="queued",
+        priority=1,
+        requested_by="human",
+        repository_id=canonical,
+        lane="interactive",
+    )
+    # An attributed event's repository is derived through run_order_id, not stored.
+    _event(db, run_order_id=order, lane="interactive", note="charged")
+    orders = db.t("ops.run_order")
+    table = db.t("ops.spend_event")
+    rows = db.run(
+        f"SELECT o.repository_id FROM {table} e "
+        f"JOIN {orders} o ON o.id = e.run_order_id WHERE e.note = ?",
+        ("charged",),
+    )
+    assert [str(row[0]) for row in rows] == [canonical]
+    # An order carries charged spend; its repository stays free to move.
+    db.run(f"UPDATE {orders} SET repository_id = ? WHERE id = ?", (elsewhere, order))
+    # Unattributed events keep their own canonical identity, verified or not.
+    plain = _event(db, repository_id=elsewhere)
+    assert _metadata(db, plain)[:1] == (elsewhere,)
+
+
+@pytest.mark.parametrize("order_repository", ["same", "other", None])
+def test_ordered_spend_cannot_store_an_independent_repository(
+    db: Db, order_repository: str | None
+) -> None:
+    declared = repo(db)
+    repositories = {"same": declared, "other": repo(db, "https://example.com/other")}
+    order = db.insert(
+        "ops.run_order",
+        asset="diff_scan",
+        state="queued",
+        priority=1,
+        requested_by="human",
+        repository_id=repositories.get(order_repository),
+    )
+    with pytest.raises(db.Error):
+        _event(db, run_order_id=order, repository_id=declared)
+
+
+def test_rich_spend_remains_append_only_and_retains_repository(db: Db) -> None:
+    canonical = repo(db)
+    event = _event(db, repository_id=canonical, repository_label="raw", loc=12)
+    table = db.t("ops.spend_event")
+    for statement in (
+        f"UPDATE {table} SET note = 'changed' WHERE id = ?",
+        f"DELETE FROM {table} WHERE id = ?",
+    ):
+        with pytest.raises(db.Error):
+            db.run(statement, (event,))
+    with pytest.raises(db.Error):
+        db.run(f"DELETE FROM {db.t('repository')} WHERE id = ?", (canonical,))
+    assert _metadata(db, event) == (canonical, "raw", 12, None, None)
+
+
+def test_rich_spend_preserves_lane_order_guard(db: Db) -> None:
+    canonical = repo(db)
+    order = db.insert(
+        "ops.run_order",
+        asset="diff_scan",
+        state="queued",
+        priority=1,
+        requested_by="human",
+        repository_id=canonical,
+        lane="interactive",
+    )
+    event = _event(db, run_order_id=order, lane="interactive", note="retained")
+    assert _metadata(db, event) == (None, None, None, None, "retained")
+    with pytest.raises(db.Error):
+        _event(db, run_order_id=order, lane="other")
+    with pytest.raises(db.Error):  # a lane must name its order
+        _event(db, lane="interactive", repository_label="unattributed")
+
+
+def test_tracker_scope_accepts_remediation_without_occurrence(db: Db) -> None:
+    repository = repo(db)
+    found = finding(db, repository)
+    own_ref = ref(db, repository)
+    remediation = db.insert(
+        "assessment",
+        repository_ref_id=own_ref,
+        kind="remediation",
+        status="completed",
+        assessor="tool:remediation",
+        assessor_version="1",
+        occurred_at=NOW,
+    )
+    linked = db.insert(
         "finding_external_ref",
         finding_id=found,
-        assessment_id=str(uuid.uuid4()),
+        assessment_id=remediation,
         system="github",
-        ref="https://github.com/example/service/pull/2",
+        ref="pull/1",
     )
+    historical = db.insert("finding_external_ref", finding_id=found, system="jira", ref="SEC-1")
+    assert db.run(f"SELECT count(*) FROM {db.t('occurrence')}") == [(0,)]
+    table = db.t("finding_external_ref")
+    assert db.run(f"SELECT assessment_id FROM {table} WHERE id = ?", (historical,)) == [(None,)]
+    assert (
+        str(db.run(f"SELECT assessment_id FROM {table} WHERE id = ?", (linked,))[0][0])
+        == remediation
+    )
+
+
+def test_a_scoped_tracker_ref_move_never_crosses_repositories(db: Db) -> None:
+    repository = repo(db)
+    other_repository = repo(db, "https://example.com/other")
+    own_ref = ref(db, repository)
+    sibling_ref = ref(db, repository, name="release", sha="b" * 40)
+    own_assessment = assessment(db, own_ref)
+    found = finding(db, repository)
+    db.insert(
+        "finding_external_ref",
+        finding_id=found,
+        assessment_id=own_assessment,
+        system="github",
+        ref="pull/1",
+    )
+    historical = db.insert("finding_external_ref", finding_id=found, system="jira", ref="SEC-1")
+    table = db.t("finding_external_ref")
+    # The ref a scoped link names keeps its repository.
+    with pytest.raises(db.Error):
+        db.run(
+            f"UPDATE {db.t('repository_ref')} SET repository_id = ? WHERE id = ?",
+            (other_repository, own_ref),
+        )
+    # Historical links pin nothing; unrelated refs stay free to move.
+    db.run(f"UPDATE {table} SET assessment_id = NULL WHERE id = ?", (historical,))
+    db.run(
+        f"UPDATE {db.t('repository_ref')} SET repository_id = ? WHERE id = ?",
+        (other_repository, sibling_ref),
+    )
+    # Removing scope releases the ref.
+    (link_id,) = db.run(f"SELECT id FROM {table} WHERE assessment_id = ?", (own_assessment,))[0]
+    db.run(f"UPDATE {table} SET assessment_id = NULL WHERE id = ?", (link_id,))
+    db.run(
+        f"UPDATE {db.t('repository_ref')} SET repository_id = ? WHERE id = ?",
+        (other_repository, own_ref),
+    )
+    assert db.run(f"SELECT assessment_id FROM {table} ORDER BY id") == [(None,), (None,)]
