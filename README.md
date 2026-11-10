@@ -81,6 +81,15 @@ allowing unreported CWEs, description and remediation, and opaque native IDs.
 It does not invent classifications or verdicts. `report.schema.json` keeps its
 full authored-finding requirements unchanged.
 
+## Database bootstrap boundary
+
+`bootstrap_files()` / `bootstrap_statements()` define the static starting DDL.
+New schema changes are additive bootstrap statements only: they do not upgrade
+an already-bootstrapped database. No versioned migration runner or applied-state
+ledger exists yet. Existing `*_upgrade` helpers are deprecated legacy territory;
+do not extend that pattern. Reaching existing databases requires the separately
+designed upgrade feature, not conditional scripts or historical backfills.
+
 ## Manifest SBOM coverage
 
 `manifest-coverage.schema.json` binds a checkout's unresolved manifests to native
@@ -127,10 +136,10 @@ when the column is absent; existing artifacts name no order.
 `spend_event` retains nullable `repository_id`, raw `repository_label`, nonnegative integer
 `loc`, `batch` and `note`. Canonical repository identity is a foreign key, not a slug inferred
 from a label. Historical metadata stays null; unresolvable labels still retain their cost.
-`repository_id` is only for order-less imported declarations: an event that names a run
-order charges the repository its order runs on, derived by joining `run_order`, never a
-stored second opinion. An insert guard rejects an event that names both a lane and no
-order.
+`repository_id` is only for order-less imported declarations: a CHECK rejects
+storing it alongside `run_order_id`, even when both would name the same repository.
+Ordered spend derives its repository by joining `run_order`; a repository-less
+order stays unattributed. The existing lane/order guard remains unchanged.
 
 ## Reviewed claim and advisory replay artifacts
 
@@ -174,10 +183,12 @@ matching recipes remain ambiguous, not merged or ranked.
 `finding_external_ref.assessment_id` optionally attributes an external link to one
 assessment, including a remediation work item's PR. Finding-wide historical Jira
 links remain null; the contract does not infer an attempt from a shared finding.
-The insert path pairs a finding and assessment from the same repository in Core's
-writer (including remediation assessments that have no occurrence); the schema's
-one guard keeps the ref a scoped link names on its repository when the ref is
-moved. Existing `(system, ref, finding_id)` identity remains unchanged.
+Core's write boundary validates pairing on inserts and scope changes, including
+remediation assessments with no occurrence, and keeps a finding's repository
+identity immutable. These are Core-owned invariants, not promises that independent
+foreign keys reject arbitrary SQL writes. The schema's one scope guard rejects
+repository-ref moves that invalidate existing links. Existing
+`(system, ref, finding_id)` identity remains unchanged.
 
 ## Pack spec
 

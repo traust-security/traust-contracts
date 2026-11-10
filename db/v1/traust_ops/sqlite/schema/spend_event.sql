@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS ops_spend_event (
     occurred_at TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     PRIMARY KEY (id),
-    CHECK (tokens_in >= 0 AND tokens_out >= 0 AND cost_usd >= 0)
+    CHECK (tokens_in >= 0 AND tokens_out >= 0 AND cost_usd >= 0),
+    CHECK (run_order_id IS NULL OR repository_id IS NULL)
 );
 
 -- Spend for an order (spend per scan, lane cost).

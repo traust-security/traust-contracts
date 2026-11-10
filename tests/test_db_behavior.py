@@ -1173,6 +1173,24 @@ def test_order_charged_spend_derives_its_repository(db: Db) -> None:
     assert _metadata(db, plain)[:1] == (elsewhere,)
 
 
+@pytest.mark.parametrize("order_repository", ["same", "other", None])
+def test_ordered_spend_cannot_store_an_independent_repository(
+    db: Db, order_repository: str | None
+) -> None:
+    declared = repo(db)
+    repositories = {"same": declared, "other": repo(db, "https://example.com/other")}
+    order = db.insert(
+        "ops.run_order",
+        asset="diff_scan",
+        state="queued",
+        priority=1,
+        requested_by="human",
+        repository_id=repositories.get(order_repository),
+    )
+    with pytest.raises(db.Error):
+        _event(db, run_order_id=order, repository_id=declared)
+
+
 def test_rich_spend_remains_append_only_and_retains_repository(db: Db) -> None:
     canonical = repo(db)
     event = _event(db, repository_id=canonical, repository_label="raw", loc=12)

@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS traust_ops.spend_event (
     occurred_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
     PRIMARY KEY (id),
-    CHECK (tokens_in >= 0 AND tokens_out >= 0 AND cost_usd >= 0)
+    CHECK (tokens_in >= 0 AND tokens_out >= 0 AND cost_usd >= 0),
+    CHECK (run_order_id IS NULL OR repository_id IS NULL)
 );
 
 -- Spend for an order (spend per scan, lane cost).

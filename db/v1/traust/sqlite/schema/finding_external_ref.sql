@@ -35,13 +35,8 @@ END;
 -- Scoped trackers name an assessment of the finding's repository, not an
 -- occurrence: remediation assessments need not have reported the finding.
 -- NULL retains historical, finding-wide links without inferred attribution.
--- The pairing is a join predicate between two stored columns, and core is the
--- sole writer: its insert path checks it (an EXISTS over the finding and the
--- assessment's repository ref), so no insert or link-update trigger stands
--- here. Of the parents, assessments are immutable and a finding cannot move
--- between repositories without breaking its (repository_id, fingerprint)
--- identity; only repository_ref.repository_id can move, and this plain check
--- keeps an existing scoped link from crossing repositories with it.
+-- Core owns pairing and finding identity at its write boundary; UNIQUE alone
+-- does not make repository identity immutable. This guard protects ref moves.
 CREATE TRIGGER IF NOT EXISTS finding_external_ref_repository_ref_scope_update
 BEFORE UPDATE OF repository_id ON repository_ref FOR EACH ROW
 WHEN NEW.repository_id IS NOT OLD.repository_id AND EXISTS (
