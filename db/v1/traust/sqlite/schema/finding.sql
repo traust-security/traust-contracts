@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS finding (
     CHECK ((advisory_id IS NULL) = (advisory_match IS NULL))
 );
 
+-- Exact identity reads when the producer's algorithm is not supplied.
+CREATE INDEX IF NOT EXISTS idx_finding_repository_fingerprint
+    ON finding (repository_id, fingerprint);
+
 -- Findings known as an advisory (exposure, first discovery).
 CREATE INDEX IF NOT EXISTS idx_finding_advisory
     ON finding (advisory_id)

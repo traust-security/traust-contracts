@@ -53,13 +53,18 @@
     "liveness": {
       "type": "object",
       "required": [
-        "repository_id", "url", "observed_at", "archived", "pushed_at", "dormant",
+        "repository_id", "url", "status", "observed_at", "archived", "pushed_at", "dormant",
         "unobserved", "reason"
       ],
       "additionalProperties": false,
       "properties": {
         "repository_id": {"type": "string", "format": "uuid"},
         "url": {"type": "string"},
+        "status": {
+          "$ref": "../../artifacts_schema/v1/repo-liveness.schema.json#/$defs/liveness/properties/status"
+        },
+        "status_since": {"type": ["string", "null"], "format": "date-time"},
+        "canonical_url": {"type": ["string", "null"]},
         "observed_at": {"type": ["string", "null"], "format": "date-time"},
         "archived": {"type": ["boolean", "null"]},
         "pushed_at": {

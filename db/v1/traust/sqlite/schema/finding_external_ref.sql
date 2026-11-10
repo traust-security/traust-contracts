@@ -6,6 +6,7 @@
 CREATE TABLE IF NOT EXISTS finding_external_ref (
     id TEXT NOT NULL DEFAULT (uuid()),
     finding_id TEXT NOT NULL REFERENCES finding(id) ON DELETE RESTRICT,
+    assessment_id TEXT REFERENCES assessment(id) ON DELETE RESTRICT,
     system TEXT NOT NULL CHECK (system <> ''),
     ref TEXT NOT NULL CHECK (ref <> ''),
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -19,10 +20,30 @@ CREATE TABLE IF NOT EXISTS finding_external_ref (
 CREATE INDEX IF NOT EXISTS idx_finding_external_ref_finding
     ON finding_external_ref (finding_id);
 
+-- A remediation attempt's tracker, separate from finding-wide tickets.
+CREATE INDEX IF NOT EXISTS idx_finding_external_ref_assessment
+    ON finding_external_ref (assessment_id) WHERE assessment_id IS NOT NULL;
+
 -- The database owns updated_at; the guard keeps it stable under recursive
 -- triggers and respects a manually set value.
 CREATE TRIGGER IF NOT EXISTS finding_external_ref_touch
 AFTER UPDATE ON finding_external_ref FOR EACH ROW
 WHEN NEW.updated_at IS OLD.updated_at BEGIN
   UPDATE finding_external_ref SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE id = NEW.id;
+END;
+
+-- Scoped trackers name an assessment of the finding's repository, not an
+-- occurrence: remediation assessments need not have reported the finding.
+-- NULL retains historical, finding-wide links without inferred attribution.
+-- Core owns pairing and finding identity at its write boundary; UNIQUE alone
+-- does not make repository identity immutable. This guard protects ref moves.
+CREATE TRIGGER IF NOT EXISTS finding_external_ref_repository_ref_scope_update
+BEFORE UPDATE OF repository_id ON repository_ref FOR EACH ROW
+WHEN NEW.repository_id IS NOT OLD.repository_id AND EXISTS (
+    SELECT 1 FROM assessment a
+    JOIN finding_external_ref e ON e.assessment_id = a.id
+    JOIN finding f ON f.id = e.finding_id
+    WHERE a.repository_ref_id = OLD.id AND f.repository_id IS NOT NEW.repository_id
+) BEGIN
+  SELECT RAISE(ABORT, 'repository ref change would invalidate tracker scope');
 END;

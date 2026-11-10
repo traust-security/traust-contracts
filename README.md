@@ -117,6 +117,15 @@ allowing unreported CWEs, description and remediation, and opaque native IDs.
 It does not invent classifications or verdicts. `report.schema.json` keeps its
 full authored-finding requirements unchanged.
 
+## Database bootstrap boundary
+
+`bootstrap_files()` / `bootstrap_statements()` define the static starting DDL.
+New schema changes are additive bootstrap statements only: they do not upgrade
+an already-bootstrapped database. No versioned migration runner or applied-state
+ledger exists yet. Existing `*_upgrade` helpers are deprecated legacy territory;
+do not extend that pattern. Reaching existing databases requires the separately
+designed upgrade feature, not conditional scripts or historical backfills.
+
 ## Manifest SBOM coverage
 
 `manifest-coverage.schema.json` binds a checkout's unresolved manifests to native
@@ -158,6 +167,36 @@ own the artifact's assessment: the work item it runs, or an assessment it
 produced. Existing databases apply `storage.sql.artifact_run_order_upgrade(dialect)`
 when the column is absent; existing artifacts name no order.
 
+## Spend declaration attribution
+
+`spend_event` retains nullable `repository_id`, raw `repository_label`, nonnegative integer
+`loc`, `batch` and `note`. Canonical repository identity is a foreign key, not a slug inferred
+from a label. Historical metadata stays null; unresolvable labels still retain their cost.
+`repository_id` is only for order-less imported declarations: a CHECK rejects
+storing it alongside `run_order_id`, even when both would name the same repository.
+Ordered spend derives its repository by joining `run_order`; a repository-less
+order stays unattributed. The existing lane/order guard remains unchanged.
+
+## Reviewed claim and advisory replay artifacts
+
+`finding-claim` pins the finding, repository, source assessment and label, retained replacement
+claim, prior fingerprint/title/accepted decision and complete original occurrence-ID set.
+Core verifies the snapshot under review; acceptance appends decisions, not rewritten occurrences.
+`finding-intake` retains native scanner label/fingerprint bindings for the exact repository
+and commit. Unretained historical sources cannot authorize a correction by guessed label.
+
+`cve-replay` snapshots bind one real audit and its exact report artifact, per-audit watermark,
+revision and advisory checks. Structural validation is not authority: only a verified human
+with evidence can confirm historical presence. Discovery alone never establishes a missed
+vulnerability or admits benchmark truth. A `detected` advisory can retain unknown presence
+when named in the original report, but cannot contradict human-confirmed absence.
+`not_applicable` requires human-confirmed absence or recorded source withdrawal.
+A `detected` verdict names at least one advisory matched in the bound report; a `missed`
+verdict names none - verdicts never contradict the report's own matches.
+Candidates retain the source `withdrawn` boolean (optional, default false) so withdrawal
+does not invent historical absence or require fabricated human presence evidence.
+
+
 ## Default-head naming time
 
 `repository_ref.default_named_at` records when the row was last named the default
@@ -166,6 +205,26 @@ row's creation time cannot order competing namings: a re-import of a previously
 recorded head must still win over an earlier observation. Existing databases
 apply `storage.sql.default_named_at_upgrade(dialect)` when the column is absent;
 already-flagged rows keep an unknown naming time until the line is named again.
+
+## Algorithm-free finding identity
+
+Exact finding reads that omit `fingerprint_algo` use the schema-owned
+`idx_finding_repository_fingerprint` index on `(repository_id, fingerprint)`,
+on both SQLite and PostgreSQL. The existing unique `(repository_id,
+fingerprint_algo, fingerprint)` constraint remains the identity owner; multiple
+matching recipes remain ambiguous, not merged or ranked.
+
+## Attempt-scoped external references
+
+`finding_external_ref.assessment_id` optionally attributes an external link to one
+assessment, including a remediation work item's PR. Finding-wide historical Jira
+links remain null; the contract does not infer an attempt from a shared finding.
+Core's write boundary validates pairing on inserts and scope changes, including
+remediation assessments with no occurrence, and keeps a finding's repository
+identity immutable. These are Core-owned invariants, not promises that independent
+foreign keys reject arbitrary SQL writes. The schema's one scope guard rejects
+repository-ref moves that invalidate existing links. Existing
+`(system, ref, finding_id)` identity remains unchanged.
 
 ## Pack spec
 
@@ -213,11 +272,13 @@ fragments, not persisted configuration.
 Entries preserve the legacy repository/ref IDs, raw repository and SHA strings,
 priority tier (`chokepoint`, `crypto-cwe`, `tail`), route (`source`, `sbom-only`,
 `access-request`), nested liveness, reason, nullable scan state and cursor.
-Liveness preserves nullable observations and historical `pushed_at`,
-`unobserved` and reason strings. Scan currency and liveness booleans distinguish
-unknown null from measured false; neither establishes readiness. Objects are
-strict and every serialized field is required, including nullable fields.
-Use format checking for UUIDs and observation timestamps; raw repository, SHA,
+Liveness requires `status` from the artifact liveness vocabulary, including `unknown`;
+register the local artifact schemas alongside the view schema to resolve this reference offline.
+Liveness preserves nullable observations, optional nullable `status_since` and `canonical_url`,
+and historical `pushed_at`, `unobserved` and reason strings. Scan currency and liveness
+booleans distinguish unknown null from measured false; neither establishes readiness.
+Objects are strict and all other serialized fields are required, including nullable fields.
+Use format checking for UUIDs and observation/status timestamps; raw repository, SHA,
 scope and historical strings have no invented URL, hash or markup restrictions.
 
 Core owns `PqcService.worklist`, scope intersection, representative-ref choice,

@@ -89,6 +89,11 @@ def bootstrap_files(dialect: Dialect) -> list[Path]:
     )
 
 
+def _additive_upgrade(dialect: Dialect, name: str) -> list[str]:
+    path = storage_dir() / dialect / "upgrades" / f"{name}.sql"
+    return list(bootstrap_statements(dialect, path))
+
+
 def manifest_sbom_binding_upgrade(dialect: Dialect) -> list[str]:
     """Load the explicit additive upgrade for a database missing the scan column.
 
@@ -96,8 +101,7 @@ def manifest_sbom_binding_upgrade(dialect: Dialect) -> list[str]:
     when manifest_sbom_assessment_id is absent. This does not run on bootstrap
     or infer bindings for existing SBOMs: old coverage remains unknown.
     """
-    path = storage_dir() / dialect / "upgrades" / "manifest_sbom_binding.sql"
-    return list(bootstrap_statements(dialect, path))
+    return _additive_upgrade(dialect, "manifest_sbom_binding")
 
 
 def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
@@ -109,8 +113,7 @@ def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
     one statement on Postgres, one explicit transaction on SQLite (apply it
     outside an open transaction). Existing artifacts name no order.
     """
-    path = storage_dir() / dialect / "upgrades" / "artifact_run_order.sql"
-    return list(bootstrap_statements(dialect, path))
+    return _additive_upgrade(dialect, "artifact_run_order")
 
 
 def default_named_at_upgrade(dialect: Dialect) -> list[str]:
@@ -121,5 +124,4 @@ def default_named_at_upgrade(dialect: Dialect) -> list[str]:
     naming times for existing default flags: they stay unknown until the line
     is named again.
     """
-    path = storage_dir() / dialect / "upgrades" / "default_named_at.sql"
-    return list(bootstrap_statements(dialect, path))
+    return _additive_upgrade(dialect, "default_named_at")
