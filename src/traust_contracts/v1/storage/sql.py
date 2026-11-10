@@ -23,11 +23,8 @@ __all__ = [
     "REVISION",
     "TABLE_ORDER",
     "VIEW_ORDER",
-    "artifact_run_order_upgrade",
     "bootstrap_files",
     "bootstrap_statements",
-    "default_named_at_upgrade",
-    "manifest_sbom_binding_upgrade",
 ]
 
 CONTRACT_VERSION = "v1"
@@ -87,41 +84,3 @@ def bootstrap_files(dialect: Dialect) -> list[Path]:
         first_tables=TABLE_ORDER,
         view_order=VIEW_ORDER,
     )
-
-
-def _additive_upgrade(dialect: Dialect, name: str) -> list[str]:
-    path = storage_dir() / dialect / "upgrades" / f"{name}.sql"
-    return list(bootstrap_statements(dialect, path))
-
-
-def manifest_sbom_binding_upgrade(dialect: Dialect) -> list[str]:
-    """Load the explicit additive upgrade for a database missing the scan column.
-
-    Callers must inspect repository_ref first and apply these statements only
-    when manifest_sbom_assessment_id is absent. This does not run on bootstrap
-    or infer bindings for existing SBOMs: old coverage remains unknown.
-    """
-    return _additive_upgrade(dialect, "manifest_sbom_binding")
-
-
-def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
-    """Load the explicit additive upgrade for a database missing artifact.run_order_id.
-
-    Callers must inspect artifact first and apply these statements only when
-    run_order_id is absent, on a database that has run_order.work_item_id
-    (contracts#117; it fails first otherwise). It applies whole or not at all:
-    one statement on Postgres, one explicit transaction on SQLite (apply it
-    outside an open transaction). Existing artifacts name no order.
-    """
-    return _additive_upgrade(dialect, "artifact_run_order")
-
-
-def default_named_at_upgrade(dialect: Dialect) -> list[str]:
-    """Load the explicit additive upgrade for a database missing the naming column.
-
-    Callers must inspect repository_ref first and apply these statements only
-    when default_named_at is absent. This does not run on bootstrap or invent
-    naming times for existing default flags: they stay unknown until the line
-    is named again.
-    """
-    return _additive_upgrade(dialect, "default_named_at")
