@@ -41,6 +41,7 @@ exclude = ["/.ci-venv", "/.venv", "/tests/fixtures/storage"]
 "db/v1/traust" = "traust_contracts/db/v1/traust"
 "db/v1/traust_ops" = "traust_contracts/db/v1/traust_ops"
 "db/v1/traust_ledger" = "traust_contracts/db/v1/traust_ledger"
+"db/v1/migrations" = "traust_contracts/db/v1/migrations"
 
 [tool.hatch.build]
 artifacts = [
@@ -52,6 +53,7 @@ artifacts = [
     "db/v1/traust/**",
     "db/v1/traust_ops/**",
     "db/v1/traust_ledger/**",
+    "db/v1/migrations/**",
 ]
 
 [tool.pytest.ini_options]
