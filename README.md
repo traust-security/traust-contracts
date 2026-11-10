@@ -5,6 +5,42 @@ plus generated Python bindings, **the configuration contract** (the one place
 that knows what config exists and how it loads), and **storage/v1** (the SQL-first
 relational contract for the one-owner data model).
 
+## Before adding anything to the data model
+
+Six questions gate every change to this repo's schemas, enums and DDL. If a
+change can't answer all six, it isn't ready — reviewers will ask, so answer
+them in the PR description:
+
+1. **Is it a fact or a derivation?** If a value can be computed from what's
+   already stored (e.g. `publication_revision` = `ORDER BY kind, created_at`),
+   it doesn't get a column. Derivations live in the services that read them.
+2. **Is there a named producer?** A concept exists when a producer emits it —
+   a merged producer, not a planned one. If the only producer is an unmerged
+   PR, the column waits (`schema-concepts-need-producers`).
+3. **Does core already do this work?** Check before modeling: if traust-core's
+   service layer already derives it (e.g. `SqlSpendEventRepository`
+   `.sum_by(REPOSITORY)` joins `run_order` for repository attribution), a
+   stored copy needs a *hot-path reader* to justify itself — a dashboard
+   query is not one.
+4. **Is this the smallest additive change?** It should land as bootstrap
+   statements plus, where needed, an explicit named upgrade function that
+   existing databases apply (see the per-column upgrades below). If the
+   change needs to mutate existing rows, rewrite history, disable append-only
+   guards, or reach into already-bootstrapped databases in-place — stop: that
+   is a mechanism to design, not a script to write.
+5. **Where does the invariant live?** Triggers are for what only the database
+   can enforce — append-only guards, mutation rejection, and consistency that
+   must hold for every concurrent writer (the existing
+   `spend_event_lane_of_order` and `run_order_work_item_of_repository` guards
+   are the precedent). A join predicate between two stored columns, written
+   by a single service, is an `EXISTS` check in that service's write path.
+   Every *new* trigger must answer: "why can't the sole writer enforce
+   this?"
+6. **What's the blast radius?** One PR = one contract change. If a change
+   touches artifact ordering, spend attribution, tracker scoping, evidence
+   schemas, and views at once, it's several changes — split it, and review
+   each against the six questions above on its own.
+
 ## Configuration contract
 
 Contracts owns the configuration *mechanism* for the whole stack — mechanism
