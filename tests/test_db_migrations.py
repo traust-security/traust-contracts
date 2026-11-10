@@ -154,19 +154,41 @@ def test_a_raced_apply_loses_to_the_stamp_and_moves_on(
     assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 1
 
 
+def _postgres(postgres_dsn: str) -> Any:
+    """An isolated database: these tests rebuild schemas from scratch, and the
+    behavior suite already owns traust_test under xdist's loadfile distribution."""
+    import psycopg
+
+    admin = psycopg.connect(postgres_dsn, autocommit=True)
+    try:
+        admin.execute("DROP DATABASE IF EXISTS traust_migrations_test")
+        admin.execute("CREATE DATABASE traust_migrations_test")
+    finally:
+        admin.close()
+    return psycopg.connect(postgres_dsn, autocommit=True, dbname="traust_migrations_test")
+
+
+def _drop_postgres(postgres_dsn: str) -> None:
+    import psycopg
+
+    admin = psycopg.connect(postgres_dsn, autocommit=True)
+    try:
+        admin.execute("DROP DATABASE IF EXISTS traust_migrations_test")
+    finally:
+        admin.close()
+
+
 def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path) -> None:
     try:
         import psycopg
     except ImportError:
         skip_postgres("psycopg is not installed")
     try:
-        conn = psycopg.connect(postgres_dsn, autocommit=True)
+        conn = _postgres(postgres_dsn)
     except psycopg.OperationalError:
         skip_postgres("local database is unavailable")
         return
 
-    for schema in ("traust_ledger", "traust_ops", "traust"):
-        conn.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
     for module in MODULES:
         for path in module.bootstrap_files("postgres"):
             for statement in module.bootstrap_statements("postgres", path):
@@ -193,3 +215,4 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
     finally:
         conn.close()
+        _drop_postgres(postgres_dsn)
