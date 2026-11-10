@@ -13,6 +13,7 @@
     "adapter-result.schema.json",
     "impact-analysis.schema.json",
     "report.schema.json",
+    "traust.schema.json",
     "validation.schema.json"
   ]
 }

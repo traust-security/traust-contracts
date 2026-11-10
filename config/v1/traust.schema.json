@@ -20,7 +20,10 @@
           "additionalProperties": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["product_slug", "version"],
+            "required": [
+              "product_slug",
+              "version"
+            ],
             "properties": {
               "product_slug": {
                 "type": "string",
@@ -69,7 +72,10 @@
       "type": "object",
       "additionalProperties": false,
       "not": {
-        "required": ["path", "s3"]
+        "required": [
+          "path",
+          "s3"
+        ]
       },
       "properties": {
         "path": {
@@ -79,18 +85,41 @@
         "s3": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["bucket"],
+          "required": [
+            "bucket"
+          ],
           "dependentRequired": {
-            "access_key_env": ["secret_key_env"],
-            "secret_key_env": ["access_key_env"]
+            "access_key_env": [
+              "secret_key_env"
+            ],
+            "secret_key_env": [
+              "access_key_env"
+            ]
           },
           "properties": {
-            "bucket": {"type": "string", "minLength": 1},
-            "prefix": {"type": "string"},
-            "endpoint_url": {"type": "string", "pattern": "^https?://(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*|\\[[0-9A-Fa-f:.]+\\])(?::[0-9]{1,5})?/?$"},
-            "region": {"type": "string", "minLength": 1},
-            "access_key_env": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
-            "secret_key_env": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
+            "bucket": {
+              "type": "string",
+              "minLength": 1
+            },
+            "prefix": {
+              "type": "string"
+            },
+            "endpoint_url": {
+              "type": "string",
+              "pattern": "^https?://(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*|\\[[0-9A-Fa-f:.]+\\])(?::[0-9]{1,5})?/?$"
+            },
+            "region": {
+              "type": "string",
+              "minLength": 1
+            },
+            "access_key_env": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            },
+            "secret_key_env": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
           },
           "description": "S3-compatible artifact bytes (AWS, MinIO or Ceph). Absent credentials use the SDK credential chain, including workload identity; named credentials come from the environment."
         }
@@ -153,7 +182,10 @@
         "outputs": {
           "type": "array",
           "items": {
-            "enum": ["stderr", "file"]
+            "enum": [
+              "stderr",
+              "file"
+            ]
           },
           "minItems": 1,
           "uniqueItems": true
@@ -582,6 +614,75 @@
         }
       },
       "description": "Optional: enable supplemental rule packs with your own allowlist (path relative to the directory holding traust.yaml). Tool pins, safe-exec profiles and the feeds registry ship with traust and are not adopter-configurable."
+    },
+    "impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Which analysis tools deepen impact reads. analyzers names tools from the registered arsenal (an unknown name refuses startup); absent or empty means L1 only - the SBOM read stays complete without analyzers. plugins declare command plug-ins: a command printing one impact-evidence document for one query (ecosystem, package, version, checkout path as trailing arguments), capped at its declared level.",
+      "properties": {
+        "analyzers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "plugins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "ecosystem": {
+                "type": "string",
+                "minLength": 1
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "manifest",
+                  "binary",
+                  "symbol-usage",
+                  "symbol"
+                ]
+              },
+              "tier": {
+                "type": "string",
+                "enum": [
+                  "L1",
+                  "L4",
+                  "govulncheck",
+                  "feature_pattern",
+                  "binary_scan",
+                  "manifest_scan",
+                  "source_scan",
+                  "sbom_cross_check"
+                ]
+              },
+              "run": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "name",
+              "ecosystem",
+              "level",
+              "tier",
+              "run"
+            ]
+          }
+        }
+      }
     }
   }
 }

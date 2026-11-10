@@ -13,6 +13,7 @@
     "sbom_cross_check"
   ],
   "used_in_schemas": [
-    "impact-analysis.schema.json"
+    "impact-analysis.schema.json",
+    "traust.schema.json"
   ]
 }
