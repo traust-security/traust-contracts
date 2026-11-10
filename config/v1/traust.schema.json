@@ -470,6 +470,11 @@
         "fix_branch_prefix": {
           "type": "string",
           "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "patch_prefix": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$",
+          "description": "The prefix the remediation fork-naming convention gives patch repositories in the fork org."
         }
       },
       "description": "Only for /remediate-finding."
