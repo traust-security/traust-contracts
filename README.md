@@ -122,40 +122,15 @@ own the artifact's assessment: the work item it runs, or an assessment it
 produced. Existing databases apply `storage.sql.artifact_run_order_upgrade(dialect)`
 when the column is absent; existing artifacts name no order.
 
-## Imported publication history
-
-Imported artifact streams use a positive `publication_revision` per kind. Core's metadata
-owner serializes publication, including raw feed/SBOM imports; latest/history never break
-equal timestamps by UUID. Successor publication checks its exact prior under the same lock.
-SQLite requires non-null revisions to be stored as positive integers after affinity conversion
-(a numeric string such as `'1'` becomes an integer). New imported inserts must carry a revision;
-assessment-linked artifacts must keep their revision null. Stop old writers before the guarded
-schema upgrade, then deploy the revision-allocating Core owner; new unversioned writes refuse.
-
-Before upgrading Core on an existing database, inspect `artifact.publication_revision`.
-When absent, apply `storage.sql.artifact_publication_revision_upgrade(dialect)` once.
-SQLite owns its `BEGIN IMMEDIATE`/`COMMIT` and requires no open transaction; submit the
-PostgreSQL script as one atomic driver operation. Existing IDs, timestamps and bytes stay
-unchanged. Equal historical timestamps within one imported kind refuse the upgrade atomically:
-reconcile from proven publication history, never infer order from UUIDs.
-Core applies this upgrade automatically to its local SQLite store; a configured database
-refuses startup until its schema owner applies it. Both paths retain the same tie refusal.
-
 ## Spend declaration attribution
 
 `spend_event` retains nullable `repository_id`, raw `repository_label`, nonnegative integer
 `loc`, `batch` and `note`. Canonical repository identity is a foreign key, not a slug inferred
 from a label. Historical metadata stays null; unresolvable labels still retain their cost.
-An event that names both a run order and a repository charges the repository its order
-runs on; PostgreSQL lock-pairs the insert with the order row and freezes an order's
-repository once a charged event names it, so concurrent moves cannot split the pairing.
-
-Existing databases inspect all five columns. If all are absent, apply
-`ops.sql.spend_event_metadata_upgrade(dialect)` once. SQLite owns its transaction and needs
-no open transaction; PostgreSQL requires a caller-owned transaction. A partial-column
-installation needs explicit reconciliation rather than replaying the upgrade.
-Local SQLite stores use the same upgrade on open; configured databases fail before their
-first query when the metadata is missing or partially installed.
+`repository_id` is only for order-less imported declarations: an event that names a run
+order charges the repository its order runs on, derived by joining `run_order`, never a
+stored second opinion. An insert guard rejects an event that names both a lane and no
+order.
 
 ## Reviewed claim and advisory replay artifacts
 
@@ -194,32 +169,15 @@ on both SQLite and PostgreSQL. The existing unique `(repository_id,
 fingerprint_algo, fingerprint)` constraint remains the identity owner; multiple
 matching recipes remain ambiguous, not merged or ranked.
 
-Existing databases apply the idempotent
-`storage.sql.finding_fingerprint_index_upgrade(dialect)` before using this read.
-It adds only the index and preserves all rows. As with the existing additive
-upgrades, `CONTRACT_VERSION = "v1"` and `REVISION = 1` remain unchanged; the
-dependency commit pin selects this schema addition.
-
 ## Attempt-scoped external references
 
 `finding_external_ref.assessment_id` optionally attributes an external link to one
 assessment, including a remediation work item's PR. Finding-wide historical Jira
 links remain null; the contract does not infer an attempt from a shared finding.
-Scoped links must pair a finding and assessment from the same repository, including
-remediation assessments that have no occurrence. Insert/update and parent-mutation guards
-reject wrong associations without freezing unrelated fields. PostgreSQL lock-pairs the
-scope check with the finding and repository_ref rows, so a concurrent repository move
-either waits for the link or is read by it - a scoped link never commits against stale
-parent repositories. Existing `(system, ref, finding_id)` identity remains unchanged.
-
-Existing databases inspect the column and apply
-`storage.sql.finding_external_ref_assessment_upgrade(dialect)` only when absent.
-The additive SQLite/PostgreSQL upgrade adds the nullable FK column, index and scope guards;
-it leaves existing rows unscoped and rewrites no reports. SQLite runs outside an existing
-transaction and applies atomically. Stores that already have the column apply the idempotent
-`storage.sql.finding_external_ref_scope_upgrade(dialect)` to install guards and repair a missing
-attempt index. Existing scoped mismatches refuse without rewriting links. Schema review by
-a contracts owner remains required; author self-approval does not replace it.
+The insert path pairs a finding and assessment from the same repository in Core's
+writer (including remediation assessments that have no occurrence); the schema's
+one guard keeps the ref a scoped link names on its repository when the ref is
+moved. Existing `(system, ref, finding_id)` identity remains unchanged.
 
 ## Pack spec
 

@@ -25,7 +25,6 @@ __all__ = [
     "bootstrap_files",
     "bootstrap_statements",
     "run_order_fork_scheduled_upgrade",
-    "spend_event_metadata_upgrade",
 ]
 
 CONTRACT_VERSION = "v1"
@@ -63,16 +62,4 @@ def run_order_fork_scheduled_upgrade(dialect: Dialect) -> list[str]:
     an open one). Existing orders carry no stamp: none is inferred.
     """
     path = ops_dir() / dialect / "upgrades" / "run_order_fork_scheduled.sql"
-    return list(bootstrap_statements(dialect, path))
-
-
-def spend_event_metadata_upgrade(dialect: Dialect) -> list[str]:
-    """Load the explicit additive upgrade for spend events missing adoption metadata.
-
-    Inspect spend_event first: apply only when repository_id, repository_label,
-    loc, batch, and note are all absent. SQLite owns its transaction; apply outside
-    an open one. Postgres callers must apply the statements in one transaction.
-    Existing events retain null metadata, with no canonical identity inferred.
-    """
-    path = ops_dir() / dialect / "upgrades" / "spend_event_metadata.sql"
     return list(bootstrap_statements(dialect, path))

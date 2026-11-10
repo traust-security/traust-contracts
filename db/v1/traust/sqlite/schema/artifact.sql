@@ -17,11 +17,6 @@ CREATE TABLE IF NOT EXISTS artifact (
     id TEXT NOT NULL DEFAULT (uuid()),
     assessment_id TEXT REFERENCES assessment(id) ON DELETE RESTRICT,
     run_order_id TEXT REFERENCES ops_run_order(id) ON DELETE RESTRICT,
-    publication_revision INTEGER CHECK (
-        publication_revision IS NULL OR (
-            assessment_id IS NULL
-            AND typeof(publication_revision) = 'integer'
-            AND publication_revision > 0)),
     digest TEXT NOT NULL CHECK (digest <> ''),
     kind TEXT NOT NULL CHECK (kind <> ''),
     uri TEXT NOT NULL CHECK (uri <> ''),
@@ -47,18 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_artifact_run_order
 
 -- The latest imported document of a kind (configuration documents such as the
 -- corpus registry, versioned as whole documents).
-CREATE UNIQUE INDEX IF NOT EXISTS idx_artifact_imported_kind
-    ON artifact (kind, publication_revision DESC)
+CREATE INDEX IF NOT EXISTS idx_artifact_imported_kind
+    ON artifact (kind, created_at DESC, id DESC)
     WHERE assessment_id IS NULL;
-
--- Legacy storage may represent an unversioned import, but new writes must
--- publish into a revisioned stream. The column CHECK also keeps revisions
--- off assessment-produced artifacts.
-CREATE TRIGGER IF NOT EXISTS artifact_imported_revision_required
-BEFORE INSERT ON artifact
-WHEN NEW.assessment_id IS NULL AND NEW.publication_revision IS NULL BEGIN
-  SELECT RAISE(ABORT, 'imported artifacts require a publication revision');
-END;
 
 CREATE TRIGGER IF NOT EXISTS artifact_reject_update
 BEFORE UPDATE ON artifact BEGIN

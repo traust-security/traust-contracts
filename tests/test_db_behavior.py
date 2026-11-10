@@ -389,8 +389,8 @@ def test_artifact_is_one_row_per_producer_and_document(db: Db) -> None:
     db.insert("artifact", assessment_id=first, **doc)
     db.rejects("artifact", assessment_id=first, **doc)  # a retried publish is a no-op
     db.insert("artifact", assessment_id=second, **doc)  # same bytes, another producer
-    db.insert("artifact", publication_revision=1, **{**doc, "digest": "b" * 64})  # imported
-    db.rejects("artifact", publication_revision=2, **{**doc, "digest": "b" * 64})  # imported twice
+    db.insert("artifact", **{**doc, "digest": "b" * 64})  # imported
+    db.rejects("artifact", **{**doc, "digest": "b" * 64})  # imported twice
     db.rejects("artifact", assessment_id=first, digest="c" * 64, kind="report", uri="")
 
 
@@ -417,9 +417,7 @@ def test_an_artifact_names_the_order_whose_run_recorded_it(db: Db) -> None:
     db.insert("artifact", assessment_id=work, digest="b" * 64, **doc)  # recorded by hand
     for crossed in (elsewhere, scanning, str(uuid.uuid4())):  # another's item, none, no order
         db.rejects("artifact", assessment_id=work, run_order_id=crossed, digest="c" * 64, **doc)
-    db.rejects(
-        "artifact", run_order_id=scanning, digest="e" * 64, publication_revision=1, **doc
-    )  # imported: no order
+    db.rejects("artifact", run_order_id=scanning, digest="e" * 64, **doc)  # imported: no order
     orders = db.t("ops.run_order")
     with pytest.raises(db.Error):  # a credited order keeps the work item it ran
         db.run(f"UPDATE {orders} SET work_item_id = ? WHERE id = ?", (other, fixing))
@@ -494,6 +492,24 @@ def _columns(db: Db, table: str) -> set[str]:
         return {c[1] for c in db.run(f"PRAGMA table_info({db.t(table)})")}
     query = "SELECT column_name FROM information_schema.columns WHERE table_name = ?"
     return {c[0] for c in db.run(query, (table,))}
+
+
+def _indexes(db: Db, table: str) -> list[dict]:
+    if db.engine == "sqlite":
+        return [
+            {"name": row[1], "column_names": [c[2] for c in db.run(f"PRAGMA index_info({row[1]})")]}
+            for row in db.run(f"PRAGMA index_list({db.t(table)})")
+        ]
+    import re
+
+    def columns(definition: str) -> list[str]:
+        return re.findall(r"[a-z_]+", definition.split("(", 1)[1].rsplit(")", 1)[0])
+
+    query = "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = %s AND tablename = %s"
+    return [
+        {"name": row[0], "column_names": columns(row[1])}
+        for row in db.run(query, ("traust", table))
+    ]
 
 
 def test_an_interrupted_sqlite_artifact_upgrade_rolls_back_whole() -> None:
@@ -962,68 +978,6 @@ def test_a_concurrent_ref_move_and_order_never_both_commit(
     assert rows == [(0,)]
 
 
-def test_concurrent_tracker_insert_and_finding_move_never_cross_link(
-    db: Db, request: pytest.FixtureRequest
-) -> None:
-    if db.engine != "postgres":
-        pytest.skip("SQLite serializes writers")
-    dsn = request.getfixturevalue("postgres_dsn")
-    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
-    found = finding(db, rid, fingerprint="a" * 64)
-    scoped = assessment(db, ref(db, rid))
-    link = (
-        "INSERT INTO traust.finding_external_ref (finding_id, assessment_id, system, ref) "
-        "VALUES (%s, %s, 'jira', 'SEC-1')"
-    )
-    move = "UPDATE traust.finding SET repository_id = %s WHERE id = %s"
-    error = _interleave(dsn, link, (found, scoped), move, (elsewhere, found))
-    assert error is not None  # the move waited for the insert, then was rejected
-    found = finding(db, rid, fingerprint="c" * 64)
-    at = ref(db, rid, name="moved-first", sha="b" * 40)
-    scoped = assessment(db, at)
-    error = _interleave(dsn, move, (elsewhere, found), link, (found, scoped))
-    assert error is not None  # the insert waited for the move, then read it
-    rows = db.run(
-        "SELECT count(*) FROM traust.finding_external_ref e "
-        "JOIN traust.assessment a ON a.id = e.assessment_id "
-        "JOIN traust.repository_ref r ON r.id = a.repository_ref_id "
-        "JOIN traust.finding f ON f.id = e.finding_id "
-        "WHERE r.repository_id IS DISTINCT FROM f.repository_id"
-    )
-    assert rows == [(0,)]
-
-
-def test_concurrent_tracker_insert_and_ref_move_never_cross_link(
-    db: Db, request: pytest.FixtureRequest
-) -> None:
-    if db.engine != "postgres":
-        pytest.skip("SQLite serializes writers")
-    dsn = request.getfixturevalue("postgres_dsn")
-    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
-    found = finding(db, rid, fingerprint="b" * 64)
-    at = ref(db, rid, name="tracked")
-    scoped = assessment(db, at)
-    link = (
-        "INSERT INTO traust.finding_external_ref (finding_id, assessment_id, system, ref) "
-        "VALUES (%s, %s, 'jira', 'SEC-2')"
-    )
-    move = "UPDATE traust.repository_ref SET repository_id = %s WHERE id = %s"
-    error = _interleave(dsn, link, (found, scoped), move, (elsewhere, at))
-    assert error is not None  # the move waited for the insert, then was rejected
-    at = ref(db, rid, name="moved-first", sha="c" * 40)
-    scoped = assessment(db, at)
-    error = _interleave(dsn, move, (elsewhere, at), link, (found, scoped))
-    assert error is not None  # the insert waited for the move, then read it
-    rows = db.run(
-        "SELECT count(*) FROM traust.finding_external_ref e "
-        "JOIN traust.assessment a ON a.id = e.assessment_id "
-        "JOIN traust.repository_ref r ON r.id = a.repository_ref_id "
-        "JOIN traust.finding f ON f.id = e.finding_id "
-        "WHERE r.repository_id IS DISTINCT FROM f.repository_id"
-    )
-    assert rows == [(0,)]
-
-
 ROLLBACK = {
     "postgres": (
         # contracts#128's guards read run_order.work_item_id: they go first
@@ -1067,7 +1021,7 @@ def test_the_documented_rollback_leaves_findings_refs_and_orders_working(db: Db)
     db.insert("ops.run_order", repository_id=elsewhere, **order)
 
 
-def test_algorithm_free_fingerprint_upgrade_preserves_rows_and_recipe_ambiguity(db: Db) -> None:
+def test_algorithm_free_fingerprint_reads_are_indexed_for_recipe_ambiguity(db: Db) -> None:
     repository = repo(db)
     first = finding(db, repository, "opaque identity")
     second = db.insert(
@@ -1078,13 +1032,6 @@ def test_algorithm_free_fingerprint_upgrade_preserves_rows_and_recipe_ambiguity(
         title="Another recipe",
     )
     table = db.t("finding")
-    query = f"SELECT * FROM {table} ORDER BY id"
-    before = db.run(query)
-    db.run(f"DROP INDEX {db.t('idx_finding_repository_fingerprint')}")
-    for _ in range(2):
-        for statement in storage_sql.finding_fingerprint_index_upgrade(db.engine):
-            db.run(statement)
-    assert db.run(query) == before
     matches = db.run(
         f"SELECT id FROM {table} WHERE repository_id = ? AND fingerprint = ? LIMIT 2",
         (repository, "opaque identity"),
@@ -1097,17 +1044,17 @@ def test_algorithm_free_fingerprint_upgrade_preserves_rows_and_recipe_ambiguity(
         )
         == []
     )
+    indexed = {
+        (index["name"], tuple(index["column_names"][:2]))
+        for index in _indexes(db, "finding")
+        if index["name"] == "idx_finding_repository_fingerprint"
+    }
+    assert indexed == {("idx_finding_repository_fingerprint", ("repository_id", "fingerprint"))}
 
 
-def test_external_reference_attempt_upgrade_leaves_historical_links_unattributed(db: Db) -> None:
+def test_external_reference_attempts_stay_separate_from_finding_wide_tickets(db: Db) -> None:
     repository = repo(db)
     found = finding(db, repository)
-    old = db.insert("finding_external_ref", finding_id=found, system="jira", ref="SEC-1")
-    table = db.t("finding_external_ref")
-    _tracker_scope_legacy(db)
-    for statement in storage_sql.finding_external_ref_assessment_upgrade(db.engine):
-        db.run(statement)
-    assert db.run(f"SELECT assessment_id FROM {table} WHERE id = ?", (old,)) == [(None,)]
     first = assessment(db, ref(db, repository))
     second = assessment(db, ref(db, repository, sha="b" * 40))
     attached = db.insert(
@@ -1117,17 +1064,13 @@ def test_external_reference_attempt_upgrade_leaves_historical_links_unattributed
         system="github",
         ref="https://github.com/example/service/pull/1",
     )
+    historical = db.insert("finding_external_ref", finding_id=found, system="jira", ref="SEC-1")
+    table = db.t("finding_external_ref")
     assert [
         str(row[0]) for row in db.run(f"SELECT id FROM {table} WHERE assessment_id = ?", (first,))
     ] == [attached]
     assert db.run(f"SELECT id FROM {table} WHERE assessment_id = ?", (second,)) == []
-    db.rejects(
-        "finding_external_ref",
-        finding_id=found,
-        assessment_id=str(uuid.uuid4()),
-        system="github",
-        ref="https://github.com/example/service/pull/2",
-    )
+    assert db.run(f"SELECT assessment_id FROM {table} WHERE id = ?", (historical,)) == [(None,)]
 
 
 def _event(db: Db, **metadata: object) -> str:
@@ -1202,7 +1145,7 @@ def test_spend_rejects_invalid_loc(db: Db, loc: object) -> None:
         _event(db, loc=loc)
 
 
-def test_order_charged_spend_names_the_orders_repository(db: Db) -> None:
+def test_order_charged_spend_derives_its_repository(db: Db) -> None:
     canonical, elsewhere = repo(db), repo(db, "https://example.com/r2")
     order = db.insert(
         "ops.run_order",
@@ -1213,21 +1156,21 @@ def test_order_charged_spend_names_the_orders_repository(db: Db) -> None:
         repository_id=canonical,
         lane="interactive",
     )
-    # An attributed event charges the repository its order runs on.
-    charged = _event(
-        db, run_order_id=order, lane="interactive", repository_id=canonical, note="charged"
+    # An attributed event's repository is derived through run_order_id, not stored.
+    _event(db, run_order_id=order, lane="interactive", note="charged")
+    orders = db.t("ops.run_order")
+    table = db.t("ops.spend_event")
+    rows = db.run(
+        f"SELECT o.repository_id FROM {table} e "
+        f"JOIN {orders} o ON o.id = e.run_order_id WHERE e.note = ?",
+        ("charged",),
     )
-    assert _metadata(db, charged)[:1] == (canonical,)
-    with pytest.raises(db.Error):
-        _event(db, run_order_id=order, lane="interactive", repository_id=elsewhere)
+    assert [str(row[0]) for row in rows] == [canonical]
+    # An order carries charged spend; its repository stays free to move.
+    db.run(f"UPDATE {orders} SET repository_id = ? WHERE id = ?", (elsewhere, order))
     # Unattributed events keep their own canonical identity, verified or not.
     plain = _event(db, repository_id=elsewhere)
     assert _metadata(db, plain)[:1] == (elsewhere,)
-    # An order a charged event names keeps its repository.
-    table = db.t("ops.run_order")
-    with pytest.raises(db.Error):
-        db.run(f"UPDATE {table} SET repository_id = ? WHERE id = ?", (elsewhere, order))
-    db.run(f"UPDATE {table} SET repository_id = ? WHERE id = ?", (canonical, order))
 
 
 def test_rich_spend_remains_append_only_and_retains_repository(db: Db) -> None:
@@ -1256,341 +1199,15 @@ def test_rich_spend_preserves_lane_order_guard(db: Db) -> None:
         repository_id=canonical,
         lane="interactive",
     )
-    event = _event(
-        db, run_order_id=order, lane="interactive", repository_id=canonical, note="retained"
-    )
-    assert _metadata(db, event)[-1] == "retained"
+    event = _event(db, run_order_id=order, lane="interactive", note="retained")
+    assert _metadata(db, event) == (None, None, None, None, "retained")
     with pytest.raises(db.Error):
-        _event(db, run_order_id=order, lane="other", repository_id=canonical)
-    with pytest.raises(db.Error):
+        _event(db, run_order_id=order, lane="other")
+    with pytest.raises(db.Error):  # a lane must name its order
         _event(db, lane="interactive", repository_label="unattributed")
 
 
-def _before_spend_metadata(db: Db) -> None:
-    prefix = "traust_ops." if db.engine == "postgres" else ""
-    db.run(f"DROP INDEX {prefix}idx_ops_spend_event_repository_occurred")
-    for trigger, table in (
-        ("ops_spend_event_repository_of_order", "ops.spend_event"),
-        ("ordered_repository_of_charged_spend_stays", "ops.run_order"),
-    ):
-        target = "" if db.engine == "sqlite" else f" ON {db.t(table)}"
-        db.run(f"DROP TRIGGER IF EXISTS {trigger}{target}")
-    for column in ("repository_id", "repository_label", "loc", "batch", "note"):
-        db.run(f"ALTER TABLE {db.t('ops.spend_event')} DROP COLUMN {column}")
-
-
-def test_spend_metadata_upgrade_preserves_history_and_accepts_rich_events(db: Db) -> None:
-    _before_spend_metadata(db)
-    canonical = repo(db)
-    old_event = _event(db)
-    table = db.t("ops.spend_event")
-    old_history = db.run(
-        f"SELECT id, tokens_in, tokens_out, cost_usd, occurred_at, created_at FROM {table}"
-    )
-    if db.engine == "postgres":
-        db.run("BEGIN")
-    for statement in ops_sql.spend_event_metadata_upgrade(db.engine):
-        db.run(statement)
-    if db.engine == "postgres":
-        db.run("COMMIT")
-    assert (
-        db.run(f"SELECT id, tokens_in, tokens_out, cost_usd, occurred_at, created_at FROM {table}")
-        == old_history
-    )
-    assert _metadata(db, old_event) == (None, None, None, None, None)
-    event = _event(
-        db, repository_id=canonical, repository_label="raw", loc=42, batch="batch", note="note"
-    )
-    assert _metadata(db, event) == (canonical, "raw", 42, "batch", "note")
-    assert _metadata(db, _event(db, repository_label="ambiguous")) == (
-        None,
-        "ambiguous",
-        None,
-        None,
-        None,
-    )
-    with pytest.raises(db.Error):
-        _event(db, repository_id=str(uuid.uuid4()))
-    for loc in (-1, "bad", "1.5"):
-        with pytest.raises(db.Error):
-            _event(db, loc=loc)
-    with pytest.raises(db.Error):
-        db.run(f"UPDATE {table} SET note = 'changed' WHERE id = ?", (old_event,))
-    with pytest.raises(db.Error):
-        db.run(f"DELETE FROM {table} WHERE id = ?", (event,))
-    with pytest.raises(db.Error):
-        _event(db, lane="interactive")
-    # The upgrade installs the order-repository pairing guard too.
-    charged = db.insert(
-        "ops.run_order",
-        asset="diff_scan",
-        state="queued",
-        priority=1,
-        requested_by="human",
-        repository_id=canonical,
-        lane="interactive",
-    )
-    with pytest.raises(db.Error):
-        _event(db, run_order_id=charged, lane="interactive", repository_id="x" * 36)
-    with pytest.raises(db.Error):
-        _event(
-            db,
-            run_order_id=charged,
-            lane="interactive",
-            repository_id=repo(db, "https://example.com/r3"),
-        )
-    for path in ops_sql.bootstrap_files(db.engine):
-        for statement in bootstrap_statements(db.engine, path):
-            db.run(statement)
-    assert _metadata(db, old_event) == (None, None, None, None, None)
-
-
-def _before_revision(db: Db) -> None:
-    prefix = "traust." if db.engine == "postgres" else ""
-    if db.engine == "sqlite":
-        db.run("DROP TRIGGER artifact_imported_revision_required")
-    else:
-        db.run("ALTER TABLE traust.artifact DROP CONSTRAINT artifact_imported_revision_required")
-    db.run(f"DROP INDEX {prefix}idx_artifact_imported_kind")
-    db.run(f"ALTER TABLE {db.t('artifact')} DROP COLUMN publication_revision")
-    db.run(
-        f"CREATE INDEX idx_artifact_imported_kind ON {db.t('artifact')} "
-        "(kind, created_at DESC, id DESC) WHERE assessment_id IS NULL"
-    )
-
-
-def _upgrade(db: Db) -> None:
-    for statement in storage_sql.artifact_publication_revision_upgrade(db.engine):
-        db.run(statement)
-
-
-@pytest.mark.parametrize("upgraded", [False, True])
-def test_imported_revisions_are_positive_unique_per_stream_and_not_assessment_metadata(
-    db: Db, upgraded: bool
-) -> None:
-    if upgraded:
-        _before_revision(db)
-        _upgrade(db)
-    document = {"kind": "corpus-registry", "uri": "artifacts/example.json"}
-    row = db.insert("artifact", digest="first", publication_revision=1, **document)
-    uuid.UUID(row)
-    created = db.run(f"SELECT created_at FROM {db.t('artifact')} WHERE id = ?", (row,))[0][0]
-    assert created is not None
-    db.rejects("artifact", digest="second", publication_revision=1, **document)
-    for revision in (None, 0, -1):
-        db.rejects(
-            "artifact", digest=f"invalid-{revision}", publication_revision=revision, **document
-        )
-    db.insert(
-        "artifact", digest="other-stream", kind="policy", uri="policy.json", publication_revision=1
-    )
-    work = assessment(db, ref(db, repo(db)))
-    db.rejects(
-        "artifact", assessment_id=work, digest="produced", publication_revision=2, **document
-    )
-    db.insert("artifact", assessment_id=work, digest="produced", **document)
-    db.insert(
-        "artifact",
-        assessment_id=work,
-        digest="produced-explicit-null",
-        publication_revision=None,
-        **document,
-    )
-    db.rejects("artifact", digest="raw-import", **document)
-
-
-@pytest.mark.parametrize("upgraded", [False, True])
-def test_sqlite_revisions_require_positive_stored_integers(upgraded: bool) -> None:
-    db = _sqlite()
-    if upgraded:
-        _before_revision(db)
-        _upgrade(db)
-    document = {"kind": "corpus-registry", "uri": "artifacts/example.json"}
-    for index, revision in enumerate((None, 0, -1, "not-a-number", b"1", 1.5)):
-        db.rejects("artifact", digest=f"invalid-{index}", publication_revision=revision, **document)
-    # SQLite applies INTEGER affinity before CHECK: numeric text is stored as an integer.
-    row = db.insert("artifact", digest="numeric-text", publication_revision="1", **document)
-    assert db.run(
-        "SELECT publication_revision, typeof(publication_revision) FROM artifact WHERE id = ?",
-        (row,),
-    ) == [(1, "integer")]
-    db.rejects("artifact", digest="unversioned", **document)
-    work = assessment(db, ref(db, repo(db)))
-    db.insert("artifact", assessment_id=work, digest="produced", **document)
-    db.rejects(
-        "artifact",
-        assessment_id=work,
-        digest="invalid-produced",
-        publication_revision=2,
-        **document,
-    )
-    with pytest.raises(db.Error):
-        db.run("UPDATE artifact SET publication_revision = 2 WHERE id = ?", (row,))
-    with pytest.raises(db.Error):
-        db.run("DELETE FROM artifact WHERE id = ?", (row,))
-
-
-def test_revision_upgrade_preserves_every_original_row_and_orders_unambiguous_history(
-    db: Db,
-) -> None:
-    _before_revision(db)
-    work = assessment(db, ref(db, repo(db)))
-    document = {"kind": "corpus-registry", "uri": "artifacts/example.json"}
-    db.insert("artifact", digest="second", created_at=LATER, **document)
-    db.insert("artifact", digest="first", created_at=NOW, **document)
-    db.insert("artifact", digest="other-stream", kind="policy", uri="policy.json", created_at=NOW)
-    db.insert("artifact", assessment_id=work, digest="produced", created_at=NOW, **document)
-    table = db.t("artifact")
-    original = db.run(
-        f"SELECT id, assessment_id, digest, kind, uri, created_at FROM {table} ORDER BY digest"
-    )
-    _upgrade(db)
-    assert (
-        db.run(
-            f"SELECT id, assessment_id, digest, kind, uri, created_at FROM {table} ORDER BY digest"
-        )
-        == original
-    )
-    assert db.run(f"SELECT digest, publication_revision FROM {table} ORDER BY digest") == [
-        ("first", 1),
-        ("other-stream", 1),
-        ("produced", None),
-        ("second", 2),
-    ]
-    db.insert("artifact", digest="third", publication_revision=3, **document)
-    db.rejects("artifact", digest="duplicate-revision", publication_revision=3, **document)
-    db.rejects("artifact", digest="unversioned", **document)
-    db.rejects("artifact", digest="explicit-null", publication_revision=None, **document)
-    db.rejects(
-        "artifact",
-        assessment_id=work,
-        digest="versioned-produced",
-        publication_revision=4,
-        **document,
-    )
-    with pytest.raises(db.Error):
-        db.run(f"UPDATE {table} SET publication_revision = 4 WHERE digest = 'third'")
-    with pytest.raises(db.Error):
-        db.run(f"DELETE FROM {table} WHERE digest = 'third'")
-    for path in storage_sql.bootstrap_files(db.engine):
-        for statement in bootstrap_statements(db.engine, path):
-            db.run(statement)
-    assert len(db.run(f"SELECT id FROM {table}")) == 5
-    db.rejects("artifact", digest="unversioned-after-bootstrap", **document)
-    db.rejects(
-        "artifact", digest="explicit-null-after-bootstrap", publication_revision=None, **document
-    )
-
-
-def test_revision_upgrade_refuses_ambiguous_real_database_timestamps_without_mutation(
-    db: Db,
-) -> None:
-    _before_revision(db)
-    table = db.t("artifact")
-    db.run(
-        f"INSERT INTO {table} (digest, kind, uri) VALUES "
-        "('first', 'corpus-registry', 'first.json'), "
-        "('second', 'corpus-registry', 'second.json')"
-    )
-    before = db.run(f"SELECT * FROM {table} ORDER BY digest")
-    assert len({row[-1] for row in before}) == 1
-    with pytest.raises(db.Error):
-        _upgrade(db)
-    if db.engine == "sqlite":
-        db.run("ROLLBACK")
-    assert "publication_revision" not in _columns(db, "artifact")
-    assert db.run(f"SELECT * FROM {table} ORDER BY digest") == before
-    with pytest.raises(db.Error):
-        db.run(f"UPDATE {table} SET uri = 'changed.json'")
-
-
-def test_interrupted_revision_upgrade_rolls_back_the_column_rows_and_append_only_guard(
-    db: Db,
-) -> None:
-    _before_revision(db)
-    db.insert("artifact", digest="first", kind="corpus-registry", uri="first.json")
-    before = db.run(f"SELECT * FROM {db.t('artifact')}")
-    statements = storage_sql.artifact_publication_revision_upgrade(db.engine)
-    if db.engine == "sqlite":
-        stop = next(
-            index
-            for index, statement in enumerate(statements)
-            if "CREATE TRIGGER artifact_imported_revision_required" in statement
-        )
-        for statement in statements[: stop + 1]:
-            db.run(statement)
-    else:
-        db.run("BEGIN")
-        _upgrade(db)
-    db.run("ROLLBACK")
-    assert "publication_revision" not in _columns(db, "artifact")
-    assert db.run(f"SELECT * FROM {db.t('artifact')}") == before
-    with pytest.raises(db.Error):
-        db.run(f"UPDATE {db.t('artifact')} SET uri = 'changed.json'")
-    _upgrade(db)
-    assert db.run(f"SELECT publication_revision FROM {db.t('artifact')}") == [(1,)]
-    db.rejects("artifact", digest="unversioned", kind="corpus-registry", uri="missing.json")
-    db.rejects(
-        "artifact",
-        digest="explicit-null",
-        kind="corpus-registry",
-        uri="null.json",
-        publication_revision=None,
-    )
-
-
-def test_revision_upgrade_accepts_historical_stores_without_the_old_read_index(db: Db) -> None:
-    _before_revision(db)
-    prefix = "traust." if db.engine == "postgres" else ""
-    db.run(f"DROP INDEX {prefix}idx_artifact_imported_kind")
-    original = db.insert("artifact", digest="old", kind="corpus-registry", uri="old.json")
-    _upgrade(db)
-    assert db.run(f"SELECT id, publication_revision FROM {db.t('artifact')}") == [
-        (original if db.engine == "sqlite" else uuid.UUID(original), 1)
-    ]
-    with pytest.raises(db.Error):
-        db.run(f"UPDATE {db.t('artifact')} SET uri = 'rewritten.json'")
-
-
-def _drop_tracker_scope_guards(db: Db) -> None:
-    """Exact guard inventory for legacy fixtures; retain assessment append-only guards."""
-    for trigger, table in (
-        ("finding_external_ref_scope_insert", "finding_external_ref"),
-        ("finding_external_ref_scope_update", "finding_external_ref"),
-        ("finding_external_ref_finding_scope_update", "finding"),
-        ("finding_external_ref_repository_ref_scope_update", "repository_ref"),
-    ):
-        target = "" if db.engine == "sqlite" else f" ON {db.t(table)}"
-        db.run(f"DROP TRIGGER IF EXISTS {trigger}{target}")
-
-
-def _tracker_scope_legacy(db: Db) -> None:
-    """Model the pre-assessment tracker table, not a partially upgraded bootstrap."""
-    _drop_tracker_scope_guards(db)
-    db.run(f"DROP INDEX {db.t('idx_finding_external_ref_assessment')}")
-    db.run(f"ALTER TABLE {db.t('finding_external_ref')} DROP COLUMN assessment_id")
-
-
-def _upgrade_tracker_scope(db: Db) -> None:
-    for statement in storage_sql.finding_external_ref_assessment_upgrade(db.engine):
-        db.run(statement)
-
-
-def _upgrade_tracker_guards(db: Db) -> None:
-    for statement in storage_sql.finding_external_ref_scope_upgrade(db.engine):
-        db.run(statement)
-
-
-@pytest.mark.parametrize("mode", ["bootstrap", "column-upgrade", "guard-upgrade"])
-def test_tracker_scope_accepts_remediation_without_occurrence_and_rejects_other_repo(
-    db: Db, mode: str
-) -> None:
-    if mode == "column-upgrade":
-        _tracker_scope_legacy(db)
-        _upgrade_tracker_scope(db)
-    elif mode == "guard-upgrade":
-        _drop_tracker_scope_guards(db)
-        _upgrade_tracker_guards(db)
+def test_tracker_scope_accepts_remediation_without_occurrence(db: Db) -> None:
     repository = repo(db)
     found = finding(db, repository)
     own_ref = ref(db, repository)
@@ -1603,7 +1220,6 @@ def test_tracker_scope_accepts_remediation_without_occurrence_and_rejects_other_
         assessor_version="1",
         occurred_at=NOW,
     )
-    stranger = assessment(db, ref(db, repo(db, "https://example.com/other")))
     linked = db.insert(
         "finding_external_ref",
         finding_id=found,
@@ -1612,13 +1228,6 @@ def test_tracker_scope_accepts_remediation_without_occurrence_and_rejects_other_
         ref="pull/1",
     )
     historical = db.insert("finding_external_ref", finding_id=found, system="jira", ref="SEC-1")
-    db.rejects(
-        "finding_external_ref",
-        finding_id=found,
-        assessment_id=stranger,
-        system="github",
-        ref="pull/2",
-    )
     assert db.run(f"SELECT count(*) FROM {db.t('occurrence')}") == [(0,)]
     table = db.t("finding_external_ref")
     assert db.run(f"SELECT assessment_id FROM {table} WHERE id = ?", (historical,)) == [(None,)]
@@ -1628,26 +1237,14 @@ def test_tracker_scope_accepts_remediation_without_occurrence_and_rejects_other_
     )
 
 
-@pytest.mark.parametrize("mode", ["bootstrap", "column-upgrade", "guard-upgrade"])
-def test_tracker_scope_survives_link_and_parent_mutations(db: Db, mode: str) -> None:
-    if mode == "column-upgrade":
-        _tracker_scope_legacy(db)
-        _upgrade_tracker_scope(db)
-    elif mode == "guard-upgrade":
-        _drop_tracker_scope_guards(db)
-        _upgrade_tracker_guards(db)
+def test_a_scoped_tracker_ref_move_never_crosses_repositories(db: Db) -> None:
     repository = repo(db)
     other_repository = repo(db, "https://example.com/other")
     own_ref = ref(db, repository)
     sibling_ref = ref(db, repository, name="release", sha="b" * 40)
-    other_ref = ref(db, other_repository, sha="c" * 40)
     own_assessment = assessment(db, own_ref)
-    sibling_assessment = assessment(db, sibling_ref)
-    other_assessment = assessment(db, other_ref)
     found = finding(db, repository)
-    sibling = finding(db, repository, fingerprint="a" * 64)
-    other_found = finding(db, other_repository)
-    link = db.insert(
+    db.insert(
         "finding_external_ref",
         finding_id=found,
         assessment_id=own_assessment,
@@ -1656,214 +1253,23 @@ def test_tracker_scope_survives_link_and_parent_mutations(db: Db, mode: str) -> 
     )
     historical = db.insert("finding_external_ref", finding_id=found, system="jira", ref="SEC-1")
     table = db.t("finding_external_ref")
-    for field, value in (("assessment_id", other_assessment), ("finding_id", other_found)):
-        with pytest.raises(db.Error):
-            db.run(f"UPDATE {table} SET {field} = ? WHERE id = ?", (value, link))
+    # The ref a scoped link names keeps its repository.
     with pytest.raises(db.Error):
-        db.run(f"UPDATE {table} SET assessment_id = ? WHERE id = ?", (other_assessment, historical))
-    for parent, field, value, row in (
-        ("finding", "repository_id", other_repository, found),
-        ("assessment", "repository_ref_id", other_ref, own_assessment),
-        ("repository_ref", "repository_id", other_repository, own_ref),
-    ):
-        with pytest.raises(db.Error):
-            db.run(f"UPDATE {db.t(parent)} SET {field} = ? WHERE id = ?", (value, row))
-    # A different finding and assessment in the same repository are permitted.
-    db.run(
-        f"UPDATE {table} SET finding_id = ?, assessment_id = ? WHERE id = ?",
-        (sibling, sibling_assessment, link),
-    )
-    # Scope checks do not freeze unrelated mutable data or no-op parent writes.
-    db.run(f"UPDATE {table} SET ref = 'pull/renamed' WHERE id = ?", (link,))
-    db.run(f"UPDATE {db.t('finding')} SET title = 'renamed' WHERE id = ?", (sibling,))
-    db.run(f"UPDATE {db.t('finding')} SET repository_id = repository_id WHERE id = ?", (sibling,))
-    db.run(f"UPDATE {db.t('repository_ref')} SET name = 'stable' WHERE id = ?", (sibling_ref,))
-    db.run(
-        f"UPDATE {db.t('repository_ref')} SET repository_id = repository_id WHERE id = ?",
-        (sibling_ref,),
-    )
-    # Removing scope is allowed; historical links must not pin parent repositories.
-    db.run(f"UPDATE {table} SET assessment_id = NULL WHERE id = ?", (link,))
-    db.run(
-        f"UPDATE {db.t('finding')} SET repository_id = ? WHERE id = ?", (other_repository, sibling)
-    )
+        db.run(
+            f"UPDATE {db.t('repository_ref')} SET repository_id = ? WHERE id = ?",
+            (other_repository, own_ref),
+        )
+    # Historical links pin nothing; unrelated refs stay free to move.
+    db.run(f"UPDATE {table} SET assessment_id = NULL WHERE id = ?", (historical,))
     db.run(
         f"UPDATE {db.t('repository_ref')} SET repository_id = ? WHERE id = ?",
         (other_repository, sibling_ref),
     )
+    # Removing scope releases the ref.
+    (link_id,) = db.run(f"SELECT id FROM {table} WHERE assessment_id = ?", (own_assessment,))[0]
+    db.run(f"UPDATE {table} SET assessment_id = NULL WHERE id = ?", (link_id,))
+    db.run(
+        f"UPDATE {db.t('repository_ref')} SET repository_id = ? WHERE id = ?",
+        (other_repository, own_ref),
+    )
     assert db.run(f"SELECT assessment_id FROM {table} ORDER BY id") == [(None,), (None,)]
-
-
-def test_tracker_scope_upgrade_preserves_all_historical_fields(db: Db) -> None:
-    repository = repo(db)
-    found = finding(db, repository)
-    # A plausible assessment is deliberately not inferred by time or repository.
-    assessment(db, ref(db, repository))
-    old = db.insert(
-        "finding_external_ref",
-        finding_id=found,
-        system="jira",
-        ref="SEC-1",
-        created_at=NOW,
-        updated_at=LATER,
-    )
-    _tracker_scope_legacy(db)
-    table = db.t("finding_external_ref")
-    fields = "id, finding_id, system, ref, created_at, updated_at"
-    before = db.run(f"SELECT {fields} FROM {table}")
-    _upgrade_tracker_scope(db)
-    assert db.run(f"SELECT {fields} FROM {table}") == before
-    assert db.run(f"SELECT assessment_id FROM {table} WHERE id = ?", (old,)) == [(None,)]
-
-
-def test_sqlite_tracker_upgrade_rolls_back_schema_and_partial_guards(db: Db) -> None:
-    if db.engine != "sqlite":
-        pytest.skip("SQLite additive upgrade transaction")
-    _tracker_scope_legacy(db)
-    statements = list(storage_sql.finding_external_ref_assessment_upgrade(db.engine))
-    for statement in statements:
-        if "CREATE TRIGGER IF NOT EXISTS finding_external_ref_scope_update" in statement:
-            break
-        db.run(statement)
-    assert db.conn.in_transaction
-    # Simulate a DDL failure after one scope guard is installed; the existing
-    # append/touch guards and the old schema must survive a caller rollback.
-    with pytest.raises(db.Error):
-        db.run("CREATE TABLE finding_external_ref (id TEXT)")
-    db.run("ROLLBACK")
-    assert not db.conn.in_transaction
-    assert "assessment_id" not in {
-        row[1] for row in db.run("PRAGMA table_info(finding_external_ref)")
-    }
-    assert (
-        db.run(
-            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = ?",
-            ("finding_external_ref_scope_insert",),
-        )
-        == []
-    )
-    assert db.run(
-        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = ?",
-        ("finding_external_ref_touch",),
-    ) == [("finding_external_ref_touch",)]
-    _upgrade_tracker_scope(db)
-    assert not db.conn.in_transaction
-    found = finding(db, repo(db))
-    stranger = assessment(db, ref(db, repo(db, "https://example.com/other")))
-    db.rejects(
-        "finding_external_ref",
-        finding_id=found,
-        assessment_id=stranger,
-        system="github",
-        ref="pull/1",
-    )
-
-
-def test_sqlite_tracker_upgrade_refuses_an_existing_transaction_without_changing_it(db: Db) -> None:
-    if db.engine != "sqlite":
-        pytest.skip("SQLite additive upgrade transaction")
-    _tracker_scope_legacy(db)
-    db.run("BEGIN")
-    try:
-        with pytest.raises(db.Error):
-            _upgrade_tracker_scope(db)
-        assert db.conn.in_transaction
-        assert "assessment_id" not in {
-            row[1] for row in db.run("PRAGMA table_info(finding_external_ref)")
-        }
-    finally:
-        db.run("ROLLBACK")
-
-
-def test_tracker_guard_upgrade_is_idempotent_and_preserves_every_stored_field(db: Db) -> None:
-    repository = repo(db)
-    found = finding(db, repository)
-    aid = assessment(db, ref(db, repository))
-    db.insert(
-        "finding_external_ref",
-        finding_id=found,
-        assessment_id=aid,
-        system="github",
-        ref="pull/1",
-        created_at=NOW,
-        updated_at=LATER,
-    )
-    db.insert(
-        "finding_external_ref",
-        finding_id=found,
-        system="jira",
-        ref="SEC-1",
-        created_at=NOW,
-        updated_at=LATER,
-    )
-    table = db.t("finding_external_ref")
-    before = db.run(f"SELECT * FROM {table} ORDER BY id")
-    _drop_tracker_scope_guards(db)
-    _upgrade_tracker_guards(db)
-    _upgrade_tracker_guards(db)
-    assert db.run(f"SELECT * FROM {table} ORDER BY id") == before
-
-
-def test_tracker_guard_upgrade_refuses_existing_mismatch_without_rewriting_it(db: Db) -> None:
-    repository = repo(db)
-    found = finding(db, repository)
-    stranger = assessment(db, ref(db, repo(db, "https://example.com/other")))
-    _drop_tracker_scope_guards(db)
-    db.insert(
-        "finding_external_ref",
-        finding_id=found,
-        assessment_id=stranger,
-        system="github",
-        ref="pull/1",
-        created_at=NOW,
-        updated_at=LATER,
-    )
-    db.insert(
-        "finding_external_ref",
-        finding_id=found,
-        system="jira",
-        ref="SEC-1",
-        created_at=NOW,
-        updated_at=LATER,
-    )
-    table = db.t("finding_external_ref")
-    before = db.run(f"SELECT * FROM {table} ORDER BY id")
-    with pytest.raises(db.Error):
-        _upgrade_tracker_guards(db)
-    db.run("ROLLBACK")
-    assert db.run(f"SELECT * FROM {table} ORDER BY id") == before
-
-
-def test_tracker_guard_upgrade_repairs_missing_assessment_index_without_changing_links(
-    db: Db,
-) -> None:
-    repository = repo(db)
-    found = finding(db, repository)
-    aid = assessment(db, ref(db, repository))
-    db.insert(
-        "finding_external_ref",
-        finding_id=found,
-        assessment_id=aid,
-        system="github",
-        ref="pull/1",
-        created_at=NOW,
-        updated_at=LATER,
-    )
-    db.insert(
-        "finding_external_ref",
-        finding_id=found,
-        system="jira",
-        ref="SEC-1",
-        created_at=NOW,
-        updated_at=LATER,
-    )
-    table = db.t("finding_external_ref")
-    before = db.run(f"SELECT * FROM {table} ORDER BY id")
-    _drop_tracker_scope_guards(db)
-    db.run(f"DROP INDEX {db.t('idx_finding_external_ref_assessment')}")
-    _upgrade_tracker_guards(db)
-    # A plain DROP proves the index was recreated on both engines.
-    db.run(f"DROP INDEX {db.t('idx_finding_external_ref_assessment')}")
-    _upgrade_tracker_guards(db)
-    _upgrade_tracker_guards(db)
-    assert db.run(f"SELECT * FROM {table} ORDER BY id") == before

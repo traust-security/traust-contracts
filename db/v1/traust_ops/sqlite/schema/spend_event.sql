@@ -4,8 +4,11 @@
 -- skill name - deployment data, checked at intake. run_order_id null =
 -- unattributed. lane is the order's lane at the time of spend (null when
 -- unattributed or not routed), copied so lane rollups read this table alone:
--- budget month-to-date runs on every admission tick. Retention: rolled up
--- monthly after N months.
+-- budget month-to-date runs on every admission tick. repository_id holds the
+-- resolved canonical identity of an order-less imported declaration's label -
+-- it has no other home; an order-attributed event's repository is derived
+-- through run_order_id, not stored here. Retention: rolled up monthly after
+-- N months.
 CREATE TABLE IF NOT EXISTS ops_spend_event (
     id TEXT NOT NULL DEFAULT (uuid()),
     run_order_id TEXT REFERENCES ops_run_order(id) ON DELETE RESTRICT,
@@ -37,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_ops_spend_event_run_order
 CREATE INDEX IF NOT EXISTS idx_ops_spend_event_occurred
     ON ops_spend_event (occurred_at);
 
--- A canonical repository's spend in a window, independent of order attribution.
+-- A canonical repository's declared spend in a window (order-less imports).
 CREATE INDEX IF NOT EXISTS idx_ops_spend_event_repository_occurred
     ON ops_spend_event (repository_id, occurred_at)
     WHERE repository_id IS NOT NULL;
@@ -52,27 +55,6 @@ BEFORE INSERT ON ops_spend_event
 WHEN NEW.lane IS NOT (SELECT lane FROM ops_run_order WHERE id = NEW.run_order_id)
 BEGIN
   SELECT RAISE(ABORT, 'ops_spend_event.lane is not the lane of its run_order');
-END;
-
--- An attributed event charges the repository its order runs on.
-CREATE TRIGGER IF NOT EXISTS ops_spend_event_repository_of_order
-BEFORE INSERT ON ops_spend_event
-WHEN NEW.run_order_id IS NOT NULL AND NEW.repository_id IS NOT NULL AND NEW.repository_id IS NOT
-    (SELECT repository_id FROM ops_run_order WHERE id = NEW.run_order_id)
-BEGIN
-  SELECT RAISE(ABORT, 'ops_spend_event.repository_id is not the repository of its run_order');
-END;
-
--- ...and an order a charged event names keeps its repository.
-CREATE TRIGGER IF NOT EXISTS ordered_repository_of_charged_spend_stays
-BEFORE UPDATE OF repository_id ON ops_run_order
-WHEN NEW.repository_id IS NOT OLD.repository_id AND EXISTS (
-    SELECT 1 FROM ops_spend_event e
-    WHERE e.run_order_id = OLD.id AND e.repository_id IS NOT NULL
-      AND e.repository_id IS NOT NEW.repository_id
-)
-BEGIN
-  SELECT RAISE(ABORT, 'ops_run_order carries charged spend on its repository');
 END;
 
 CREATE TRIGGER IF NOT EXISTS ops_spend_event_reject_update

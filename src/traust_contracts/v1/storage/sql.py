@@ -23,14 +23,10 @@ __all__ = [
     "REVISION",
     "TABLE_ORDER",
     "VIEW_ORDER",
-    "artifact_publication_revision_upgrade",
     "artifact_run_order_upgrade",
     "bootstrap_files",
     "bootstrap_statements",
     "default_named_at_upgrade",
-    "finding_external_ref_assessment_upgrade",
-    "finding_external_ref_scope_upgrade",
-    "finding_fingerprint_index_upgrade",
     "manifest_sbom_binding_upgrade",
 ]
 
@@ -120,15 +116,6 @@ def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
     return _additive_upgrade(dialect, "artifact_run_order")
 
 
-def artifact_publication_revision_upgrade(dialect: Dialect) -> list[str]:
-    """Version existing imported streams; refuse ambiguous historical timestamp ties.
-
-    Apply only when publication_revision is absent, outside an open transaction
-    on SQLite. Bootstrap does not run this upgrade. IDs and timestamps stay unchanged.
-    """
-    return _additive_upgrade(dialect, "artifact_publication_revision")
-
-
 def default_named_at_upgrade(dialect: Dialect) -> list[str]:
     """Load the explicit additive upgrade for a database missing the naming column.
 
@@ -138,18 +125,3 @@ def default_named_at_upgrade(dialect: Dialect) -> list[str]:
     is named again.
     """
     return _additive_upgrade(dialect, "default_named_at")
-
-
-def finding_fingerprint_index_upgrade(dialect: Dialect) -> list[str]:
-    """Load the idempotent additive index upgrade for algorithm-free identity reads."""
-    return _additive_upgrade(dialect, "finding_fingerprint_index")
-
-
-def finding_external_ref_assessment_upgrade(dialect: Dialect) -> list[str]:
-    """Load the additive attempt scope for external references; old links stay unscoped."""
-    return _additive_upgrade(dialect, "finding_external_ref_assessment")
-
-
-def finding_external_ref_scope_upgrade(dialect: Dialect) -> list[str]:
-    """Guard existing scoped references and repair a missing attempt index."""
-    return _additive_upgrade(dialect, "finding_external_ref_scope")
