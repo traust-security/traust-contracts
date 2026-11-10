@@ -25,6 +25,7 @@
     "execution",
     "locations",
     "overrides",
+    "impact",
     "model-registry"
   ],
   "used_in_schemas": [
