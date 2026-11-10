@@ -22,12 +22,11 @@ them in the PR description:
    `.sum_by(REPOSITORY)` joins `run_order` for repository attribution), a
    stored copy needs a *hot-path reader* to justify itself — a dashboard
    query is not one.
-4. **Is this the smallest additive change?** It should land as bootstrap
-   statements plus, where needed, an explicit named upgrade function that
-   existing databases apply (see the per-column upgrades below). If the
-   change needs to mutate existing rows, rewrite history, disable append-only
-   guards, or reach into already-bootstrapped databases in-place — stop: that
-   is a mechanism to design, not a script to write.
+4. **Is this the smallest additive change?** It should land as additive
+   bootstrap statements only. If the change needs to mutate existing rows,
+   rewrite history, disable append-only guards, or reach into
+   already-bootstrapped databases in-place — stop: that is a mechanism to
+   design, not a script to write.
 5. **Where does the invariant live?** Triggers are for what only the database
    can enforce — append-only guards, mutation rejection, and consistency that
    must hold for every concurrent writer (the existing
