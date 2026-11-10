@@ -9,6 +9,11 @@ CREATE INDEX IF NOT EXISTS idx_finding_external_ref_assessment
 -- Scoped trackers name an assessment of the finding's repository, not an
 -- occurrence: remediation assessments need not have reported the finding.
 -- NULL retains historical, finding-wide links without inferred attribution.
+-- The check FOR SHARE-locks the finding and the assessment's repository ref:
+-- under READ COMMITTED a concurrent repository move then either waits for
+-- this transaction (and is itself rejected by the parent guard) or has
+-- already committed, so this check reads the moved rows - a scoped link can
+-- never commit against stale parent repositories.
 CREATE OR REPLACE FUNCTION traust.check_finding_external_ref_scope()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -17,6 +22,7 @@ BEGIN
         JOIN traust.assessment a ON a.id = NEW.assessment_id
         JOIN traust.repository_ref r ON r.id = a.repository_ref_id
         WHERE f.id = NEW.finding_id AND f.repository_id = r.repository_id
+        FOR SHARE OF f, r
     ) THEN
         RAISE EXCEPTION 'tracker assessment and finding must belong to the same repository';
     END IF;
