@@ -12,6 +12,9 @@ Written by continuous ops; app state, not domain truth.
 Loads through `traust_contracts.v1.ops.sql`:
 `bootstrap_files(dialect)` / `bootstrap_statements(dialect, path)`.
 
+Schema changes to an existing database land in the upgrade channel —
+[db/v1/traust/README.md](../traust/README.md#upgrades).
+
 **Status:** tables landed (`run_batch`, `run_order`, `spend_event`,
 `feed_snapshot`, `assessment_input`); `run_order.sql` closes the cross-
 namespace cycle by adding `assessment.run_order_id`'s FK on Postgres.
