@@ -146,6 +146,9 @@ refuses startup until its schema owner applies it. Both paths retain the same ti
 `spend_event` retains nullable `repository_id`, raw `repository_label`, nonnegative integer
 `loc`, `batch` and `note`. Canonical repository identity is a foreign key, not a slug inferred
 from a label. Historical metadata stays null; unresolvable labels still retain their cost.
+An event that names both a run order and a repository charges the repository its order
+runs on; PostgreSQL lock-pairs the insert with the order row and freezes an order's
+repository once a charged event names it, so concurrent moves cannot split the pairing.
 
 Existing databases inspect all five columns. If all are absent, apply
 `ops.sql.spend_event_metadata_upgrade(dialect)` once. SQLite owns its transaction and needs
@@ -168,6 +171,8 @@ with evidence can confirm historical presence. Discovery alone never establishes
 vulnerability or admits benchmark truth. A `detected` advisory can retain unknown presence
 when named in the original report, but cannot contradict human-confirmed absence.
 `not_applicable` requires human-confirmed absence or recorded source withdrawal.
+A `detected` verdict names at least one advisory matched in the bound report; a `missed`
+verdict names none - verdicts never contradict the report's own matches.
 Candidates retain the source `withdrawn` boolean (optional, default false) so withdrawal
 does not invent historical absence or require fabricated human presence evidence.
 
@@ -202,8 +207,10 @@ assessment, including a remediation work item's PR. Finding-wide historical Jira
 links remain null; the contract does not infer an attempt from a shared finding.
 Scoped links must pair a finding and assessment from the same repository, including
 remediation assessments that have no occurrence. Insert/update and parent-mutation guards
-reject wrong associations without freezing unrelated fields. Existing `(system, ref, finding_id)`
-identity remains unchanged.
+reject wrong associations without freezing unrelated fields. PostgreSQL lock-pairs the
+scope check with the finding and repository_ref rows, so a concurrent repository move
+either waits for the link or is read by it - a scoped link never commits against stale
+parent repositories. Existing `(system, ref, finding_id)` identity remains unchanged.
 
 Existing databases inspect the column and apply
 `storage.sql.finding_external_ref_assessment_upgrade(dialect)` only when absent.

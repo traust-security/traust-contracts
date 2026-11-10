@@ -962,6 +962,68 @@ def test_a_concurrent_ref_move_and_order_never_both_commit(
     assert rows == [(0,)]
 
 
+def test_concurrent_tracker_insert_and_finding_move_never_cross_link(
+    db: Db, request: pytest.FixtureRequest
+) -> None:
+    if db.engine != "postgres":
+        pytest.skip("SQLite serializes writers")
+    dsn = request.getfixturevalue("postgres_dsn")
+    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
+    found = finding(db, rid, fingerprint="a" * 64)
+    scoped = assessment(db, ref(db, rid))
+    link = (
+        "INSERT INTO traust.finding_external_ref (finding_id, assessment_id, system, ref) "
+        "VALUES (%s, %s, 'jira', 'SEC-1')"
+    )
+    move = "UPDATE traust.finding SET repository_id = %s WHERE id = %s"
+    error = _interleave(dsn, link, (found, scoped), move, (elsewhere, found))
+    assert error is not None  # the move waited for the insert, then was rejected
+    found = finding(db, rid, fingerprint="c" * 64)
+    at = ref(db, rid, name="moved-first", sha="b" * 40)
+    scoped = assessment(db, at)
+    error = _interleave(dsn, move, (elsewhere, found), link, (found, scoped))
+    assert error is not None  # the insert waited for the move, then read it
+    rows = db.run(
+        "SELECT count(*) FROM traust.finding_external_ref e "
+        "JOIN traust.assessment a ON a.id = e.assessment_id "
+        "JOIN traust.repository_ref r ON r.id = a.repository_ref_id "
+        "JOIN traust.finding f ON f.id = e.finding_id "
+        "WHERE r.repository_id IS DISTINCT FROM f.repository_id"
+    )
+    assert rows == [(0,)]
+
+
+def test_concurrent_tracker_insert_and_ref_move_never_cross_link(
+    db: Db, request: pytest.FixtureRequest
+) -> None:
+    if db.engine != "postgres":
+        pytest.skip("SQLite serializes writers")
+    dsn = request.getfixturevalue("postgres_dsn")
+    rid, elsewhere = repo(db), repo(db, "https://example.com/r2")
+    found = finding(db, rid, fingerprint="b" * 64)
+    at = ref(db, rid, name="tracked")
+    scoped = assessment(db, at)
+    link = (
+        "INSERT INTO traust.finding_external_ref (finding_id, assessment_id, system, ref) "
+        "VALUES (%s, %s, 'jira', 'SEC-2')"
+    )
+    move = "UPDATE traust.repository_ref SET repository_id = %s WHERE id = %s"
+    error = _interleave(dsn, link, (found, scoped), move, (elsewhere, at))
+    assert error is not None  # the move waited for the insert, then was rejected
+    at = ref(db, rid, name="moved-first", sha="c" * 40)
+    scoped = assessment(db, at)
+    error = _interleave(dsn, move, (elsewhere, at), link, (found, scoped))
+    assert error is not None  # the insert waited for the move, then read it
+    rows = db.run(
+        "SELECT count(*) FROM traust.finding_external_ref e "
+        "JOIN traust.assessment a ON a.id = e.assessment_id "
+        "JOIN traust.repository_ref r ON r.id = a.repository_ref_id "
+        "JOIN traust.finding f ON f.id = e.finding_id "
+        "WHERE r.repository_id IS DISTINCT FROM f.repository_id"
+    )
+    assert rows == [(0,)]
+
+
 ROLLBACK = {
     "postgres": (
         # contracts#128's guards read run_order.work_item_id: they go first
@@ -1140,6 +1202,34 @@ def test_spend_rejects_invalid_loc(db: Db, loc: object) -> None:
         _event(db, loc=loc)
 
 
+def test_order_charged_spend_names_the_orders_repository(db: Db) -> None:
+    canonical, elsewhere = repo(db), repo(db, "https://example.com/r2")
+    order = db.insert(
+        "ops.run_order",
+        asset="diff_scan",
+        state="queued",
+        priority=1,
+        requested_by="human",
+        repository_id=canonical,
+        lane="interactive",
+    )
+    # An attributed event charges the repository its order runs on.
+    charged = _event(
+        db, run_order_id=order, lane="interactive", repository_id=canonical, note="charged"
+    )
+    assert _metadata(db, charged)[:1] == (canonical,)
+    with pytest.raises(db.Error):
+        _event(db, run_order_id=order, lane="interactive", repository_id=elsewhere)
+    # Unattributed events keep their own canonical identity, verified or not.
+    plain = _event(db, repository_id=elsewhere)
+    assert _metadata(db, plain)[:1] == (elsewhere,)
+    # An order a charged event names keeps its repository.
+    table = db.t("ops.run_order")
+    with pytest.raises(db.Error):
+        db.run(f"UPDATE {table} SET repository_id = ? WHERE id = ?", (elsewhere, order))
+    db.run(f"UPDATE {table} SET repository_id = ? WHERE id = ?", (canonical, order))
+
+
 def test_rich_spend_remains_append_only_and_retains_repository(db: Db) -> None:
     canonical = repo(db)
     event = _event(db, repository_id=canonical, repository_label="raw", loc=12)
@@ -1179,6 +1269,12 @@ def test_rich_spend_preserves_lane_order_guard(db: Db) -> None:
 def _before_spend_metadata(db: Db) -> None:
     prefix = "traust_ops." if db.engine == "postgres" else ""
     db.run(f"DROP INDEX {prefix}idx_ops_spend_event_repository_occurred")
+    for trigger, table in (
+        ("ops_spend_event_repository_of_order", "ops.spend_event"),
+        ("ordered_repository_of_charged_spend_stays", "ops.run_order"),
+    ):
+        target = "" if db.engine == "sqlite" else f" ON {db.t(table)}"
+        db.run(f"DROP TRIGGER IF EXISTS {trigger}{target}")
     for column in ("repository_id", "repository_label", "loc", "batch", "note"):
         db.run(f"ALTER TABLE {db.t('ops.spend_event')} DROP COLUMN {column}")
 
@@ -1224,6 +1320,25 @@ def test_spend_metadata_upgrade_preserves_history_and_accepts_rich_events(db: Db
         db.run(f"DELETE FROM {table} WHERE id = ?", (event,))
     with pytest.raises(db.Error):
         _event(db, lane="interactive")
+    # The upgrade installs the order-repository pairing guard too.
+    charged = db.insert(
+        "ops.run_order",
+        asset="diff_scan",
+        state="queued",
+        priority=1,
+        requested_by="human",
+        repository_id=canonical,
+        lane="interactive",
+    )
+    with pytest.raises(db.Error):
+        _event(db, run_order_id=charged, lane="interactive", repository_id="x" * 36)
+    with pytest.raises(db.Error):
+        _event(
+            db,
+            run_order_id=charged,
+            lane="interactive",
+            repository_id=repo(db, "https://example.com/r3"),
+        )
     for path in ops_sql.bootstrap_files(db.engine):
         for statement in bootstrap_statements(db.engine, path):
             db.run(statement)

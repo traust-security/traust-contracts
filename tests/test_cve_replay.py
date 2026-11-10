@@ -98,6 +98,37 @@ def test_replay_verdict_presence_combinations(
     assert validator.is_valid(document) is valid
 
 
+@pytest.mark.parametrize(
+    ("verdict", "matched", "valid"),
+    [
+        ("detected", ["CVE-2026-99901"], True),
+        ("detected", [], False),
+        ("missed", [], True),
+        ("missed", ["CVE-2026-99901"], False),
+        ("unclear", [], True),
+        ("unclear", ["CVE-2026-99901"], True),
+    ],
+)
+def test_replay_verdict_agrees_with_the_reports_matches(
+    validator: Draft202012Validator,
+    document: dict[str, Any],
+    verdict: str,
+    matched: list[str],
+    valid: bool,
+) -> None:
+    check = document["checks"][0]
+    check.update(audit_verdict=verdict, matched_advisory_ids=matched)
+    if verdict == "missed":
+        # Presence was confirmed by a human: the missed verdict rides on it.
+        check.update(
+            present_at_audit=True,
+            reviewer="human:reviewer",
+            presence_identity_source="local-user",
+            presence_evidence="Reviewed source at the exact audited commit",
+        )
+    assert validator.is_valid(document) is valid
+
+
 @pytest.mark.parametrize("withdrawn", [False, True])
 @pytest.mark.parametrize("presence", [True, False])
 @pytest.mark.parametrize("field", ["reviewer", "presence_identity_source", "presence_evidence"])
