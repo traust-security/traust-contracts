@@ -473,8 +473,8 @@
         },
         "patch_prefix": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9._-]+$",
-          "description": "The prefix the remediation fork-naming convention gives patch repositories in the fork org."
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]*$",
+          "description": "The prefix the remediation fork-naming convention gives patch repositories in the fork org. No leading hyphen: it would name no repository the URL parser accepts."
         }
       },
       "description": "Only for /remediate-finding."
