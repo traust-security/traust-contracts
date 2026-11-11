@@ -139,6 +139,11 @@ class ProviderSpec(_Section):
     models: dict[str, ModelSpec]
     #: free-form: a structured block in some estates, a prose note in others.
     data_handling: Any = None
+    #: how a runner reaches this provider: the wire, endpoint, harness and
+    #: credential source. The config/v1 JSON schema (model-registry.schema.json)
+    #: already defines this block; the model must accept what the schema allows
+    #: or the config-home audit rejects registries core itself serves.
+    connection: dict[str, Any] | None = None
 
 
 class RoleSpec(_Section):
