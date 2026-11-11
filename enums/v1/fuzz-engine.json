@@ -1,0 +1,31 @@
+{
+  "name": "fuzz_engine",
+  "source_schema": "fuzz-report.schema.json#/$defs/engine",
+  "description": "The fuzzing engine a harness ran under.",
+  "values": [
+    "go_native",
+    "libfuzzer",
+    "aflplusplus",
+    "honggfuzz",
+    "atheris",
+    "jazzer",
+    "jazzer_js",
+    "cargo_fuzz"
+  ],
+  "definitions": {
+    "go_native": "Go's built-in fuzzer (`go test -fuzz`).",
+    "libfuzzer": "LLVM libFuzzer.",
+    "aflplusplus": "AFL++.",
+    "honggfuzz": "honggfuzz.",
+    "atheris": "Atheris (Python, libFuzzer-based).",
+    "jazzer": "Jazzer (JVM).",
+    "jazzer_js": "Jazzer.js (JavaScript).",
+    "cargo_fuzz": "cargo-fuzz (Rust, libFuzzer-based)."
+  },
+  "standard": {
+    "none": "Project-defined vocabulary for fuzz reports."
+  },
+  "used_in_schemas": [
+    "fuzz-report.schema.json"
+  ]
+}

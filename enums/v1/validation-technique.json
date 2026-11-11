@@ -11,6 +11,7 @@
     "skip"
   ],
   "used_in_schemas": [
+    "validation-plan.schema.json",
     "validation.schema.json"
   ]
 }

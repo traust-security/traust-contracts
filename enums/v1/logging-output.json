@@ -1,0 +1,19 @@
+{
+  "name": "logging_output",
+  "source_schema": "traust.schema.json#/properties/logging/properties/outputs/items",
+  "description": "Built-in destinations for traust-core operational logs.",
+  "values": [
+    "stderr",
+    "file"
+  ],
+  "used_in_schemas": [
+    "traust.schema.json"
+  ],
+  "definitions": {
+    "stderr": "The process standard error stream, for direct operators or a platform collector.",
+    "file": "The private size-limited rotating file configured under logging.file."
+  },
+  "standard": {
+    "none": "These are traust-core deployment destinations, not a shared external vocabulary."
+  }
+}

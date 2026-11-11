@@ -1,0 +1,31 @@
+{
+  "name": "fuzz_gap_reason",
+  "source_schema": "fuzz-report.schema.json#/$defs/gap_reason",
+  "description": "Why a surface of a fuzz target was not fuzzed. A gap is never clean.",
+  "values": [
+    "no_harness",
+    "fuzzed_upstream",
+    "unsupported_language",
+    "needs_live_environment",
+    "trusted_input",
+    "heavy_dependencies",
+    "harness_defect",
+    "build_failed"
+  ],
+  "definitions": {
+    "no_harness": "Tracked without a fuzzer: static-confirmed, or covered by another harness.",
+    "fuzzed_upstream": "Already continuously fuzzed upstream (e.g. OSS-Fuzz).",
+    "unsupported_language": "No supported engine for the language.",
+    "needs_live_environment": "Needs a cluster, cloud or network to exercise.",
+    "trusted_input": "The input is not attacker-controlled.",
+    "heavy_dependencies": "The entry point needs dependencies too heavy to stub.",
+    "harness_defect": "Crashers came from the harness, not the target, so the surface is untested.",
+    "build_failed": "The harness did not build against the target."
+  },
+  "standard": {
+    "none": "Project-defined vocabulary for fuzz reports."
+  },
+  "used_in_schemas": [
+    "fuzz-report.schema.json"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "rescan_event_source",
+  "source_schema": "",
+  "schema_enforced": false,
+  "description": "Operational vocabulary for traust_ops.run_order.event_source; Core enforces new writes, while stored historical text remains readable.",
+  "values": [
+    "external-report",
+    "methodology",
+    "cve",
+    "release"
+  ],
+  "definitions": {
+    "external-report": "A supplied external security report triggered routing.",
+    "methodology": "A methodology change triggered routing.",
+    "cve": "An advisory or CVE event triggered routing.",
+    "release": "A product release event triggered routing."
+  },
+  "standard": {
+    "none": "Project-defined operations vocabulary; existing value spellings are preserved."
+  },
+  "note": "Live DDL consumer: traust_ops.run_order.event_source. This is not a JSON Schema enum site. Diagnostic detail belongs in structured logs, not in classifier values.",
+  "used_in_schemas": []
+}

@@ -1,19 +1,49 @@
 {
   "name": "validity",
   "source_schema": "cloud-config-findings-current.schema.json#/properties/findings/items/properties/disposition/properties/validity",
-  "description": "Finding validity disposition state. Indicates whether a finding is confirmed, false positive, etc.",
+  "description": "Finding validity: confirmed means the claim is real; false_positive means the claim is wrong; not_affected means a real issue does not apply to this repository, version or deployment. Historical values remain readable.",
   "values": [
     "confirmed",
     "corrected",
     "false_positive",
     "not_verified",
-    "hardening"
+    "hardening",
+    "not_affected",
+    "true_positive"
   ],
-  "note": "cloud-config-findings-current.schema.json uses these 5 values; compliance-assessment.schema.json uses a different 4-value set (satisfied, not_satisfied, not_applicable, not_assessed) in its verdict field",
+  "note": "Canonical decision validity is confirmed, false_positive or not_affected. Finding.kind separately distinguishes vulnerability from weakness. Null on a decision means no answer.",
   "used_in_schemas": [
     "adapter-result.schema.json",
     "cloud-config-findings-current.schema.json",
     "report.schema.json",
     "validation.schema.json"
-  ]
+  ],
+  "definitions": {
+    "confirmed": "The reported claim is real.",
+    "corrected": "Historical revision marker; the owner imports it as a restatement rather than a validity answer.",
+    "false_positive": "The reported claim is wrong.",
+    "not_verified": "Historical audit-stage absence of a validity answer.",
+    "hardening": "Historical real defense-in-depth weakness; read as confirmed validity and finding_kind weakness.",
+    "not_affected": "The issue exists but does not apply to this repository, version or deployment.",
+    "true_positive": "Historical decision spelling of confirmed; remains a current triage verdict in the verdict vocabulary."
+  },
+  "deprecated": {
+    "corrected": {
+      "replaced_by": [],
+      "note": "A restatement is an operation handled by the decision owner, not an unconditional validity replacement."
+    },
+    "not_verified": {
+      "replaced_by": [],
+      "note": "Import as no validity answer; never invent a confirmed decision."
+    },
+    "hardening": {
+      "replaced_by": [
+        { "enum": "validity", "value": "confirmed" },
+        { "enum": "finding_kind", "value": "weakness" }
+      ]
+    },
+    "true_positive": {
+      "replaced_by": [{ "enum": "validity", "value": "confirmed" }]
+    }
+  }
 }

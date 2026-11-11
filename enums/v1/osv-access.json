@@ -1,0 +1,12 @@
+{
+  "name": "osv_access",
+  "source_schema": "traust.schema.json#/properties/feeds/properties/osv_access",
+  "description": "How OSV advisories are read: api queries the OSV API; air-gapped reads an adopter-provided osv-scanner and offline database.",
+  "values": [
+    "api",
+    "air-gapped"
+  ],
+  "used_in_schemas": [
+    "traust.schema.json"
+  ]
+}

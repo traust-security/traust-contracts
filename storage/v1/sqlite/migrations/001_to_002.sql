@@ -1,1 +1,0 @@
--- Revision 2 adds portfolio_forge_facts through schema bootstrap; no existing rows change.

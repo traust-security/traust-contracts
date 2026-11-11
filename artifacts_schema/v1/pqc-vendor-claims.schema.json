@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json",
+  "title": "PQC vendor claims",
+  "description": "Curated, dated claims about the post-quantum roadmap of the vendors and dependencies a fleet cannot fix locally (the delegated / blocked-external class). A declared reference document (scope-ref): imported with no assessment and published whole, so a review is a successor version with a higher `version`, never an edit; readers take the latest. Claims are as-reviewed on `last_reviewed` and are re-verified before external use. Fleet counts (repositories depending on a vendor, blocked-external repositories) are derived by the reader from recorded facts and are never stored here.",
+  "type": "object",
+  "required": ["artifact", "version", "updated", "vendors"],
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {"const": "pqc-vendor-claims"},
+    "version": {"type": "integer", "minimum": 1, "description": "Increases with each published successor."},
+    "updated": {"type": "string", "format": "date"},
+    "note": {"type": "string", "minLength": 1},
+    "vendors": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/vendor"}}
+  },
+  "$defs": {
+    "vendor": {
+      "type": "object",
+      "required": ["id", "name", "class", "packages", "status", "claim", "sources", "last_reviewed", "reviewer"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "Unique within the document (the recording service checks)."},
+        "name": {"type": "string", "minLength": 1},
+        "class": {"$ref": "#/$defs/vendor_class"},
+        "packages": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/package"},
+          "description": "Dependencies that carry this vendor's crypto into the fleet, matched against recorded dependency names. Empty: reached only through a provider, toolchain or service, not a package."
+        },
+        "status": {"$ref": "#/$defs/status"},
+        "claim": {"type": "string", "minLength": 1, "description": "What the vendor ships or has announced, as reviewed."},
+        "watch": {"type": "string", "minLength": 1, "description": "The signal that would move the status."},
+        "sources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/source"}},
+        "last_reviewed": {"type": "string", "format": "date"},
+        "reviewer": {"type": "string", "minLength": 1, "description": "Who reviewed the claim (team or role)."}
+      }
+    },
+    "vendor_class": {
+      "enum": ["provider", "library", "ecosystem", "service", "internal"],
+      "description": "provider: a crypto provider or toolchain (OpenSSL, Go, JDK). library: a crypto library packages depend on. ecosystem: a signing or identity ecosystem (Sigstore, GnuPG, Kerberos). service: a hosted service the fleet calls. internal: the organization's own shared services."
+    },
+    "status": {
+      "enum": ["available", "partial", "in_progress", "none"],
+      "description": "available: PQC algorithms shipped and usable. partial: some (e.g. key exchange but not signatures). in_progress: announced or in preview. none: no public roadmap."
+    },
+    "package": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "ecosystem": {"$ref": "impact-analysis.schema.json#/$defs/metadata/properties/ecosystem"}
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["url", "retrieved"],
+      "additionalProperties": false,
+      "properties": {
+        "url": {"type": "string", "format": "uri"},
+        "title": {"type": "string", "minLength": 1},
+        "retrieved": {"type": "string", "format": "date"}
+      }
+    }
+  }
+}

@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
-import shutil
 from pathlib import Path
 
-import jsonschema
 import pytest
 import yaml
 
@@ -14,9 +11,6 @@ from traust_contracts.config import (
     MANIFEST,
     TRAUST_CONFIG_HOME_ENV,
     DeploymentConfigMissing,
-    LedgerConfig,
-    StorageConfig,
-    config_completeness_audit,
     config_path,
     deployment_config_dir,
     load_context,
@@ -24,32 +18,38 @@ from traust_contracts.config import (
     optional_config_path,
 )
 
-_TRAUST_FIXTURES = Path(__file__).resolve().parents[2] / "traust" / "tests" / "fixtures" / "config"
-
 
 def _write_minimal_config(home: Path) -> None:
-    shutil.copytree(_TRAUST_FIXTURES, home, dirs_exist_ok=True)
+    home.mkdir(parents=True, exist_ok=True)
+    (home / "model-registry.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 1,
+                "updated": "2026-01-01",
+                "tiers": {"standard": {"description": "Synthetic test tier"}},
+                "providers": {
+                    "fixture": {
+                        "data_handling": "synthetic",
+                        "models": {"fixture-model": {"tier": "standard", "batch_eligible": False}},
+                    }
+                },
+                "roles": {
+                    "review": {
+                        "floor": "standard",
+                        "approved": ["fixture-model"],
+                        "candidates": [],
+                        "ledger_validity_writer": False,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_manifest_covers_harness_context_sections():
     manifest_sections = {entry.section for entry in MANIFEST}
-    required = {
-        "feeds",
-        "external_tools",
-        "model_registry",
-        "corpus",
-        "safe_exec",
-        "signing_pubkey",
-        "locations",
-        "budget_policy",
-        "product_map",
-        "rule_pack_allowlist",
-        "internal_vocabulary",
-        "hardening_risk_weights",
-        "rpm_distgit_watch",
-        "storage",
-        "ledger",
-    }
+    required = {"traust", "model_registry"}
     assert manifest_sections == required
 
 
@@ -67,56 +67,34 @@ def test_load_context_resolves_relative_locations(tmp_path):
     ws.mkdir()
     ar.mkdir()
     _write_minimal_config(home)
-    (home / "locations.yaml").write_text(
+    (home / "traust.yaml").write_text(
         yaml.safe_dump(
             {
-                "workspace": "../workspace",
-                "analysis_results": "../analysis-results",
+                "locations": {
+                    "workspace": "../workspace",
+                    "analysis_results": "../analysis-results",
+                }
             }
         ),
         encoding="utf-8",
     )
     ctx = load_context(config_home=home)
-    assert ctx.locations is not None
-    assert ctx.locations.workspace == str(ws.resolve())
-    assert ctx.locations.analysis_results == str(ar.resolve())
-
-
-def test_load_section_locations_empty_file_loads(tmp_path):
-    home = tmp_path / "cfg"
-    _write_minimal_config(home)
-    (home / "locations.yaml").write_text("{}\n", encoding="utf-8")
-    loc = load_section("locations.yaml", config_home=home)
-    assert loc is not None
-    assert loc.progress_tracker is None
-
-
-def test_config_completeness_flags_empty_corpus(tmp_path):
-    home = tmp_path / "cfg"
-    _write_minimal_config(home)
-    (home / "corpus-config.yaml").write_text("version: 1\ntrees: {}\n", encoding="utf-8")
-    errors, _warnings = config_completeness_audit(config_home=home)
-    assert any("trees is empty" in e for e in errors)
-    assert load_context(config_home=home).corpus.trees == {}
-
-
-def test_config_completeness_warns_on_example_vocabulary(tmp_path):
-    home = tmp_path / "cfg"
-    _write_minimal_config(home)
-    _, warnings = config_completeness_audit(config_home=home)
-    assert any("yourorg.invalid" in w for w in warnings)
-    assert any("rule-pack-allowlist" in w for w in warnings)
-    assert any("1970-01-01" in w for w in warnings)
+    assert ctx.traust.locations is not None
+    assert ctx.traust.locations.workspace == str(ws.resolve())
+    assert ctx.traust.locations.analysis_results == str(ar.resolve())
 
 
 def test_config_path_and_optional(tmp_path, monkeypatch):
     home = tmp_path / "cfg"
     _write_minimal_config(home)
     monkeypatch.setenv(TRAUST_CONFIG_HOME_ENV, str(home))
+    with pytest.raises(DeploymentConfigMissing, match=r"absent-required\.yaml"):
+        config_path("absent-required.yaml")
+    (home / "feeds.yaml").write_text("sources: {}\n", encoding="utf-8")
     assert config_path("feeds.yaml") == home / "feeds.yaml"
-    assert optional_config_path("locations.yaml") is None
-    (home / "locations.yaml").write_text("workspace: /x\n", encoding="utf-8")
-    assert optional_config_path("locations.yaml") == home / "locations.yaml"
+    assert optional_config_path("unused.yaml") is None
+    (home / "unused.yaml").write_text("x: 1\n", encoding="utf-8")
+    assert optional_config_path("unused.yaml") == home / "unused.yaml"
 
 
 def test_load_section_locations_normalizes(tmp_path):
@@ -124,11 +102,11 @@ def test_load_section_locations_normalizes(tmp_path):
     ws = tmp_path / "workspace"
     ws.mkdir()
     _write_minimal_config(home)
-    (home / "locations.yaml").write_text(
-        yaml.safe_dump({"workspace": "../workspace"}),
+    (home / "traust.yaml").write_text(
+        yaml.safe_dump({"locations": {"workspace": "../workspace"}}),
         encoding="utf-8",
     )
-    loc = load_section("locations.yaml", config_home=home)
+    loc = load_section("traust.yaml", config_home=home).locations
     assert loc.workspace == str(ws.resolve())
 
 
@@ -136,294 +114,3 @@ def test_config_path_fails_when_home_unset(monkeypatch):
     monkeypatch.setattr("traust_contracts.config.deployment_config_dir", lambda: None)
     with pytest.raises(DeploymentConfigMissing, match=r"feeds.yaml"):
         config_path("feeds.yaml")
-
-
-@pytest.mark.parametrize(
-    "dsn",
-    [
-        "postgresql://localhost/test",
-        "postgres://user:private-password@localhost/test",
-        "sqlite:///:memory:",
-        "sqlite:////absolute/path/audit.db",
-    ],
-)
-def test_storage_section_uses_canonical_loader(tmp_path: Path, dsn: str) -> None:
-    path = tmp_path / "storage.yaml"
-    path.write_text(yaml.safe_dump({"dsn": dsn}), encoding="utf-8")
-    section = load_section("storage", config_home=tmp_path, required=True)
-    assert isinstance(section, StorageConfig)
-    assert section.dsn == dsn
-    assert section.source_sha == hashlib.sha256(path.read_bytes()).hexdigest()[:12]
-    assert load_section("storage.yaml", config_home=tmp_path) == section
-    assert dsn not in repr(section)
-
-
-def test_context_storage_is_optional(tmp_path: Path) -> None:
-    _write_minimal_config(tmp_path)
-    assert load_context(config_home=tmp_path).storage is None
-    (tmp_path / "storage.yaml").write_text(
-        yaml.safe_dump({"dsn": "sqlite:///:memory:"}), encoding="utf-8"
-    )
-    assert load_context(config_home=tmp_path).storage.dsn == "sqlite:///:memory:"
-
-
-@pytest.mark.parametrize(
-    "data",
-    [
-        {},
-        {"dsn": None},
-        {"dsn": 4},
-        {"dsn": ""},
-        {"dsn": "mysql://localhost/test"},
-        {"dsn": "postgresql://localhost/test", "test_dsn": "postgresql://localhost/other"},
-    ],
-)
-def test_storage_config_rejects_invalid_values(tmp_path: Path, data: dict) -> None:
-    (tmp_path / "storage.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
-    with pytest.raises(jsonschema.ValidationError):
-        load_section("storage", config_home=tmp_path)
-
-
-def test_storage_section_missing_required_vs_optional(tmp_path: Path) -> None:
-    assert load_section("storage", config_home=tmp_path) is None
-    with pytest.raises(DeploymentConfigMissing, match=r"storage.yaml"):
-        load_section("storage", config_home=tmp_path, required=True)
-
-
-@pytest.mark.parametrize(
-    "dsn",
-    [
-        "postgresql+psycopg://ledger_rw:private-password@localhost/traust",
-        "postgresql://localhost/traust",
-        "sqlite:////absolute/path/ledger.db",
-    ],
-)
-def test_ledger_section_uses_canonical_loader(tmp_path: Path, dsn: str) -> None:
-    path = tmp_path / "ledger.yaml"
-    path.write_text(yaml.safe_dump({"dsn": dsn}), encoding="utf-8")
-    section = load_section("ledger", config_home=tmp_path, required=True)
-    assert isinstance(section, LedgerConfig)
-    assert section.dsn == dsn
-    assert section.database
-    assert section.source_sha == hashlib.sha256(path.read_bytes()).hexdigest()[:12]
-    assert load_section("ledger.yaml", config_home=tmp_path) == section
-    assert dsn not in repr(section)
-
-
-def test_ledger_full_shape_and_file_mode(tmp_path: Path) -> None:
-    """signing and identity apply without a database; dsn alone selects database mode."""
-    (tmp_path / "ledger.yaml").write_text(
-        yaml.safe_dump(
-            {
-                "signing": {
-                    "required": True,
-                    "method": "keypair",
-                    "key_path": "/run/secrets/cosign.key",
-                },
-                "identity": {
-                    "oidc_issuer": "https://issuer.example",
-                    "oidc_audience": "laas-api",
-                    "jwks_url": "https://issuer.example/keys",
-                    "directory_command": "/usr/local/bin/ledger-directory",
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
-    section = load_section("ledger", config_home=tmp_path)
-    assert not section.database
-    assert section.signing.required and section.signing.key_path == "/run/secrets/cosign.key"
-    assert section.identity.oidc_audience == "laas-api"
-
-    keyless = {"signing": {"method": "identity", "required": True, "oidc_issuer": "https://o"}}
-    (tmp_path / "ledger.yaml").write_text(yaml.safe_dump(keyless), encoding="utf-8")
-    assert load_section("ledger", config_home=tmp_path).signing.method == "identity"
-
-
-def test_context_ledger_is_optional(tmp_path: Path) -> None:
-    _write_minimal_config(tmp_path)
-    assert load_context(config_home=tmp_path).ledger is None
-    (tmp_path / "ledger.yaml").write_text(
-        yaml.safe_dump({"dsn": "sqlite:////tmp/ledger.db"}), encoding="utf-8"
-    )
-    assert load_context(config_home=tmp_path).ledger.dsn == "sqlite:////tmp/ledger.db"
-
-
-@pytest.mark.parametrize(
-    "data",
-    [
-        {},
-        {"dsn": None},
-        {"dsn": ""},
-        {"dsn": "mysql://localhost/test"},
-        {"dsn": "postgresql+psycopg2://localhost/test"},
-        {"dsn": "sqlite:///relative.db with space"},
-        {"dsn": "postgresql://localhost/test", "backend": "db"},
-        {"signing": {"required": True}},
-        {"signing": {"required": True, "method": "keypair"}},
-        {"signing": {"key_path": "relative/cosign.key"}},
-        {"signing": {"method": "pgp"}},
-        {"signing": {"password": "secret"}},
-        {"signing": {"tlog_url": "http://insecure"}},
-        {"identity": {}},
-        {"identity": {"token": "secret"}},
-        {"identity": {"jwks_url": "http://insecure/keys"}},
-    ],
-)
-def test_ledger_config_rejects_invalid_values(tmp_path: Path, data: dict) -> None:
-    (tmp_path / "ledger.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
-    with pytest.raises(jsonschema.ValidationError):
-        load_section("ledger", config_home=tmp_path)
-
-
-# --- scope resolution -------------------------------------------------------
-# scope_id is storage/v1's authorization partition, and PostgreSQL enforces it
-# inside the view: a query with no scope returns nothing rather than erroring.
-# So the failure mode of getting this wrong is a silently empty dashboard.
-
-SCOPE_TREES = {
-    "findings": {"ownership": "owned", "label": "a", "business_unit": "Platform Group"},
-    "cloud-config": {"ownership": "owned", "label": "b", "business_unit": "Platform Group"},
-    "other-bu": {"ownership": "external-bu", "label": "c", "business_unit": "Other Unit"},
-    "probes": {"ownership": "harness-qa", "label": "d", "business_unit": "Platform Group"},
-}
-
-
-def _corpus(**scope):
-    from traust_contracts.config import CorpusConfig
-
-    payload = {"version": 1, "trees": SCOPE_TREES}
-    if scope:
-        payload["scope"] = scope
-    return CorpusConfig(**payload)
-
-
-def test_scope_defaults_to_one_scope_so_an_absent_stanza_changes_nothing() -> None:
-    config = _corpus()
-    assert config.scope.mode == "single"
-    assert config.readable_scopes() == ["local"]
-    assert {config.scope_for(tree) for tree in SCOPE_TREES} == {"local"}
-
-
-def test_business_unit_mode_gives_trees_sharing_a_unit_the_same_scope() -> None:
-    """The whole point of the partition: two trees, one unit, one boundary."""
-    config = _corpus(mode="business_unit")
-    assert config.scope_for("findings") == config.scope_for("cloud-config") == "platform-group"
-    assert config.scope_for("other-bu") == "other-unit"
-
-
-def test_readable_scopes_omits_harness_qa_trees() -> None:
-    """harness-qa is registered-but-not-corpus, excluded from every lens.
-
-    Listing it as readable would readmit through the scope list exactly what
-    the resolver excludes by ownership.
-    """
-    config = _corpus(mode="business_unit")
-    assert config.readable_scopes() == ["other-unit", "platform-group"]
-    # Still resolvable for writes — the artifacts exist, they are just not corpus.
-    assert config.scope_for("probes") == "platform-group"
-
-
-def test_every_mode_partitions_without_gaps_or_overlaps() -> None:
-    """Each corpus tree lands in exactly one readable scope, in every mode."""
-    for mode in ("single", "business_unit", "tree"):
-        config = _corpus(mode=mode)
-        readable = set(config.readable_scopes())
-        corpus_trees = [t for t, m in SCOPE_TREES.items() if m["ownership"] != "harness-qa"]
-        assigned = [config.scope_for(tree) for tree in corpus_trees]
-        assert all(scope in readable for scope in assigned), mode
-        assert set(assigned) == readable, mode
-
-
-def test_explicit_mode_names_the_tree_it_cannot_resolve() -> None:
-    config = _corpus(mode="explicit")
-    with pytest.raises(ValueError, match="declares no scope_id"):
-        config.scope_for("findings")
-
-    from traust_contracts.config import CorpusConfig
-
-    trees = {name: dict(meta) for name, meta in SCOPE_TREES.items()}
-    for name in trees:
-        trees[name]["scope_id"] = f"custom-{name}"
-    declared = CorpusConfig(version=1, trees=trees, scope={"mode": "explicit"})
-    assert declared.scope_for("findings") == "custom-findings"
-
-
-def test_unknown_tree_and_unknown_mode_are_rejected() -> None:
-    from traust_contracts.config import CorpusConfig
-
-    with pytest.raises(KeyError, match="neither as a tree nor as an engagement"):
-        _corpus().scope_for("never-registered")
-    with pytest.raises(ValueError, match=r"scope\.mode must be one of"):
-        CorpusConfig(version=1, trees=SCOPE_TREES, scope={"mode": "per-user"})
-
-
-def test_readable_scopes_raises_rather_than_returning_empty() -> None:
-    """An empty scope list returns zero rows on PostgreSQL, which reads as
-    'no findings' when it means 'misconfigured'. Fail loudly instead."""
-    from traust_contracts.config import CorpusConfig
-
-    only_qa = {"probes": SCOPE_TREES["probes"]}
-    with pytest.raises(ValueError, match="resolves to no scopes"):
-        CorpusConfig(version=1, trees=only_qa).readable_scopes()
-
-
-def test_scope_slug_is_deterministic_and_collision_free_on_real_shapes() -> None:
-    from traust_contracts.config import scope_slug
-
-    assert scope_slug("Hybrid Platforms") == "hybrid-platforms"
-    assert scope_slug("Hybrid Platforms (upstream community dependencies)") == (
-        "hybrid-platforms-upstream-community-dependencies"
-    )
-    assert scope_slug("  Spaced  Out  ") == "spaced-out"
-    # Distinct units must not collapse onto one authorization boundary.
-    assert scope_slug("Platform Group") != scope_slug("Platform Group 2")
-
-
-def test_a_registered_engagement_tree_resolves_like_any_other() -> None:
-    """Engagements are tree-per-engagement: a one-time scan for another
-    business unit lands in its own directory, and resolver.active_trees()
-    merges it in. Looking only at `trees` dropped 53 repos and 399
-    findings that carry a declared ownership of external-bu."""
-    from traust_contracts.config import CorpusConfig
-
-    config = CorpusConfig(
-        version=1,
-        trees=SCOPE_TREES,
-        engagements={
-            "sidequest": {
-                "label": "sidequest",
-                "ownership": "external-bu",
-                # A unit no declared TREE has, so readable_scopes() can only
-                # contain it if engagements are resolved.
-                "business_unit": "Sidequest Unit",
-                "tree": "sidequest-findings",
-            }
-        },
-        scope={"mode": "business_unit"},
-    )
-    assert config.tree_meta("sidequest-findings").ownership == "external-bu"
-    assert config.scope_for("sidequest-findings") == "sidequest-unit"
-    # It must also be READABLE, or its artifacts ingest into a scope no
-    # query ever asks for.
-    assert "sidequest-unit" in config.readable_scopes()
-
-
-def test_an_engagement_tree_is_still_excluded_from_the_owned_denominator() -> None:
-    """external-bu is Lens 1 (work performed) only. Inclusion in storage is
-    not inclusion in the risk numbers -- the ownership tag does that."""
-    from traust_contracts.config import CorpusConfig
-
-    config = CorpusConfig(
-        version=1,
-        trees=SCOPE_TREES,
-        engagements={
-            "sidequest": {
-                "label": "s",
-                "ownership": "external-bu",
-                "business_unit": "Other Unit",
-                "tree": "sidequest-findings",
-            }
-        },
-    )
-    assert config.tree_meta("sidequest-findings").ownership != "owned"

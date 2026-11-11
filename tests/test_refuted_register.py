@@ -41,7 +41,7 @@ def register() -> dict[str, object]:
 
 def test_schema_and_model_accept_emitted_register_shape() -> None:
     document = register()
-    schema = json.loads((ROOT / "schemas/v1/refuted-register.schema.json").read_text())
+    schema = json.loads((ROOT / "artifacts_schema/v1/refuted-register.schema.json").read_text())
     Draft202012Validator(schema, format_checker=FormatChecker()).validate(document)
     modeled = RefutedRegister.model_validate(document)
     assert modeled.entries[0].exclusion_rule == 3
@@ -51,7 +51,7 @@ def test_schema_and_model_accept_emitted_register_shape() -> None:
 
 def test_schema_and_model_forbid_uncontracted_fields() -> None:
     document = register() | {"unexpected": True}
-    schema = json.loads((ROOT / "schemas/v1/refuted-register.schema.json").read_text())
+    schema = json.loads((ROOT / "artifacts_schema/v1/refuted-register.schema.json").read_text())
     with pytest.raises(JSONSchemaValidationError):
         Draft202012Validator(schema).validate(document)
     with pytest.raises(ValidationError):

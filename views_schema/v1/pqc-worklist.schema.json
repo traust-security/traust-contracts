@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/pqc-worklist.schema.json",
+  "title": "PQC worklist view",
+  "description": "Ephemeral derived Insight ViewModel from PqcService.worklist, using recorded repository liveness and scan state. Not a persisted artifact or SQL projection. Scope selection, ranking and routing belong to Core; unknown state does not establish readiness.",
+  "type": "object",
+  "required": ["product_id", "repository_ref_ids", "chokepoints", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "product_id": {"type": ["string", "null"], "format": "uuid"},
+    "repository_ref_ids": {
+      "description": "Null selects all refs in the product scope; an empty array selects none. Core intersects explicit refs with the product's shipped refs.",
+      "type": ["array", "null"],
+      "items": {"type": "string", "format": "uuid"}
+    },
+    "chokepoints": {
+      "description": "Caller-supplied repository URL fragments, not persisted configuration. Strings remain raw untrusted data, not authored Markdown or HTML.",
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "entries": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": [
+        "repository_id", "repository", "repository_ref_id", "sha", "priority_tier",
+        "route", "access", "reason", "scan", "cursor"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repository_id": {"type": "string", "format": "uuid"},
+        "repository": {
+          "type": "string",
+          "description": "Raw untrusted repository value; no new URL restrictions are imposed."
+        },
+        "repository_ref_id": {"type": ["string", "null"], "format": "uuid"},
+        "sha": {"type": ["string", "null"]},
+        "priority_tier": {"type": "string", "enum": ["chokepoint", "crypto-cwe", "tail"]},
+        "route": {"type": "string", "enum": ["source", "sbom-only", "access-request"]},
+        "access": {"$ref": "#/$defs/liveness"},
+        "reason": {"type": ["string", "null"]},
+        "scan": {"anyOf": [{"$ref": "#/$defs/scan_state"}, {"type": "null"}]},
+        "cursor": {
+          "type": "string",
+          "description": "Producer ordering cursor, composed by Core as <tier-index>|<repository-url>; the repository portion remains raw data."
+        }
+      }
+    },
+    "liveness": {
+      "type": "object",
+      "required": [
+        "repository_id", "url", "status", "observed_at", "archived", "pushed_at", "dormant",
+        "unobserved", "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repository_id": {"type": "string", "format": "uuid"},
+        "url": {"type": "string"},
+        "status": {
+          "$ref": "../../artifacts_schema/v1/repo-liveness.schema.json#/$defs/liveness/properties/status"
+        },
+        "status_since": {"type": ["string", "null"], "format": "date-time"},
+        "canonical_url": {"type": ["string", "null"]},
+        "observed_at": {"type": ["string", "null"], "format": "date-time"},
+        "archived": {"type": ["boolean", "null"]},
+        "pushed_at": {
+          "type": ["string", "null"],
+          "description": "Raw recorded value, including historical non-RFC3339 strings."
+        },
+        "dormant": {"type": ["boolean", "null"]},
+        "unobserved": {
+          "type": ["string", "null"],
+          "description": "Recorded ComparisonStatus, preserving historical strings; null is unknown."
+        },
+        "reason": {"type": ["string", "null"]}
+      }
+    },
+    "scan_state": {
+      "type": "object",
+      "required": ["repository_ref_id", "assessment_id", "basis", "current"],
+      "additionalProperties": false,
+      "properties": {
+        "repository_ref_id": {"type": "string", "format": "uuid"},
+        "assessment_id": {"type": ["string", "null"], "format": "uuid"},
+        "basis": {"type": ["string", "null"]},
+        "current": {
+          "type": ["boolean", "null"],
+          "description": "Recorded scan currency; null is unknown, distinct from measured false and never inferred readiness."
+        }
+      }
+    }
+  }
+}

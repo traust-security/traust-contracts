@@ -1,0 +1,650 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/below-range-packets.schema.json",
+  "title": "Below-range evidence packets",
+  "description": "One commit's below-range candidates (installed versions an advisory's stated ranges leave out) as evidence packets for review, held by an impact assessment of the commit (its status complete or degraded as the document is). Facts only: nothing here decides whether a version is affected. Every candidate is a packet or a coverage gap. Installed source trees are working data and are not stored; each packet keeps the source's registry URL and sha256, so review refetches and checks it.",
+  "type": "object",
+  "required": [
+    "artifact",
+    "repository_ref_id",
+    "installed_exact",
+    "skipped_installs",
+    "candidates",
+    "packets",
+    "coverage_gaps",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {
+      "const": "below-range-packets"
+    },
+    "repository_ref_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "installed_exact": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Exact installs checked."
+    },
+    "skipped_installs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "description": "Installs not checked, counted by reason (`ecosystem:<e>`, `version:<e>`)."
+    },
+    "candidates": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "packets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/packet"
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/coverage_gap"
+      }
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "degraded"
+      ],
+      "description": "degraded: some packages unanswered or some advisories unreadable."
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "required": [
+        "ecosystem",
+        "package",
+        "version",
+        "advisory",
+        "kind",
+        "stated_start",
+        "major_distance"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ecosystem": {
+          "$ref": "impact-analysis.schema.json#/$defs/metadata/properties/ecosystem"
+        },
+        "package": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "advisory": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "below_range",
+            "gap"
+          ],
+          "description": "below_range: under every span's explicit start; gap: after a span left without a fix, before the next span's start."
+        },
+        "stated_start": {
+          "type": "string",
+          "minLength": 1
+        },
+        "major_distance": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "span": {
+      "type": "object",
+      "required": [
+        "introduced"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "introduced": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fixed": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "last_affected": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "affected": {
+      "type": "object",
+      "required": [
+        "ecosystem",
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ecosystem": {
+          "$ref": "impact-analysis.schema.json#/$defs/metadata/properties/ecosystem"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "symbols": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "advisory": {
+      "type": "object",
+      "required": [
+        "identifier",
+        "aliases",
+        "summary",
+        "details",
+        "affected"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "identifier": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "summary": {
+          "type": "string"
+        },
+        "details": {
+          "type": "string"
+        },
+        "affected": {
+          "$ref": "#/$defs/affected"
+        }
+      }
+    },
+    "commit": {
+      "type": "object",
+      "required": [
+        "sha",
+        "subject"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "sha": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject": {
+          "type": "string"
+        }
+      }
+    },
+    "fix_attempt": {
+      "type": "object",
+      "required": [
+        "url",
+        "rank"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rank": {
+          "type": "integer"
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "commits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/commit"
+          }
+        },
+        "files": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "files_in_installed_tree": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "names_advisory": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "only_adds_code": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "release_commit": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "commit_date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "description": "One linked patch and how it scored; error when it couldn't be read."
+    },
+    "fixed_release": {
+      "type": "object",
+      "required": [
+        "version",
+        "published"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "published": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "fix": {
+      "type": "object",
+      "required": [
+        "chosen",
+        "alternatives",
+        "fixed_releases"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "chosen": {
+          "$ref": "#/$defs/fix_attempt"
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fix_attempt"
+          }
+        },
+        "fixed_releases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fixed_release"
+          }
+        }
+      }
+    },
+    "declared_source": {
+      "type": "object",
+      "required": [
+        "nuspec",
+        "repository",
+        "commit"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "nuspec": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "description": "The repository and commit a NuGet nuspec says the package was built from: the publisher's claim."
+    },
+    "installed_source": {
+      "type": "object",
+      "required": [
+        "url",
+        "sha256",
+        "files",
+        "root"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        },
+        "declared_by": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/declared_source"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "hunk_presence": {
+      "type": "object",
+      "required": [
+        "removed_lines",
+        "removed_present",
+        "added_lines",
+        "added_present"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "removed_lines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "removed_present": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_lines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "added_present": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "file_presence": {
+      "type": "object",
+      "required": [
+        "patch_path",
+        "installed_path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "patch_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "installed_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hunks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hunk_presence"
+          }
+        }
+      }
+    },
+    "dependency_source": {
+      "type": "object",
+      "required": [
+        "package",
+        "version",
+        "imported_by",
+        "url",
+        "sha256",
+        "files",
+        "root"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "package": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "imported_by": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "root": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "dependency_gap": {
+      "type": "object",
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "package": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "packet": {
+      "type": "object",
+      "required": [
+        "case",
+        "candidate",
+        "advisory",
+        "fix",
+        "installed_source",
+        "hunk_presence",
+        "patch"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "case": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._@-]{1,180}$"
+        },
+        "candidate": {
+          "$ref": "#/$defs/candidate"
+        },
+        "advisory": {
+          "$ref": "#/$defs/advisory"
+        },
+        "fix": {
+          "$ref": "#/$defs/fix"
+        },
+        "installed_source": {
+          "$ref": "#/$defs/installed_source"
+        },
+        "hunk_presence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/file_presence"
+          }
+        },
+        "dependency_sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dependency_source"
+          }
+        },
+        "dependency_gaps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dependency_gap"
+          }
+        },
+        "patch": {
+          "type": "string",
+          "description": "The chosen fix's patch text (untrusted third-party content)."
+        }
+      }
+    },
+    "coverage_gap": {
+      "type": "object",
+      "required": [
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "enum": [
+            "nuget_id_unresolved",
+            "osv_unanswered",
+            "advisory_unreadable",
+            "over_max_candidates",
+            "source_unavailable",
+            "no_usable_fix_patch"
+          ]
+        },
+        "case": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ecosystem": {
+          "oneOf": [
+            {
+              "$ref": "impact-analysis.schema.json#/$defs/metadata/properties/ecosystem"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "package": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tried": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fix_attempt"
+          }
+        }
+      },
+      "description": "A candidate (or a lookup) that couldn't be checked, and why: never clean."
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "below_range_verdict",
+  "source_schema": "below-range-verdicts.schema.json#/$defs/verdict",
+  "description": "A review's answer to: is the installed version affected (the vulnerable code present and the fix absent) despite the stated range? Only applicable becomes a finding (D1).",
+  "values": [
+    "applicable",
+    "not_applicable",
+    "undetermined"
+  ],
+  "used_in_schemas": [
+    "below-range-verdicts.schema.json"
+  ]
+}

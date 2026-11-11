@@ -1,0 +1,23 @@
+{
+  "name": "fuzz_run_outcome",
+  "source_schema": "fuzz-report.schema.json#/$defs/outcome",
+  "description": "How one harness's fuzz run ended.",
+  "values": [
+    "clean",
+    "crashed",
+    "failed",
+    "not_run"
+  ],
+  "definitions": {
+    "clean": "Ran its duration with no crashing input.",
+    "crashed": "Wrote at least one crashing input.",
+    "failed": "The harness or build failed without a crashing input.",
+    "not_run": "The engine found nothing to fuzz."
+  },
+  "standard": {
+    "none": "Project-defined vocabulary for fuzz reports."
+  },
+  "used_in_schemas": [
+    "fuzz-report.schema.json"
+  ]
+}

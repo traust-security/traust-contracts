@@ -19,7 +19,7 @@ from traust_contracts.v1.models.adapter import AdapterMetadata, AdapterSummary
 from traust_contracts.v1.models.finding import Location
 
 REPO_ROOT = Path(__file__).parent.parent
-SCHEMA_DIR = REPO_ROOT / "schemas" / "v1"
+SCHEMA_DIR = REPO_ROOT / "artifacts_schema" / "v1"
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
@@ -163,3 +163,94 @@ def test_layer_external_refs_rejects_unknown_system():
         "external_refs": {"FIND-001": [{"system": "pastebin", "id": "x"}]},
     }
     assert list(validator.iter_errors(bad))
+
+
+def test_layer_claim_hashes_and_event_evidence_round_trip() -> None:
+    from traust_contracts.models import Layer
+
+    raw = json.loads((FIXTURES / "sample-findings-layer.json").read_text())
+    raw["baseline_claims"]["FIND-001"] = "c" * 64
+    _validate("layer.schema.json", raw)
+    model = Layer.from_dict(raw)
+    for restored in (model.to_dict(), json.loads(model.model_dump_json(exclude_none=True))):
+        assert restored["baseline_claims"] == raw["baseline_claims"]
+        assert restored["metadata"]["claim_hashes"] == raw["metadata"]["claim_hashes"]
+        assert restored["events"][1]["evidence_refs"] == raw["events"][1]["evidence_refs"]
+        assert restored["needs_review"] == raw["needs_review"]
+        _validate("layer.schema.json", restored)
+
+
+@pytest.mark.parametrize("present", [False, True])
+def test_layer_evidence_collections_preserve_absence_and_explicit_empty(present: bool) -> None:
+    from traust_contracts.models import Layer
+
+    raw = json.loads((FIXTURES / "sample-findings-layer.json").read_text())
+    raw.pop("baseline_claims")
+    for event in raw["events"]:
+        event.pop("evidence_refs", None)
+    if present:
+        raw["baseline_claims"] = {}
+        raw["events"][0]["evidence_refs"] = []
+    restored = Layer.from_dict(raw).to_dict()
+    assert ("baseline_claims" in restored) is present
+    assert ("evidence_refs" in restored["events"][0]) is present
+    if present:
+        assert restored["baseline_claims"] == {}
+        assert restored["events"][0]["evidence_refs"] == []
+    _validate("layer.schema.json", restored)
+
+
+@pytest.mark.parametrize("field", ["baseline_claims", "evidence_refs"])
+def test_layer_evidence_collections_do_not_accept_explicit_null(field: str) -> None:
+    from pydantic import ValidationError
+
+    from traust_contracts.models import Layer
+
+    raw = json.loads((FIXTURES / "sample-findings-layer.json").read_text())
+    target = raw if field == "baseline_claims" else raw["events"][0]
+    target[field] = None
+    with pytest.raises(ValidationError):
+        Layer.from_dict(raw)
+
+
+@pytest.mark.parametrize(
+    "claim_hash",
+    ["not-a-hash", "", "a" * 63, "a" * 65, "A" * 64, "g" * 64, "a" * 64 + "\n"],
+)
+@pytest.mark.parametrize("assigned", [False, True])
+def test_layer_rejects_invalid_baseline_claim_items(claim_hash: str, assigned: bool) -> None:
+    from pydantic import ValidationError
+
+    from traust_contracts.models import Layer
+
+    raw = json.loads((FIXTURES / "sample-findings-layer.json").read_text())
+    if assigned:
+        model = Layer.from_dict(raw)
+        original = dict(model.baseline_claims)
+        with pytest.raises(ValidationError):
+            model.baseline_claims = {"FIND-001": claim_hash}
+        assert model.baseline_claims == original
+    else:
+        raw["baseline_claims"] = {"FIND-001": claim_hash}
+        with pytest.raises(ValidationError):
+            Layer.from_dict(raw)
+
+
+@pytest.mark.parametrize("assigned", [False, True])
+def test_layer_rejects_empty_evidence_reference_items(assigned: bool) -> None:
+    from pydantic import ValidationError
+
+    from traust_contracts.models import Layer
+
+    raw = json.loads((FIXTURES / "sample-findings-layer.json").read_text())
+    if assigned:
+        model = Layer.from_dict(raw)
+        event = model.events[0]
+        original = list(event.evidence_refs)
+        with pytest.raises(ValidationError):
+            event.evidence_refs = [""]
+        assert event.evidence_refs == original
+    else:
+        raw["events"][0]["evidence_refs"] = [""]
+        with pytest.raises(ValidationError):
+            Layer.from_dict(raw)

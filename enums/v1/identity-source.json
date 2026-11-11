@@ -1,0 +1,18 @@
+{
+  "name": "identity_source",
+  "source_schema": "cve-replay.schema.json#/$defs/candidate/properties/presence_identity_source",
+  "description": "The trusted mechanism that verified a principal, never an actor string supplied by an agent.",
+  "values": [
+    "local-user",
+    "database",
+    "oidc"
+  ],
+  "definitions": {
+    "local-user": "A local identity token trusted by the deployment.",
+    "database": "An identity verified by the configured identity service.",
+    "oidc": "An identity verified by the configured OpenID Connect provider."
+  },
+  "used_in_schemas": [
+    "cve-replay.schema.json"
+  ]
+}

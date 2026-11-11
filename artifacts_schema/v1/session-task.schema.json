@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/session-task.schema.json",
+  "title": "Session task",
+  "description": "Runner-staged input and the one output a judgement session may produce. Paths are task-relative, never deployment paths. A manual session has no run order.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "skill", "mode", "args", "models", "input", "output"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "run_id": {"type": ["string", "null"], "format": "uuid"},
+    "skill": {"$ref": "#/$defs/name"},
+    "mode": {"$ref": "#/$defs/name"},
+    "args": {"type": "array", "items": {"type": "string"}},
+    "models": {"$ref": "#/$defs/models"},
+    "input": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/path"}},
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "schema"],
+      "properties": {
+        "path": {"allOf": [{"$ref": "#/$defs/path"}, {"pattern": "^output/"}]},
+        "schema": {"$ref": "#/$defs/name"}
+      }
+    }
+  },
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z]",
+      "not": {"pattern": "[^a-z0-9-]"}
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "not": {"pattern": "^/|^[A-Za-z]:|\\\\|[\\x00-\\x1f]|(^|/)\\.{1,2}(/|$)|//|/$"}
+    },
+    "models": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z]", "not": {"pattern": "[^a-z0-9_]"}},
+      "additionalProperties": {"type": "string", "minLength": 1}
+    }
+  }
+}

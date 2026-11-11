@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/traust-contracts/schemas/v1/internal-vocabulary.schema.json",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/internal-vocabulary.schema.json",
   "title": "Internal Vocabulary",
   "description": "Schema for config/internal-vocabulary.yaml \u2014 organization-specific patterns for scan_internal_refs. Permissive by design: each rule requires id, tier and pattern (the load-bearing fields), while optional descriptive fields (why, notes) are unconstrained.",
   "type": "object",

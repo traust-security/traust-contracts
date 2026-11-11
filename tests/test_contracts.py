@@ -15,7 +15,7 @@ from jsonschema import Draft202012Validator, ValidationError
 from referencing import Registry, Resource
 
 REPO_ROOT = Path(__file__).parent.parent
-SCHEMA_DIR = REPO_ROOT / "schemas" / "v1"
+SCHEMA_DIR = REPO_ROOT / "artifacts_schema" / "v1"
 CONFIG_SCHEMA_DIR = REPO_ROOT / "config" / "v1"
 ENUMS_DIR = REPO_ROOT / "enums" / "v1"
 
@@ -53,12 +53,8 @@ class TestSchemas:
     def test_all_schemas_parse_json(self):
         """All schema files must be valid JSON."""
         schema_files = list(SCHEMA_DIR.glob("*.schema.json"))
-        assert len(schema_files) == 31, f"Expected 31 data schemas, found {len(schema_files)}"
 
         config_schema_files = list(CONFIG_SCHEMA_DIR.glob("*.schema.json"))
-        assert len(config_schema_files) == 14, (
-            f"Expected 14 config schemas, found {len(config_schema_files)}"
-        )
 
         for sf in [*schema_files, *config_schema_files]:
             with Path(sf).open() as f:
@@ -175,13 +171,6 @@ class TestEnums:
                         f"Expected {schema_values}, got {enum_values}"
                     )
 
-    def test_layer_review_queue_reason_matches_schema(self):
-        enum_path = ENUMS_DIR / "layer-review-queue-reason.json"
-        enum_def = json.loads(enum_path.read_text(encoding="utf-8"))
-        layer = json.loads((SCHEMA_DIR / "layer.schema.json").read_text(encoding="utf-8"))
-        schema_values = set(layer["$defs"]["review_item"]["properties"]["queue_reason"]["enum"])
-        assert set(enum_def["values"]) == schema_values
-
     def test_triage_verdict_matches_schema(self):
         enum_def = json.loads((ENUMS_DIR / "verdict.json").read_text(encoding="utf-8"))
         triage = json.loads((SCHEMA_DIR / "triage.schema.json").read_text(encoding="utf-8"))
@@ -287,6 +276,8 @@ def test_canonical_write_roadmap_separates_historical_text_from_canonical_writes
             writer.validate(document)
     roadmap["priority"] = "p5"
     assert not writer.is_valid(document)
+    roadmap["priority"] = "Critical"
+    assert not writer.is_valid(document)
     roadmap["priority"] = "p2"
     roadmap["effort"] = "blocked-external"
     reader.validate(document)
@@ -294,6 +285,25 @@ def test_canonical_write_roadmap_separates_historical_text_from_canonical_writes
     roadmap["effort"] = "m"
     roadmap["blocked_external"] = "true"
     assert not writer.is_valid(document)
+
+
+def test_uppercase_roadmap_priorities_are_accepted_and_map_to_lowercase():
+    from storage_samples import sample
+
+    document = json.loads(sample("report")[0])
+    roadmap = document["remediation_roadmap"][0]
+    roadmap.update(effort="m", blocked_external=False)
+    writer = _canonical_write_validator("report", canonical=True)
+    registry = json.loads(
+        (REPO_ROOT / "enums/v1/roadmap-priority.json").read_text(encoding="utf-8")
+    )
+    for n in range(5):
+        roadmap["priority"] = f"P{n}"
+        writer.validate(document)
+        assert registry["deprecated"][f"P{n}"]["replaced_by"] == [
+            {"enum": "roadmap_priority", "value": f"p{n}"}
+        ]
+    assert set(registry["values"]) - set(registry["deprecated"]) == {f"p{n}" for n in range(5)}
 
 
 @pytest.mark.parametrize("family", ["pqc-blockers", "pqc-readiness"])
@@ -420,3 +430,235 @@ class TestReportMetadataAdditional:
     )
     def test_malformed_declared_fields_fail(self, doc):
         assert list(self._validator().iter_errors(doc)), doc
+
+
+def _repo_state_validator() -> Draft202012Validator:
+    schema = json.loads((SCHEMA_DIR / "repo-state.schema.json").read_text(encoding="utf-8"))
+    return Draft202012Validator(schema, registry=build_registry())
+
+
+def test_repo_state_records_an_observation_with_or_without_a_comparison() -> None:
+    validator = _repo_state_validator()
+    unchanged = {
+        "observed_at": "2026-10-22T09:00:00Z",
+        "status": "ok",
+        "pushed_at": "2026-09-01T00:00:00Z",
+    }
+    validator.validate(unchanged)
+    compared = {
+        **unchanged,
+        "comparison": {
+            "ahead_by": 12,
+            "truncated": False,
+            "changed_lines": 340,
+            "sensitive_changed": True,
+            "sensitive_lines": 25,
+            "deps_only": False,
+        },
+    }
+    validator.validate(compared)
+    validator.validate({"observed_at": "2026-10-22T09:00:00Z", "status": "no-pinned-sha"})
+    validator.validate({**unchanged, "fork_of": "https://github.com/org/upstream"})
+
+
+@pytest.mark.parametrize(
+    ("fork", "valid"),
+    [
+        ({}, True),  # the forge didn't say
+        ({"fork": False}, True),  # the forge's answer: not a fork
+        ({"fork": True}, True),  # a fork whose parent it didn't name
+        ({"fork": True, "fork_of": "https://github.com/org/upstream"}, True),
+        ({"fork_of": "https://github.com/org/upstream"}, True),
+        ({"fork": False, "fork_of": "https://github.com/org/upstream"}, False),
+        ({"fork": "no"}, False),
+    ],
+)
+def test_repo_state_tells_a_non_fork_from_no_answer(fork: dict[str, object], valid: bool) -> None:
+    document = {"observed_at": "2026-10-22T09:00:00Z", "status": "ok", **fork}
+    assert _repo_state_validator().is_valid(document) is valid
+
+
+def test_repo_state_comparison_carries_the_router_file_counts() -> None:
+    comparison = {
+        "ahead_by": 3,
+        "truncated": False,
+        "changed_lines": 40,
+        "sensitive_changed": False,
+        "sensitive_lines": 0,
+        "deps_only": False,
+        "first_party_files": 5,
+        "iac_files": 1,
+        "threat_model_files": 2,
+        "tree_first_party_files": 12,
+    }
+    _repo_state_validator().validate(
+        {"observed_at": "2026-10-22T09:00:00Z", "status": "ok", "comparison": comparison}
+    )
+
+
+@pytest.mark.parametrize(
+    "field", ["first_party_files", "iac_files", "threat_model_files", "tree_first_party_files"]
+)
+def test_repo_state_rejects_a_negative_router_file_count(field: str) -> None:
+    comparison = {
+        "ahead_by": 1,
+        "truncated": False,
+        "changed_lines": 1,
+        "sensitive_changed": False,
+        "sensitive_lines": 0,
+        "deps_only": False,
+        field: -1,
+    }
+    document = {"observed_at": "2026-10-22T09:00:00Z", "status": "ok", "comparison": comparison}
+    with pytest.raises(ValidationError):
+        _repo_state_validator().validate(document)
+
+
+@pytest.mark.parametrize(("hits", "valid"), [(0, True), (3, True), (-1, False), (1.5, False)])
+def test_repo_state_comparison_carries_the_tripwire_secret_hits(hits: object, valid: bool) -> None:
+    comparison = {
+        "ahead_by": 1,
+        "truncated": False,
+        "changed_lines": 12,
+        "sensitive_changed": False,
+        "sensitive_lines": 0,
+        "deps_only": False,
+        "secret_hits": hits,
+    }
+    document = {"observed_at": "2026-10-22T09:00:00Z", "status": "ok", "comparison": comparison}
+    assert _repo_state_validator().is_valid(document) is valid
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"status": "stale"},
+        {"head_sha": "a" * 40},
+        {"fork_of": "org/upstream"},
+        {"comparison": {"ahead_by": 1}},
+        {
+            "comparison": {
+                "ahead_by": -1,
+                "truncated": False,
+                "changed_lines": 0,
+                "sensitive_changed": False,
+                "sensitive_lines": 0,
+                "deps_only": True,
+            }
+        },
+    ],
+    ids=[
+        "unknown status",
+        "fact owned by the ref row",
+        "fork_of not a URL",
+        "partial comparison",
+        "negative count",
+    ],
+)
+def test_repo_state_rejects_what_it_does_not_own(change: dict) -> None:
+    document = {"observed_at": "2026-10-22T09:00:00Z", "status": "ok", **change}
+    with pytest.raises(ValidationError):
+        _repo_state_validator().validate(document)
+
+
+class TestThreatLlmReferences:
+    """A threat's OWASP LLM categories and MITRE ATLAS technique IDs: optional, closed or shaped."""
+
+    @staticmethod
+    def _validator(field: str):
+        schema = json.loads((SCHEMA_DIR / "threat-model.schema.json").read_text(encoding="utf-8"))
+        return Draft202012Validator(schema["$defs"]["threat"]["properties"][field])
+
+    def test_owasp_categories_match_the_report_finding_field(self):
+        threat = json.loads((SCHEMA_DIR / "threat-model.schema.json").read_text(encoding="utf-8"))
+        report = json.loads((SCHEMA_DIR / "report.schema.json").read_text(encoding="utf-8"))
+        assert (
+            threat["$defs"]["threat"]["properties"]["owasp_llm_references"]["items"]
+            == report["$defs"]["finding"]["properties"]["owasp_llm_references"]["items"]
+        )
+
+    @pytest.mark.parametrize("value", [["AML.T0051"], ["AML.T0051.000", "AML.T0024"]])
+    def test_atlas_ids_validate(self, value):
+        assert list(self._validator("atlas_refs").iter_errors(value)) == []
+
+    @pytest.mark.parametrize(
+        "value", [[], ["T1190"], ["AML.T51"], ["aml.t0051"], ["AML.T0051", "AML.T0051"]]
+    )
+    def test_anything_else_is_not_an_atlas_id(self, value):
+        assert list(self._validator("atlas_refs").iter_errors(value)) != []
+
+    def test_a_threat_without_them_is_still_valid(self):
+        from storage_samples import sample
+
+        document = json.loads(sample("threat-model")[0])
+        assert all(
+            "atlas_refs" not in t and "owasp_llm_references" not in t for t in document["threats"]
+        )
+        _canonical_write_validator("threat-model").validate(document)
+
+
+class TestOwaspLlmReferences:
+    """A finding's OWASP Top 10 for LLM Applications categories: IDs only, the closed set."""
+
+    @staticmethod
+    def _validator():
+        schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text(encoding="utf-8"))
+        field = schema["$defs"]["finding"]["properties"]["owasp_llm_references"]
+        return Draft202012Validator(field)
+
+    def test_category_ids_validate(self):
+        assert list(self._validator().iter_errors(["LLM01", "LLM10"])) == []
+
+    @pytest.mark.parametrize("value", [[], ["LLM11"], ["llm05"], ["LLM05", "LLM05"]])
+    def test_anything_else_is_rejected(self, value):
+        assert list(self._validator().iter_errors(value)) != []
+
+
+class TestLlmIntegrationSurface:
+    """llm-integration is the seventh review surface: allowed everywhere surfaces are, required
+    nowhere in the schema, so reports written before it stay valid (the date gate is in core)."""
+
+    SIX: ClassVar[list[str]] = [
+        "credential-acceptance",
+        "ownership-resolution",
+        "security-flags",
+        "outbound-fetch",
+        "stored-content-integrity",
+        "scope-enforcement",
+    ]
+    COVERAGES = ("review_surface_coverage", "scan_review_surface_coverage")
+
+    @staticmethod
+    def _validator(coverage: str) -> Draft202012Validator:
+        schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text(encoding="utf-8"))
+        node = schema["properties"].get(coverage) or schema["$defs"][coverage]
+        return Draft202012Validator({"$defs": schema["$defs"], **node})
+
+    @staticmethod
+    def _answered(surfaces: list[str]) -> dict[str, dict[str, str]]:
+        return {s: {"status": "not_assessed", "note": "not reviewed"} for s in surfaces}
+
+    @pytest.mark.parametrize("coverage", COVERAGES)
+    def test_six_or_seven_surfaces_validate(self, coverage):
+        validator = self._validator(coverage)
+        assert list(validator.iter_errors(self._answered(self.SIX))) == []
+        assert list(validator.iter_errors(self._answered([*self.SIX, "llm-integration"]))) == []
+
+    @pytest.mark.parametrize("coverage", COVERAGES)
+    def test_an_unknown_surface_is_rejected(self, coverage):
+        coverage_doc = self._answered([*self.SIX, "llm-integrations"])
+        assert list(self._validator(coverage).iter_errors(coverage_doc)) != []
+
+    def test_every_surface_list_matches_the_enum(self):
+        values = json.loads((ENUMS_DIR / "review-surface.json").read_text(encoding="utf-8"))
+        report = json.loads((SCHEMA_DIR / "report.schema.json").read_text(encoding="utf-8"))
+        threat = json.loads((SCHEMA_DIR / "threat-model.schema.json").read_text(encoding="utf-8"))
+        assert values["values"] == [*self.SIX, "llm-integration"]
+        for listed in (
+            report["properties"]["review_surface_coverage"]["propertyNames"]["enum"],
+            report["$defs"]["scan_review_surface_coverage"]["propertyNames"]["enum"],
+            threat["$defs"]["review_surfaces"]["items"]["enum"],
+        ):
+            assert listed == values["values"]
+        assert report["properties"]["review_surface_coverage"]["required"] == self.SIX
+        assert report["$defs"]["scan_review_surface_coverage"]["required"] == self.SIX

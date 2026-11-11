@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/product-definitions-map.schema.json",
+  "title": "Product Definitions Map",
+  "description": "Reviewed findings-package/repo -> ps_product mappings (human-asserted), recorded into traust-core as an imported document; the newest recorded version is the one product lookups use. Permissive by design: the mappings container carries packages and repos maps whose keys and values are deployment-specific; only the top-level shape is validated.",
+  "type": "object",
+  "required": [
+    "mappings"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "mappings": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "packages": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "repos": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

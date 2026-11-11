@@ -1,6 +1,6 @@
 """Regenerate a Ledger v1 DDL model doc from the checked-in SQL.
 
-Reads ledger/v1/{sqlite,postgres}/schema/*.sql and emits the table model as a
+Reads db/v1/traust_ledger/{sqlite,postgres}/schema/*.sql and emits the table model as a
 single Mermaid class diagram. Ledger has no artifact profiles or views — it is
 a flat, FK-ordered table set — so this stays a plain rendering of `TABLE_ORDER`
 over the shared `traust_contracts.v1.ddl_model` primitives. Nothing here is
@@ -30,10 +30,10 @@ def main() -> int:
     out = args.out
 
     lines = [
-        "# ledger/v1 DDL — table model",
+        "# db/v1/traust_ledger DDL — table model",
         "",
         "<!-- GENERATED FILE — do not edit by hand; edits are overwritten on the next run.",
-        "     Regenerate from a traust-contracts checkout whenever the ledger/v1 DDL changes:",
+        "     Regenerate from a checkout when the db/v1/traust_ledger DDL changes:",
         "       python -m traust_contracts.v1.ledger.build_ledger_ddl_model \\",
         "         --out ../traust/docs/ledger-v1-ddl-model.md",
         "     To change the prose, edit",

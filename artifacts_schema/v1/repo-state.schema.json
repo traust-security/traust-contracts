@@ -1,0 +1,121 @@
+{
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/repo-state.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Repository State Observation",
+  "description": "One forge observation of a repository: its default-branch head, compared with its latest audit when it was pushed since. Stored as the artifact of an assessment of kind repo-state on the observed head ref (baseline_assessment_id = the audit). Recorded only when the forge answered; an unreachable or quota-deferred observation is the run order's outcome, not a document. Repository-level facts (public, upstream, archived) live on the repository row; fork_of keeps the parent the forge reported, the evidence behind repository.upstream_id.",
+  "type": "object",
+  "required": [
+    "observed_at",
+    "status"
+  ],
+  "properties": {
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "$ref": "#/$defs/comparison_status"
+    },
+    "pushed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last push the forge reported; drives dormancy and whether a comparison was due."
+    },
+    "comparison": {
+      "$ref": "#/$defs/comparison"
+    },
+    "fork": {
+      "type": "boolean",
+      "description": "Whether the forge calls this repository a fork; absent when it didn't say. false is the forge's answer that it isn't one, which an absent fork_of alone cannot tell from no answer."
+    },
+    "fork_of": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "description": "The repository this one forks, as the forge reported it (https URL); absent when it isn't a fork or the forge named no parent. The observation that brings an upstream into the inventory."
+    }
+  },
+  "if": {"required": ["fork_of"]},
+  "then": {"not": {"properties": {"fork": {"const": false}}, "required": ["fork"]}},
+  "additionalProperties": false,
+  "$defs": {
+    "comparison_status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "quota-deferred",
+        "no-pinned-sha",
+        "unsupported-host",
+        "no-repo-url",
+        "no-credentials",
+        "unreachable",
+        "error",
+        "ban-suspected",
+        "network-skipped",
+        "never-audited"
+      ]
+    },
+    "comparison": {
+      "type": "object",
+      "description": "The head compared with the audited commit; absent when the repository was not pushed since the audit. The file counts (first_party_files, iac_files, threat_model_files, tree_first_party_files) and secret_hits are optional: observations recorded before they were measured lack them.",
+      "required": [
+        "ahead_by",
+        "truncated",
+        "changed_lines",
+        "sensitive_changed",
+        "sensitive_lines",
+        "deps_only"
+      ],
+      "properties": {
+        "ahead_by": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "truncated": {
+          "type": "boolean",
+          "description": "The forge capped the file list; line counts are a lower bound."
+        },
+        "changed_lines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sensitive_changed": {
+          "type": "boolean"
+        },
+        "sensitive_lines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "deps_only": {
+          "type": "boolean"
+        },
+        "first_party_files": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Changed files that count as first-party (vendored, generated and docs excluded): the numerator of the diff-refusal ratio."
+        },
+        "iac_files": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Changed first-party IaC files (Terraform, CloudFormation, ARM/Bicep): code the cloud-config lane assesses and a code audit does not."
+        },
+        "threat_model_files": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Changed first-party interface-bearing files (entry-point directories, main files, OpenAPI/Swagger, protobuf): new entry points or trust boundaries a threat model may miss."
+        },
+        "tree_first_party_files": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "First-party files in the head's tree, counted only when enough first-party files changed for the diff-refusal ratio to matter; absent when not counted (no cheap listing on the forge, or the forge truncated the tree)."
+        },
+        "secret_hits": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Secret-scanner (gitleaks) hits in the change's patch text, scanned during the observation: the router's tripwire. Absent when not scanned (no lines changed, no patch, or the scanner unavailable or failed)."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

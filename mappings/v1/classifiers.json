@@ -1,0 +1,463 @@
+{
+  "version": 1,
+  "fields": {
+    "doc-variance|record.disposition": {
+      "enum": "doc_variance_disposition",
+      "aliases": []
+    },
+    "doc-variance|record.variance": {
+      "enum": "doc_variance_kind",
+      "aliases": []
+    },
+    "findings-current|dependency_audit.status": {
+      "status": "unmapped",
+      "reason": "Dependency status mixes prose and operational observations; no approved canonical dependency-status domain or inference from prose is defined."
+    },
+    "findings-current|finding.category": {
+      "status": "open_label",
+      "reason": "Finding categories are extensible labels, not a closed classifier registry domain."
+    },
+    "findings-current|finding.disposition.assurance": {
+      "status": "unmapped",
+      "reason": "Historical assurance labels have no unconditional evidence-grade replacement; retain provenance without inferring evidence strength from a label or actor."
+    },
+    "findings-current|finding.disposition.refuted_awaiting_signoff": {
+      "status": "observational",
+      "reason": "This boolean records a pending countersignature workflow, not a validity answer, evidence grade or closed enum domain."
+    },
+    "findings-current|finding.disposition.resolution": {
+      "enum": "disposition_resolution",
+      "aliases": []
+    },
+    "findings-current|finding.disposition.validity": {
+      "enum": "validity",
+      "aliases": [
+        {"raw": "not_verified", "targets": [{"enum": "validity", "value": null}], "status": "mapped_unknown", "reason": "The registry defines this historical audit-stage label as no validity answer; never invent a confirmed decision."},
+        {"raw": "corrected", "targets": [], "status": "non_evidence_operation", "reason": "The registry defines correction as a restatement operation handled by the decision owner, not a validity answer."}
+      ]
+    },
+    "findings-current|finding.isolation_dimensions": {
+      "enum": "isolation_dimension",
+      "aliases": []
+    },
+    "findings-current|finding.origin": {
+      "enum": "finding_origin",
+      "aliases": []
+    },
+    "findings-current|finding.severity": {
+      "enum": "severity",
+      "aliases": [
+        {"raw": "CRITICAL", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Critical", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "HIGH", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "High", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "INFORMATIONAL", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Informational", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "LOW", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Low", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "MEDIUM", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Medium", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."}
+      ]
+    },
+    "findings-current|finding.validation_status": {
+      "enum": "validity",
+      "aliases": [
+        {"raw": "not_verified", "targets": [{"enum": "validity", "value": null}], "status": "mapped_unknown", "reason": "The registry defines this historical audit-stage label as no validity answer; never invent a confirmed decision."},
+        {"raw": "corrected", "targets": [], "status": "non_evidence_operation", "reason": "The registry defines correction as a restatement operation handled by the decision owner, not a validity answer."}
+      ]
+    },
+    "findings-current|metadata.audit_profile": {
+      "enum": "audit_profile",
+      "nullable": true,
+      "aliases": []
+    },
+    "findings-current|metadata.ref_kind": {
+      "enum": "ref_kind",
+      "nullable": true,
+      "aliases": []
+    },
+    "findings-current|roadmap.effort": {
+      "enum": "effort",
+      "nullable": true,
+      "aliases": [
+        {"raw": "L", "targets": [{"enum": "effort", "value": "l"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "M", "targets": [{"enum": "effort", "value": "m"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "S", "targets": [{"enum": "effort", "value": "s"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "XL", "targets": [{"enum": "effort", "value": "xl"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "XS", "targets": [{"enum": "effort", "value": "xs"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "Xl", "targets": [{"enum": "effort", "value": "xl"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "Xs", "targets": [{"enum": "effort", "value": "xs"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "Trivial", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical trivial label has no approved size correspondence; size remains unknown and blocking is not inferred."},
+        {"raw": "blocked-external", "targets": [{"enum": "effort", "value": null}, {"field": "blocked_external", "value": true}], "status": "mapped_unknown", "reason": "The explicit historical external-blocking label establishes blocking only; size remains unknown."},
+        {"raw": "moderate", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical moderate label has no approved size correspondence; size remains unknown and blocking is not inferred."},
+        {"raw": "significant", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical significant label has no approved size correspondence; size remains unknown and blocking is not inferred."},
+        {"raw": "trivial", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical trivial label has no approved size correspondence; size remains unknown and blocking is not inferred."}
+      ]
+    },
+    "findings-current|roadmap.priority": {
+      "enum": "roadmap_priority",
+      "aliases": [
+        {"raw": "P0", "targets": [{"enum": "roadmap_priority", "value": "p0"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."},
+        {"raw": "P1", "targets": [{"enum": "roadmap_priority", "value": "p1"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."},
+        {"raw": "P2", "targets": [{"enum": "roadmap_priority", "value": "p2"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."},
+        {"raw": "P3", "targets": [{"enum": "roadmap_priority", "value": "p3"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."},
+        {"raw": "P4", "targets": [{"enum": "roadmap_priority", "value": "p4"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."}
+      ]
+    },
+    "findings-current|severity_criteria.level": {
+      "enum": "severity",
+      "aliases": [
+        {"raw": "CRITICAL", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Critical", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "HIGH", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "High", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "INFORMATIONAL", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Informational", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "LOW", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Low", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "MEDIUM", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Medium", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."}
+      ]
+    },
+    "findings-current|x.hardening*severity": {
+      "status": "observational",
+      "reason": "This derived cross-tab observes severity for historical hardening findings; it is not an independently writable classifier field."
+    },
+    "findings-current|x.refuted_awaiting_signoff*validity": {
+      "status": "observational",
+      "reason": "This derived cross-tab records the relationship between pending countersignature and validity, without supplying a new validity answer."
+    },
+    "findings-current|x.validation_status==disposition.validity": {
+      "status": "observational",
+      "reason": "This derived equality observation compares two existing fields; it is not a classifier or independent judgement."
+    },
+    "findings-current|x.validity*assurance": {
+      "status": "observational",
+      "reason": "This derived cross-tab preserves historical validity and assurance observations; no evidence grade is inferred."
+    },
+    "findings-layer|event.disposition.embargo": {
+      "enum": "disposition_embargo",
+      "aliases": []
+    },
+    "findings-layer|event.disposition.resolution": {
+      "enum": "disposition_resolution",
+      "aliases": []
+    },
+    "findings-layer|event.disposition.validity": {
+      "enum": "event_validity",
+      "aliases": []
+    },
+    "findings-layer|event.risk_weight.tenancy_profile": {
+      "enum": "tenancy_profile",
+      "aliases": []
+    },
+    "findings-layer|event.source.actor.kind": {
+      "enum": "actor_kind",
+      "aliases": []
+    },
+    "findings-layer|event.source.type": {
+      "enum": "source_type",
+      "aliases": [
+        {"raw": "rebaseline", "targets": [], "status": "non_evidence_operation", "reason": "The registry identifies rebaseline as an administrative rename, not a judgement or evidence kind."},
+        {"raw": "restatement", "targets": [], "status": "non_evidence_operation", "reason": "The registry identifies restatement as an administrative correction handled by the decision owner, not an evidence kind."}
+      ]
+    },
+    "findings-layer|needs_review.queue_reason": {
+      "enum": "review_reason",
+      "aliases": []
+    },
+    "findings-layer|needs_review.status": {
+      "enum": "review_item_status",
+      "aliases": [
+        {"raw": "rejected", "targets": [], "status": "unmapped", "reason": "Historical rejection requires per-item resolution_note context: a bulk-closed prefix means closed_unreviewed; the scalar inventory and aggregate note cross-tab cannot distinguish administrative closure from an actual rejection."}
+      ]
+    },
+    "findings-layer|x.rejected*resolution_note": {
+      "status": "observational",
+      "reason": "This derived cross-tab preserves rejection and closure-note observations; administrative closure cannot be inferred from prose or substituted for an actual review."
+    },
+    "refuted-register|entry.category": {
+      "status": "open_label",
+      "reason": "Refuted-entry categories are extensible labels, not a closed classifier registry domain."
+    },
+    "refuted-register|entry.claimed_severity": {
+      "enum": "severity",
+      "nullable": true,
+      "aliases": [
+        {"raw": "CRITICAL", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Critical", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "HIGH", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "High", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "INFORMATIONAL", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Informational", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "LOW", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Low", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "MEDIUM", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Medium", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."}
+      ]
+    },
+    "refuted-register|entry.exclusion_rule": {
+      "status": "unmapped",
+      "reason": "Historical policy-rule references mix scalar forms and prose; no approved registry domain or rule-extraction mapping is defined."
+    },
+    "refuted-register|entry.refute_reasons": {
+      "status": "unmapped",
+      "reason": "Historical refutation reasons and prose have no approved canonical reason mapping; do not infer a validity answer or substitute unrelated decision or review reasons."
+    },
+    "refuted-register|entry.tier": {
+      "status": "provenance",
+      "reason": "The historical signoff tier records review provenance, not evidence strength; no canonical tier mapping is approved."
+    },
+    "remediation-verification|commit.relevance": {
+      "enum": "remediation_commit_relevance",
+      "aliases": []
+    },
+    "remediation-verification|finding.residual_severity": {
+      "enum": "severity",
+      "nullable": true,
+      "aliases": [
+        {"raw": "CRITICAL", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Critical", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "HIGH", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "High", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "INFORMATIONAL", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Informational", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "LOW", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Low", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "MEDIUM", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Medium", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."}
+      ]
+    },
+    "remediation-verification|finding.verdict": {
+      "enum": "verification_verdict",
+      "aliases": []
+    },
+    "security-audit|dependency_audit.status": {
+      "status": "unmapped",
+      "reason": "Dependency status mixes prose and operational observations; no approved canonical dependency-status domain or inference from prose is defined."
+    },
+    "security-audit|finding.category": {
+      "status": "open_label",
+      "reason": "Finding categories are extensible labels, not a closed classifier registry domain."
+    },
+    "security-audit|finding.isolation_dimensions": {
+      "enum": "isolation_dimension",
+      "aliases": []
+    },
+    "security-audit|finding.origin": {
+      "enum": "finding_origin",
+      "aliases": []
+    },
+    "security-audit|finding.pqc_classification": {
+      "enum": "pqc_classification",
+      "aliases": []
+    },
+    "security-audit|finding.remediation_effort": {
+      "enum": "effort",
+      "nullable": true,
+      "aliases": [
+        {"raw": "L", "targets": [{"enum": "effort", "value": "l"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "M", "targets": [{"enum": "effort", "value": "m"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "S", "targets": [{"enum": "effort", "value": "s"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "XL", "targets": [{"enum": "effort", "value": "xl"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "XS", "targets": [{"enum": "effort", "value": "xs"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "Xl", "targets": [{"enum": "effort", "value": "xl"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "Xs", "targets": [{"enum": "effort", "value": "xs"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "Trivial", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical trivial label has no approved size correspondence; size remains unknown and blocking is not inferred."},
+        {"raw": "blocked-external", "targets": [{"enum": "effort", "value": null}, {"field": "blocked_external", "value": true}], "status": "mapped_unknown", "reason": "The explicit historical external-blocking label establishes blocking only; size remains unknown."},
+        {"raw": "moderate", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical moderate label has no approved size correspondence; size remains unknown and blocking is not inferred."},
+        {"raw": "significant", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical significant label has no approved size correspondence; size remains unknown and blocking is not inferred."},
+        {"raw": "trivial", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical trivial label has no approved size correspondence; size remains unknown and blocking is not inferred."}
+      ]
+    },
+    "security-audit|finding.severity": {
+      "enum": "severity",
+      "aliases": [
+        {"raw": "CRITICAL", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Critical", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "HIGH", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "High", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "INFORMATIONAL", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Informational", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "LOW", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Low", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "MEDIUM", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Medium", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."}
+      ]
+    },
+    "security-audit|finding.validation_status": {
+      "enum": "validity",
+      "aliases": [
+        {"raw": "not_verified", "targets": [{"enum": "validity", "value": null}], "status": "mapped_unknown", "reason": "The registry defines this historical audit-stage label as no validity answer; never invent a confirmed decision."},
+        {"raw": "corrected", "targets": [], "status": "non_evidence_operation", "reason": "The registry defines correction as a restatement operation handled by the decision owner, not a validity answer."}
+      ]
+    },
+    "security-audit|metadata.audit_profile": {
+      "enum": "audit_profile",
+      "nullable": true,
+      "aliases": []
+    },
+    "security-audit|metadata.ref_kind": {
+      "enum": "ref_kind",
+      "nullable": true,
+      "aliases": []
+    },
+    "security-audit|roadmap.effort": {
+      "enum": "effort",
+      "nullable": true,
+      "aliases": [
+        {"raw": "L", "targets": [{"enum": "effort", "value": "l"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "M", "targets": [{"enum": "effort", "value": "m"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "S", "targets": [{"enum": "effort", "value": "s"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "XL", "targets": [{"enum": "effort", "value": "xl"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "XS", "targets": [{"enum": "effort", "value": "xs"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "Xl", "targets": [{"enum": "effort", "value": "xl"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "Xs", "targets": [{"enum": "effort", "value": "xs"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the approved size label; no duration threshold is inferred."},
+        {"raw": "Trivial", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical trivial label has no approved size correspondence; size remains unknown and blocking is not inferred."},
+        {"raw": "blocked-external", "targets": [{"enum": "effort", "value": null}, {"field": "blocked_external", "value": true}], "status": "mapped_unknown", "reason": "The explicit historical external-blocking label establishes blocking only; size remains unknown."},
+        {"raw": "moderate", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical moderate label has no approved size correspondence; size remains unknown and blocking is not inferred."},
+        {"raw": "significant", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical significant label has no approved size correspondence; size remains unknown and blocking is not inferred."},
+        {"raw": "trivial", "targets": [{"enum": "effort", "value": null}], "status": "mapped_unknown", "reason": "The historical trivial label has no approved size correspondence; size remains unknown and blocking is not inferred."}
+      ]
+    },
+    "security-audit|roadmap.priority": {
+      "enum": "roadmap_priority",
+      "aliases": [
+        {"raw": "P0", "targets": [{"enum": "roadmap_priority", "value": "p0"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."},
+        {"raw": "P1", "targets": [{"enum": "roadmap_priority", "value": "p1"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."},
+        {"raw": "P2", "targets": [{"enum": "roadmap_priority", "value": "p2"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."},
+        {"raw": "P3", "targets": [{"enum": "roadmap_priority", "value": "p3"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."},
+        {"raw": "P4", "targets": [{"enum": "roadmap_priority", "value": "p4"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the approved priority label; no urgency or deadline is inferred."}
+      ]
+    },
+    "security-audit|severity_criteria.level": {
+      "enum": "severity",
+      "aliases": [
+        {"raw": "CRITICAL", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Critical", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "HIGH", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "High", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "INFORMATIONAL", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Informational", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "LOW", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Low", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "MEDIUM", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Medium", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."}
+      ]
+    },
+    "security-audit|x.audit_confirmed*harness_version": {
+      "status": "observational",
+      "reason": "This derived cross-tab records producer-version provenance for confirmed audit findings; a producer version cannot establish an evidence grade."
+    },
+    "threat-model|provenance.mode": {
+      "enum": "threat_model_mode",
+      "aliases": []
+    },
+    "threat-model|threat.actor": {
+      "enum": "threat_actor",
+      "aliases": []
+    },
+    "threat-model|threat.impact": {
+      "enum": "threat-impact",
+      "nullable": true,
+      "aliases": []
+    },
+    "threat-model|threat.likelihood": {
+      "enum": "threat-likelihood",
+      "nullable": true,
+      "aliases": []
+    },
+    "threat-model|threat.rating_shape": {
+      "status": "observational",
+      "reason": "This derived observation distinguishes existing legacy and OWASP rating shapes without converting either methodology or changing a rating."
+    },
+    "threat-model|threat.risk_rating.impact.basis": {
+      "enum": "owasp_impact_basis",
+      "aliases": []
+    },
+    "threat-model|threat.risk_rating.impact.level": {
+      "status": "observational",
+      "reason": "Preserve the existing computed OWASP impact level unchanged; it requires no classifier remapping. Observations remain visible and this coverage is not schema validation."
+    },
+    "threat-model|threat.risk_rating.likelihood.level": {
+      "status": "observational",
+      "reason": "Preserve the existing computed OWASP likelihood level unchanged; it requires no classifier remapping. Observations remain visible and this coverage is not schema validation."
+    },
+    "threat-model|threat.risk_rating.severity": {
+      "enum": "risk_rating_band",
+      "aliases": []
+    },
+    "threat-model|threat.status": {
+      "enum": "threat-status",
+      "aliases": []
+    },
+    "triage|finding.confidence.<shape>": {
+      "status": "observational",
+      "reason": "This derived observation records a numeric confidence shape, not a classifier value or evidence grade."
+    },
+    "triage|finding.exclusion_rule": {
+      "status": "unmapped",
+      "reason": "Historical policy-rule references mix scalar forms and prose; no approved registry domain or rule-extraction mapping is defined."
+    },
+    "triage|finding.refute_reasons": {
+      "status": "unmapped",
+      "reason": "Historical refutation reasons and prose have no approved canonical reason mapping; do not infer a validity answer or substitute unrelated decision or review reasons."
+    },
+    "triage|finding.severity": {
+      "enum": "severity",
+      "nullable": true,
+      "aliases": [
+        {"raw": "CRITICAL", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Critical", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "HIGH", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "High", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "INFORMATIONAL", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Informational", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "LOW", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Low", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "MEDIUM", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Medium", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."}
+      ]
+    },
+    "triage|finding.verdict": {
+      "enum": "verdict",
+      "aliases": []
+    },
+    "triage|finding.verify_verdict": {
+      "enum": "triage_verify_verdict",
+      "nullable": true,
+      "aliases": []
+    },
+    "triage|finding.vote_breakdown.<keys>": {
+      "status": "observational",
+      "reason": "These derived vote-map keys describe a tally structure, not an independent finding verdict or evidence answer."
+    },
+    "triage|x.verdict*refute_reason": {
+      "status": "observational",
+      "reason": "This derived cross-tab preserves the relationship between verdicts and raw refutation reasons; it supplies no canonical reason mapping."
+    },
+    "triage|x.verdict*verify_verdict": {
+      "status": "observational",
+      "reason": "This derived cross-tab compares triage and verification verdicts without adding an independent judgement."
+    },
+    "vuln-findings|finding.category": {
+      "status": "open_label",
+      "reason": "Finding categories are extensible labels, not a closed classifier registry domain."
+    },
+    "vuln-findings|finding.severity": {
+      "enum": "severity",
+      "aliases": [
+        {"raw": "CRITICAL", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Critical", "targets": [{"enum": "severity", "value": "critical"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "HIGH", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "High", "targets": [{"enum": "severity", "value": "high"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "INFORMATIONAL", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Informational", "targets": [{"enum": "severity", "value": "informational"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "LOW", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Low", "targets": [{"enum": "severity", "value": "low"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."},
+        {"raw": "MEDIUM", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII uppercase spelling of the project severity label."},
+        {"raw": "Medium", "targets": [{"enum": "severity", "value": "medium"}], "status": "mapped", "reason": "Exact ASCII titlecase spelling of the project severity label."}
+      ]
+    }
+  }
+}

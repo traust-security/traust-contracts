@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/validation-plan.schema.json",
+  "title": "Validation plan",
+  "description": "Prepared validate-findings plan. Structural checks only: execution still requires scope, authorization and adapter classification checks.",
+  "type": "object",
+  "required": ["target", "scope_binding_mode", "chains", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "target": {"type": "string", "minLength": 1},
+    "scope_binding_mode": {"$ref": "validation.schema.json#/$defs/scope_binding_mode"},
+    "engagement": {"type": ["string", "null"]},
+    "chains": {"type": "array", "items": {"$ref": "#/$defs/chain"}},
+    "steps": {"type": "array", "items": {"$ref": "#/$defs/step"}}
+  },
+  "$defs": {
+    "chain": {
+      "type": "object",
+      "required": ["chain_id", "name", "entry_point", "terminal_asset", "finding_ids", "mitre_attack_refs", "narrative", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "chain_id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "entry_point": {"type": "string", "minLength": 1},
+        "terminal_asset": {"type": "string", "minLength": 1},
+        "finding_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "mitre_attack_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "narrative": {"type": "string"},
+        "path": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "technique", "adapter", "verb", "target", "classification"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "technique": {"$ref": "validation.schema.json#/$defs/technique"},
+        "adapter": {"$ref": "validation.schema.json#/$defs/adapter"},
+        "verb": {"type": "string", "minLength": 1},
+        "target": {"$ref": "#/$defs/step_target"},
+        "finding_ref": {"type": "string", "minLength": 1},
+        "chain_ref": {"type": "string", "minLength": 1},
+        "novel_ref": {"type": "string", "minLength": 1},
+        "payload": {"type": "string"},
+        "cmd": {"type": "string"},
+        "classification": {"$ref": "validation.schema.json#/$defs/classification"},
+        "expected": {"type": "string"},
+        "rollback": {"type": "string"},
+        "preconditions": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "skip": {"type": "string", "minLength": 1},
+        "summary": {"type": "string"},
+        "triage_was_needs_review": {"type": "boolean"}
+      }
+    },
+    "step_target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "context": {"type": ["string", "null"]},
+        "namespace": {"type": ["string", "null"]},
+        "resource": {"type": ["string", "null"]},
+        "name": {"type": ["string", "null"]},
+        "image": {"type": ["string", "null"]},
+        "artifact": {"type": ["string", "null"]},
+        "runtime": {"type": "string"},
+        "method": {"type": "string"},
+        "path": {"type": "string"},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "pqc": {"type": "boolean"}
+      }
+    }
+  }
+}

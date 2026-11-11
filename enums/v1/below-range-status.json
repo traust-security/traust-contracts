@@ -1,0 +1,12 @@
+{
+  "name": "below_range_status",
+  "source_schema": "below-range-packets.schema.json#/properties/status",
+  "description": "Whether a commit's below-range packets cover every package: degraded when some packages went unanswered by the advisory source or some advisories were unreadable.",
+  "values": [
+    "complete",
+    "degraded"
+  ],
+  "used_in_schemas": [
+    "below-range-packets.schema.json"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "source_channel",
+  "source_schema": "",
+  "description": "Decision.source_channel: the channel carrying a human judgement, not the producing assessment kind.",
+  "values": [
+    "mr_comment",
+    "commit",
+    "jira",
+    "interactive"
+  ],
+  "definitions": {
+    "mr_comment": "A human judgement recorded in a merge or pull request comment.",
+    "commit": "A human judgement recorded with a commit.",
+    "jira": "A human judgement recorded in Jira.",
+    "interactive": "A human judgement entered interactively."
+  },
+  "used_in_schemas": [],
+  "standard": {
+    "none": "Project-defined vocabulary owned by the existing data model."
+  }
+}

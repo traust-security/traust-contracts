@@ -1,0 +1,23 @@
+{
+  "name": "pqc_vendor_status",
+  "source_schema": "pqc-vendor-claims.schema.json#/$defs/status",
+  "description": "A vendor's post-quantum status as reviewed.",
+  "values": [
+    "available",
+    "partial",
+    "in_progress",
+    "none"
+  ],
+  "definitions": {
+    "available": "PQC algorithms are shipped and usable.",
+    "partial": "Some PQC capability is shipped (e.g. key exchange but not signatures).",
+    "in_progress": "Announced or in preview, not yet shipped.",
+    "none": "No public PQC roadmap."
+  },
+  "standard": {
+    "none": "Project-defined vocabulary for curated vendor PQC claims."
+  },
+  "used_in_schemas": [
+    "pqc-vendor-claims.schema.json"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "budget_status",
+  "source_schema": "run-manifest.schema.json#/properties/budget/properties/status",
+  "description": "A lane's month-to-date spend plus an estimate against its budget: within, over, or no budget configured for the lane.",
+  "values": [
+    "within",
+    "over",
+    "no_budget"
+  ],
+  "used_in_schemas": [
+    "run-manifest.schema.json"
+  ]
+}

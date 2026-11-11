@@ -19,7 +19,8 @@
     "pqc-decision-tree.schema.json",
     "pqc-readiness.schema.json",
     "report.schema.json",
-    "validation.schema.json"
+    "validation.schema.json",
+    "verification.schema.json"
   ],
   "definitions": {
     "trivial": "Historical effort label; no size replacement is assigned.",
@@ -31,6 +32,15 @@
     "m": "Medium effort-size label, ordered between s and l; no duration threshold is defined.",
     "l": "Large effort-size label, ordered between m and xl; no duration threshold is defined.",
     "xl": "Extra-large effort-size label, ordered after l; no duration threshold is defined."
+  },
+  "deprecated": {
+    "trivial": { "replaced_by": [], "note": "No unconditional canonical size mapping is established." },
+    "moderate": { "replaced_by": [], "note": "No unconditional canonical size mapping is established." },
+    "significant": { "replaced_by": [], "note": "No unconditional canonical size mapping is established." },
+    "blocked-external": {
+      "replaced_by": [],
+      "note": "The importer preserves blocked_external independently; unknown effort size is null."
+    }
   },
   "standard": { "none": "Project-defined effort labels; no external standard is adopted." }
 }

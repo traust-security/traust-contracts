@@ -1,0 +1,70 @@
+{
+  "artifact": "code-facts",
+  "symbols": null,
+  "languages": null,
+  "packages": {
+    "modules": [
+      {
+        "ecosystem": "go",
+        "name": "example.test/library",
+        "location": {
+          "path": "go.mod",
+          "line": 1
+        }
+      }
+    ],
+    "imports": [
+      {
+        "package": "example.test/platform/api",
+        "language": "Go",
+        "location": {
+          "path": "client.go",
+          "line": 3
+        }
+      }
+    ],
+    "exports": [
+      {
+        "package": "example.test/library",
+        "name": "Serve",
+        "kind": "func",
+        "language": "Go",
+        "location": {
+          "path": "client.go",
+          "line": 5
+        }
+      }
+    ],
+    "gaps": []
+  },
+  "interfaces": [
+    {
+      "api_group": "widgets.example.test",
+      "role": "owner",
+      "location": {
+        "path": "config/crd.yaml",
+        "line": 1
+      },
+      "kind": "Widget",
+      "resources": [],
+      "verbs": []
+    },
+    {
+      "api_group": "widgets.example.test",
+      "role": "rbac",
+      "location": {
+        "path": "config/role.yaml",
+        "line": 1
+      },
+      "kind": "ClusterRole",
+      "name": "reader",
+      "resources": [
+        "widgets"
+      ],
+      "verbs": [
+        "get",
+        "list"
+      ]
+    }
+  ]
+}

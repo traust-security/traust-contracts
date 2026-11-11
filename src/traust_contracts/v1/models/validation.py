@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import Field
 
+from traust_contracts.v1.enums import EvidenceGrade
 from traust_contracts.v1.models._base import ContractModel
 
 
@@ -87,7 +88,7 @@ class ValidatedFinding(ContractModel):
     rollback_performed: bool | None = None
     not_attempted_reason: str | None = None
     soundness_flag: str | None = None
-    evidence_grade: str | None = None
+    evidence_grade: EvidenceGrade | str | None = None
     grade_rationale: str | None = None
 
 

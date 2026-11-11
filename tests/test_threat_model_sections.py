@@ -91,3 +91,12 @@ def test_sections_stay_optional() -> None:
     """The tightening is about shape, not presence: a model may omit them."""
     minimal = {k: MODEL[k] for k in ("system", "provenance", "threats")}
     assert _errors(minimal) == []
+
+
+def test_an_entry_point_may_name_its_kind() -> None:
+    model = copy.deepcopy(MODEL)
+    model["entry_points"][0]["kind"] = "file-input"
+    _validator().validate(model)
+    model["entry_points"][0]["kind"] = "rest"
+    with pytest.raises(jsonschema.ValidationError):
+        _validator().validate(model)

@@ -1,0 +1,333 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/cloud-config-audit.schema.json",
+  "title": "Cloud config audit report (declared layer)",
+  "description": "Layer-2 agent-authored IaC cloud-configuration audit report over the deterministic Checkov facts artifact. Declared configuration only \u2014 the assessment_mode const makes an observation claim unrepresentable. Enforcement gate: schema validation plus citation checks (every finding cites fact IDs; suppressions, needs_review, severity assigned over unrated facts, and severity changes all require rationale).",
+  "type": "object",
+  "required": [
+    "title",
+    "metadata",
+    "summary",
+    "findings"
+  ],
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "target",
+        "assessment_mode",
+        "harness_version",
+        "checkov_version",
+        "facts_ref",
+        "facts_snapshot_id",
+        "deterministic_steps"
+      ],
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "target slug (scanned checkout's directory name)"
+        },
+        "assessment_mode": {
+          "const": "declared",
+          "description": "this skill audits declared configuration only; observed-state evidence comes from other sources"
+        },
+        "target_head": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "git HEAD of the scanned checkout, when available"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "Optional (harness >= 0.122.0, branch-awareness Phase 0): the branch or tag name as checked out for this scan. Explicit ref provenance \u2014 when present, preferred over report-slug parsing; the legacy slug-suffix parsing remains the fallback. Never required; all existing reports stay valid."
+        },
+        "ref_kind": {
+          "type": "string",
+          "enum": [
+            "branch",
+            "tag",
+            "default",
+            "stream"
+          ],
+          "$comment": "Optional (harness >= 0.122.0): what metadata.ref names \u2014 'branch' = an explicitly requested non-default branch, 'tag' = a tag checkout, 'default' = the repository default branch (metadata.ref still records its name), 'stream' (harness >= 0.140.0) = a dist-git release stream (rpm profile; never a branch re-audit). Writers set ref and ref_kind together."
+        },
+        "repository": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "upstream URL of the scanned repo \u2014 lets repo-graph and inventory joins attribute this coverage to the right node"
+        },
+        "harness_version": {
+          "type": "string"
+        },
+        "checkov_version": {
+          "type": "string"
+        },
+        "facts_ref": {
+          "type": "string",
+          "description": "path of the sibling cloud-facts artifact"
+        },
+        "facts_snapshot_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16,64}$"
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "frameworks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "checkov frameworks that evaluated checks (terraform, cloudformation, kubernetes, \u2026)"
+        },
+        "deterministic_steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "tool",
+              "invocation"
+            ],
+            "properties": {
+              "tool": {
+                "type": "string"
+              },
+              "invocation": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "facts_total",
+        "confirmed",
+        "suppressed",
+        "needs_review",
+        "gaps"
+      ],
+      "properties": {
+        "facts_total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "confirmed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "suppressed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "needs_review": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "gaps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "by_severity": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "by_provider": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "fact_ids",
+          "framework",
+          "provider",
+          "check_id",
+          "title",
+          "severity",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^CCA-[A-Za-z0-9-]+-[0-9]{3}$",
+            "description": "CCA-<target>-NNN"
+          },
+          "fact_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^cca-[0-9a-f]{12}$"
+            },
+            "description": "every constituent fact from the facts artifact \u2014 deduped per-module facts all cited here"
+          },
+          "framework": {
+            "type": "string",
+            "description": "checkov framework the facts came from (terraform, cloudformation, kubernetes, \u2026)"
+          },
+          "provider": {
+            "enum": [
+              "aws",
+              "azure",
+              "gcp",
+              "kubernetes",
+              "docker",
+              "other"
+            ]
+          },
+          "check_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "informational"
+            ]
+          },
+          "scanner_severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "informational",
+              "unrated"
+            ],
+            "description": "from the facts artifact; OSS Checkov emits none, so this is normally 'unrated' and the gate then requires the rationale to name the SKILL.md rubric row applied"
+          },
+          "status": {
+            "enum": [
+              "confirmed",
+              "suppressed",
+              "needs_review"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "description": "required by the gate for suppressed / needs_review / unrated-severity / severity-changed findings"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "file_path": {
+                  "type": "string"
+                },
+                "resource": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_line_range": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "cwe": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^CWE-[0-9]+$"
+          },
+          "control_refs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "<framework>:<control_id> \u2014 the compliance-check convention; declared-layer evidence"
+            }
+          },
+          "remediation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external_correlation": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "finding IDs in an enterprise CSPM already tracking the deployed twin of this declared misconfiguration"
+          },
+          "isolation_dimensions": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "privilege",
+                "encryption",
+                "authentication",
+                "connectivity",
+                "hygiene"
+              ]
+            },
+            "$comment": "Optional (harness >= 0.120.0): isolation-hardening dimension(s) this declared misconfiguration stresses \u2014 same optional per-finding fields as schema/report.schema.json, vocabulary shared with schema/isolation-review.schema.json. Only set when the target belongs to a multi-tenant service and the finding stresses a tenant boundary; absent elsewhere. Declared-layer evidence only."
+          },
+          "isolation_boundary": {
+            "type": "string",
+            "minLength": 1,
+            "$comment": "Optional (harness >= 0.120.0): free-form identifier of the tenant-facing interface the finding sits on. Only meaningful alongside isolation_dimensions."
+          },
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Deterministic cross-scan identity, same recipe as report.schema.json. Policy findings anchor on locations[].resource rather than a file path (files move; RoleBinding.ns.name does not) and append check_id, because the CHECK is what separates two findings on one resource -- without it 20 violations on a single Pod collapsed to one identity."
+          },
+          "fingerprint_algo": {
+            "type": "string",
+            "pattern": "^v\\d+$",
+            "description": "Algorithm version of `fingerprint` (the identity module ALGO_VERSION). Mirrors report.schema.json and layer.schema.json: stamps outlive recipes, so matching fingerprints across an epoch boundary means comparing this field too."
+          }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "copied through from the facts artifact \u2014 files/targets here were NOT assessed"
+    }
+  }
+}

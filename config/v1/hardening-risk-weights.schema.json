@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/traust-contracts/schemas/v1/hardening-risk-weights.schema.json",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/hardening-risk-weights.schema.json",
   "title": "Hardening Risk Weights",
   "description": "Schema for config/hardening-risk-weights.json \u2014 category-aware hardening risk weights (lambda) recorded into hardening ledger events at emission time. Permissive by design: template/comment sidecar keys ($template, $comment) and optional metadata are allowed; version, default and the weights map are the load-bearing fields.",
   "type": "object",

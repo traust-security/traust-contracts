@@ -12,5 +12,24 @@
   ],
   "used_in_schemas": [
     "triage.schema.json"
-  ]
+  ],
+  "definitions": {
+    "exploitable": "The verification lens confirmed an exploitable finding.",
+    "mitigated": "The real issue is mitigated or inapplicable here, distinct from a wrong claim.",
+    "needs_manual_test": "A manual test is needed; no validity decision follows yet.",
+    "confirmed": "Accepted confirmation presentation alias.",
+    "refuted": "Accepted refutation presentation alias: the reported claim is wrong.",
+    "hardening": "Historical presentation verdict for a real defense-in-depth weakness."
+  },
+  "standard": {
+    "none": "Project-defined classifier vocabulary; existing meanings are retained."
+  },
+  "deprecated": {
+    "hardening": {
+      "replaced_by": [
+        { "enum": "validity", "value": "confirmed" },
+        { "enum": "finding_kind", "value": "weakness" }
+      ]
+    }
+  }
 }

@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/attack-mapping.schema.json",
+  "title": "Harness vocabulary -> MITRE ATT&CK technique mapping",
+  "description": "Validates the harness vocabulary to MITRE ATT&CK technique mapping table \u2014 the bounded, versioned mapping from harness vocabularies (live-validation capabilities, finding categories) to candidate ATT&CK technique IDs. Structural gate only; referential integrity (every ID exists and is non-revoked in the pinned attack-techniques.json) is enforced by attack_refs.py --validate-tables and the test suite.",
+  "type": "object",
+  "required": [
+    "mapping_version",
+    "attack_version",
+    "source",
+    "attribution",
+    "capability_map",
+    "category_map"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "mapping_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "attack_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "source": {
+      "type": "string",
+      "format": "uri"
+    },
+    "documentation": {
+      "type": "string"
+    },
+    "schema": {
+      "type": "string"
+    },
+    "attribution": {
+      "type": "string",
+      "pattern": "MITRE"
+    },
+    "capability_map": {
+      "$ref": "#/definitions/techMap"
+    },
+    "category_map": {
+      "$ref": "#/definitions/techMap"
+    }
+  },
+  "definitions": {
+    "techniqueId": {
+      "type": "string",
+      "pattern": "^T\\d{4}(\\.\\d{3})?$"
+    },
+    "techMap": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(_comment|[a-z][a-z0-9-]*)$"
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/techniqueId"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        ]
+      }
+    }
+  }
+}

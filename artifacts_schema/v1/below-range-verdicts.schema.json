@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/below-range-verdicts.schema.json",
+  "title": "Below-range review verdicts",
+  "description": "The review of one below-range packets document, held by a second impact assessment of the same commit: per packet two blind reviews, a judge on a split or an undetermined review, and the final verdict (decisions D1, D4: only code-verified cases become findings; no human queue). Coverage gaps are carried unchanged: never dropped, never clean. Consistency among rows (every packet reviewed once, the judge exactly when needed, the verdict the agreed one or the judge's) is a service check.",
+  "type": "object",
+  "required": [
+    "artifact",
+    "packets_assessment_id",
+    "cases",
+    "coverage_gaps"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {
+      "const": "below-range-verdicts"
+    },
+    "packets_assessment_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The impact assessment holding the reviewed below-range-packets document."
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "case",
+          "reviews",
+          "verdict"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "case": {
+            "$ref": "below-range-packets.schema.json#/$defs/packet/properties/case"
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "model",
+                "verdict",
+                "evidence"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "verdict": {
+                  "$ref": "#/$defs/verdict"
+                },
+                "evidence": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "description": "One blind review: the model it ran on, its verdict and its file:line evidence."
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Reviewer A (opus-class fact-judge) and reviewer B (fact-judge at its floor), blind to each other."
+          },
+          "judge": {
+            "type": "object",
+            "required": [
+              "model",
+              "verdict",
+              "ruling"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "model": {
+                "type": "string",
+                "minLength": 1
+              },
+              "verdict": {
+                "$ref": "#/$defs/verdict"
+              },
+              "ruling": {
+                "type": "string",
+                "minLength": 1
+              },
+              "settle": {
+                "type": "string",
+                "description": "What would settle an undetermined case."
+              }
+            },
+            "description": "The opus-class judge, given both reviews and the packet."
+          },
+          "verdict": {
+            "$ref": "#/$defs/verdict"
+          }
+        }
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "items": {
+        "$ref": "below-range-packets.schema.json#/$defs/coverage_gap"
+      }
+    }
+  },
+  "$defs": {
+    "verdict": {
+      "enum": [
+        "applicable",
+        "not_applicable",
+        "undetermined"
+      ]
+    }
+  }
+}

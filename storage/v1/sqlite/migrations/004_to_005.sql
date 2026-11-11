@@ -1,8 +1,0 @@
--- Revision 4 -> 5: views only, no table delta.
---
--- Revision 5 adds the current_finding_detail view and the cvss_score
--- column on the current_finding spine. Views are recreated by
--- Store.migrate() re-running the bootstrap files, so this delta holds
--- nothing: without the revision bump an existing database would never
--- re-run those files (Store.init() verifies, it does not sync), and the
--- new view would simply not exist there.

@@ -1,19 +1,6 @@
-"""SQL-first storage/v1 and reference write protocol."""
+"""SQL-first db/v1/traust: the one-owner data model (XWING-2363).
 
-from traust_contracts.v1.storage.store import (
-    Binding,
-    BindingRecord,
-    IngestError,
-    IngestResult,
-    Store,
-    binding_id,
-)
-
-__all__ = [
-    "Binding",
-    "BindingRecord",
-    "IngestError",
-    "IngestResult",
-    "Store",
-    "binding_id",
-]
+The DDL is the contract (db/v1/traust); consumers load it through
+bootstrap_files()/bootstrap_statements(). The write protocol (Store) is
+rebuilt against this model once the DDL has landed.
+"""

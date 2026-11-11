@@ -27,5 +27,11 @@
     "l": "Large effort-size label, ordered between m and xl; no duration threshold is defined.",
     "xl": "Extra-large effort-size label, ordered after l; no duration threshold is defined."
   },
+  "deprecated": {
+    "XS": { "replaced_by": [{ "enum": "mitigation_effort", "value": "xs" }] },
+    "S": { "replaced_by": [{ "enum": "mitigation_effort", "value": "s" }] },
+    "M": { "replaced_by": [{ "enum": "mitigation_effort", "value": "m" }] },
+    "L": { "replaced_by": [{ "enum": "mitigation_effort", "value": "l" }] }
+  },
   "standard": { "none": "Project-defined effort labels; no external standard is adopted." }
 }

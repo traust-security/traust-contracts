@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from traust_contracts.v1.enums import Severity, Verdict
+from traust_contracts.v1.enums import FindingKind, Severity, Verdict
 from traust_contracts.v1.models._base import ContractModel
 from traust_contracts.v1.models.report import SeverityCounts
 
@@ -44,15 +44,18 @@ class VoteBreakdown(ContractModel):
 
 
 class TriageFinding(ContractModel):
+    explicit_null_fields = frozenset({"kind"})
+
     id: str
     title: str
     verdict: Verdict
+    kind: FindingKind | None = None
     orig_id: str | None = None
     source: str | None = None
     file: str | None = None
     line: int | None = None
     category: str | None = None
-    claimed_severity: str | None = None
+    claimed_severity: Severity | str | None = None
     verify_verdict: str | None = None
     confidence: float | None = None
     severity: Severity | None = None

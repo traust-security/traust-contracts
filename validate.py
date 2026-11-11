@@ -13,11 +13,21 @@ import json
 import sys
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 from referencing.exceptions import Unresolvable
 
-SCHEMA_DIR = Path(__file__).parent / "schemas" / "v1"
+SCHEMA_DIR = Path(__file__).parent / "artifacts_schema" / "v1"
+
+
+def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Reject duplicate JSON members before decoding can discard their evidence."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON member {key!r}")
+        result[key] = value
+    return result
 
 
 def build_registry() -> Registry:
@@ -44,8 +54,10 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
 
     try:
         schema = json.loads(schema_file.read_text(encoding="utf-8"))
-        artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
+        artifact = json.loads(
+            artifact_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_object
+        )
+    except ValueError as e:
         print(f"{artifact_path}: JSON parse error: {e}")
         return False
 
@@ -58,7 +70,7 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
             print(f"{artifact_path}: invalid schema selector {schema_name!r}: {error}")
             return False
         schema = {"$schema": schema["$schema"], "$ref": reference}
-    validator = Draft202012Validator(schema, registry=registry)
+    validator = Draft202012Validator(schema, registry=registry, format_checker=FormatChecker())
 
     valid = True
     for error in validator.iter_errors(artifact):
@@ -68,6 +80,37 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
         )
         print(f"{artifact_path}: {path_str}: {error.message}")
 
+    # Content gates are whole-document cross-field rules. A JSON Pointer
+    # fragment selects a sub-schema (a bare `#` selects the whole document),
+    # so gates run only when no fragment narrowed the selection.
+    whole_document = fragment == ""
+    return valid and (not whole_document or _content_gates(basename, artifact, artifact_path))
+
+
+def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:
+    """Cross-field content gates the JSON Schema drafts cannot express.
+
+    The README documents these as "the content gate": structural validation
+    alone lets inconsistent facts through, so the CLI enforces them here.
+    """
+    valid = True
+    if basename == "fuzz-campaign":
+        for i, pattern in enumerate(artifact.get("patterns", [])):
+            tested, vulnerable = pattern.get("tested"), pattern.get("vulnerable")
+            if isinstance(tested, int) and isinstance(vulnerable, int) and vulnerable > tested:
+                valid = False
+                print(
+                    f"{artifact_path}: patterns[{i}]: vulnerable ({vulnerable}) "
+                    f"exceeds tested ({tested})"
+                )
+    if basename == "repo-liveness":
+        for key, entry in artifact.get("repositories", {}).items():
+            if entry.get("repository_id") != key:
+                valid = False
+                print(
+                    f"{artifact_path}: repositories[{key}]: repository_id "
+                    f"({entry.get('repository_id')}) does not match its map key"
+                )
     return valid
 
 

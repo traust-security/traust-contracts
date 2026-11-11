@@ -1,0 +1,592 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/config/v1/traust.schema.json",
+  "title": "traust.yaml",
+  "description": "Everything an adopter sets, in one file. Secrets come from the environment: each *_env key names the variable. Every section is optional; an absent file or section keeps traust-core's zero-config defaults (SQLite and artifacts under ~/.traust). Product data (tool pins, safe-exec profiles, feed endpoints, rule packs, the SLA default) ships with traust; `overrides` points at an adopter's own copy. A new key needs a reason it can't be a shipped default.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "compliance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "docs_targets": {
+          "type": "object",
+          "description": "Official documentation coordinates for registered product UUIDs. Coordinates are adopter facts; an omitted guides list means traust-core's compliance docs provider (compliance_sources.py) discovers guides from the official product landing page: it parses the landing page for guide slugs, and a page yielding no slugs is an explicit refusal (the product is reported not fetched, never an empty-guide success).",
+          "propertyNames": {
+            "format": "uuid",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["product_slug", "version"],
+            "properties": {
+              "product_slug": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9._-]+$"
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9._-]+$"
+              },
+              "guides": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9._-]+$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "home": {
+      "type": "string",
+      "description": "traust's data directory: traust.db, artifacts, keys, logs. Default ~/.traust."
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "SQLAlchemy URL of the record store. Absent: SQLite at <home>/traust.db."
+        },
+        "password_env": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "The name of an environment variable; the value never goes in this file."
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "not": {
+        "required": ["path", "s3"]
+      },
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Where artifact bytes live locally; relative to home. Absent: <home>/artifacts."
+        },
+        "s3": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bucket"],
+          "dependentRequired": {
+            "access_key_env": ["secret_key_env"],
+            "secret_key_env": ["access_key_env"]
+          },
+          "properties": {
+            "bucket": {"type": "string", "minLength": 1},
+            "prefix": {"type": "string"},
+            "endpoint_url": {"type": "string", "pattern": "^https?://(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*|\\[[0-9A-Fa-f:.]+\\])(?::[0-9]{1,5})?/?$"},
+            "region": {"type": "string", "minLength": 1},
+            "access_key_env": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+            "secret_key_env": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
+          },
+          "description": "S3-compatible artifact bytes (AWS, MinIO or Ceph). Absent credentials use the SDK credential chain, including workload identity; named credentials come from the environment."
+        }
+      },
+      "description": "Choose either local path or S3. Absent: local bytes under <home>/artifacts."
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_binaries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "keep_env": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "http": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "backoff_base_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_wait_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "jitter_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "description": "Retry policy for outbound HTTP."
+    },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "outputs": {
+          "type": "array",
+          "items": {
+            "enum": ["stderr", "file"]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "level": {
+          "type": "string"
+        },
+        "levels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "format": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "max_bytes": {
+          "type": "integer",
+          "minimum": 1024
+        },
+        "backups": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "rating": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sla": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "resolve_days": {
+              "type": "object",
+              "additionalProperties": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            },
+            "cvss_floor": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "threshold": {
+                  "type": [
+                    "number",
+                    "string"
+                  ]
+                },
+                "resolve_days": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "threshold",
+                "resolve_days"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "valve_salt_env": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "The name of an environment variable; the value never goes in this file."
+        }
+      }
+    },
+    "ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key_path": {
+          "type": "string",
+          "description": "The cosign private key that signs layer roots."
+        },
+        "public_key_path": {
+          "type": "string",
+          "description": "Its public key; absent: signatures are not verified."
+        },
+        "previous_public_key_path": {
+          "type": "string",
+          "description": "During a key rotation, so old signatures still verify."
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "description": "Absent: decisions are recorded with no proof chain."
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "issuers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "issuer": {
+                "type": "string"
+              },
+              "jwks_url": {
+                "type": "string"
+              },
+              "audience": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "issuer",
+              "jwks_url"
+            ]
+          }
+        },
+        "identity_claim": {
+          "type": "string"
+        },
+        "machine_claim": {
+          "type": "string"
+        },
+        "trust_local": {
+          "type": "boolean"
+        },
+        "directory_command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "directory_timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "admins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "restatement_approvers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "login": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "issuer": {
+              "type": "string"
+            },
+            "client_id": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issuer",
+            "client_id"
+          ]
+        }
+      },
+      "description": "Absent: no caller can be verified. A solo laptop sets trust_local; a shared deployment lists issuers."
+    },
+    "recording": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assessment": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "triage": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "validation": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verification": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "start": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "principal": {
+                "type": "string",
+                "minLength": 1
+              },
+              "assets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "repository_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "principal"
+            ]
+          }
+        }
+      }
+    },
+    "allowed_repo_hosts": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "forge_hosts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Forge host -> its kind (github, gitlab). Absent: github.com and gitlab.com."
+    },
+    "forge_tokens": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+        "description": "The name of an environment variable; the value never goes in this file."
+      },
+      "description": "Forge host -> the environment variable holding its API token. Absent: anonymous reads."
+    },
+    "budgets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lane": {
+            "type": "string",
+            "minLength": 1
+          },
+          "monthly_usd": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "enforcement": {
+            "type": "string",
+            "enum": [
+              "none",
+              "observe",
+              "advisory",
+              "enforced"
+            ]
+          }
+        },
+        "required": [
+          "lane",
+          "monthly_usd",
+          "enforcement"
+        ]
+      }
+    },
+    "remediation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fork_org": {
+          "type": "string",
+          "description": "The organisation holding private mirrors fixes are pushed to."
+        },
+        "private_forge_hosts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "fix_branch_prefix": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "patch_prefix": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]*$",
+          "description": "The prefix the remediation fork-naming convention gives patch repositories in the fork org. No leading hyphen: it would name no repository the URL parser accepts."
+        }
+      },
+      "description": "Only for /remediate-finding."
+    },
+    "campaign": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tracking_reference": {
+          "type": "string",
+          "description": "The issue-tracker key reports cite."
+        },
+        "display_name": {
+          "type": "string",
+          "description": "How reports title the campaign."
+        }
+      },
+      "description": "Only if reports cite a tracking reference."
+    },
+    "feeds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "osv_access": {
+          "type": "string",
+          "enum": [
+            "api",
+            "air-gapped"
+          ],
+          "description": "api (default) queries the OSV API; air-gapped reads an adopter-provided osv-scanner and offline database instead."
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sandbox": {
+          "type": "string",
+          "enum": [
+            "none",
+            "podman"
+          ],
+          "description": "How lanes run a target's own build and test code: none (default; scrubbed env on a disposable copy) or podman (rootless nested container; a missing runtime is not_attempted, never a silent fallback to none)."
+        }
+      }
+    },
+    "locations": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Where traust reads and writes runtime data. Each value is a local path (absolute, or relative to the directory holding traust.yaml) or a location URI. A feature that needs an unset location fails loudly.",
+      "properties": {
+        "workspace": {
+          "type": "string",
+          "description": "Workspace root source repositories are read from."
+        },
+        "analysis_results": {
+          "type": "string",
+          "description": "Where findings-side artifacts live."
+        },
+        "portfolio_graph": {
+          "type": "string",
+          "description": "Default <analysis_results>/graph/portfolio-graph.db."
+        },
+        "progress_tracker": {
+          "type": "string",
+          "description": "Metrics and progress output tree."
+        },
+        "rule_drafts": {
+          "type": "string",
+          "description": "Rule-draft staging directory. Default <progress_tracker>/metrics/rule-mining/rule-drafts."
+        },
+        "feeds_cache": {
+          "type": "string",
+          "description": "Cache directory for fetched feed data."
+        },
+        "mirror_cache": {
+          "type": "string",
+          "description": "Git mirror cache root for repository checkouts; relative paths resolve against the config home."
+        },
+        "gitleaks_config": {
+          "type": "string",
+          "description": "The gitleaks rules TOML. Overrides the bundled default."
+        },
+        "opengrep_rules": {
+          "type": "string",
+          "description": "The opengrep rule pack directory. Overrides the bundled default."
+        },
+        "product_definitions": {
+          "type": "string",
+          "description": "Endpoint of the product/ownership registry; absent: not fetched."
+        },
+        "sarif_tool_uri": {
+          "type": "string",
+          "description": "informationUri stamped into exported SARIF; omitted when unset."
+        },
+        "inputs": {
+          "type": "string",
+          "description": "The repository-inventory tree. Default <workspace>/inputs."
+        }
+      }
+    },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rule_pack_allowlist": {
+          "type": "string",
+          "description": "Enables supplemental rule packs (contracts rule-pack-allowlist); shipped empty."
+        }
+      },
+      "description": "Optional: enable supplemental rule packs with your own allowlist (path relative to the directory holding traust.yaml). Tool pins, safe-exec profiles and the feeds registry ship with traust and are not adopter-configurable."
+    }
+  }
+}

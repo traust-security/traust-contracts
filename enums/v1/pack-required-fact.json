@@ -1,0 +1,15 @@
+{
+  "name": "pack_required_fact",
+  "source_schema": "pack.schema.json#/$defs/asset/properties/requires/properties/facts/items",
+  "description": "Adopter facts a pack asset can require, by their traust-core artifact names; preflight checks each record exists.",
+  "values": [
+    "adr-registry",
+    "benchmark-target",
+    "org-parameters",
+    "product-definitions-map",
+    "sla-policy"
+  ],
+  "used_in_schemas": [
+    "pack.schema.json"
+  ]
+}

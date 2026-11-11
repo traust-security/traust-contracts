@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/traust-contracts/schemas/v1/model-registry.schema.json",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/model-registry.schema.json",
   "title": "Model Registry",
   "description": "Schema for config/model-registry.yaml \u2014 the single source of vendor/model identifiers and role routing policy (multi-model-strategy-plan M0).",
   "type": "object",
@@ -51,6 +51,53 @@
           "data_handling": {
             "type": "string",
             "minLength": 4
+          },
+          "connection": {
+            "type": "object",
+            "description": "How a runner reaches this provider: the wire it speaks, its endpoint, the harness fronting it and where its credential lives. Absent means the default: the Anthropic wire at its public endpoint, the credential already in the environment. The type names the wire and credential format, not the model family: anthropic, gemini and openai are proprietary endpoints (no base_url); anthropic-compatible and openai-compatible are gateways speaking an incumbent's wire (base_url required). Which types, harnesses and credential sources exist is the consumer's closed set, like tier names.",
+            "required": [
+              "type",
+              "credential"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "base_url": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The endpoint override; required for the compatible types, forbidden for the proprietary ones."
+              },
+              "harness": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The harness a gateway connection fronts its wire with; absent keeps the worker's default."
+              },
+              "credential": {
+                "type": "object",
+                "description": "Where the provider's credential lives: source env reads the pod's existing environment; source secret names a Kubernetes Secret and the key within it.",
+                "required": [
+                  "source"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
           },
           "models": {
             "type": "object",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/traust-contracts/schemas/v1/safe-exec-profiles.schema.json",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/safe-exec-profiles.schema.json",
   "title": "safe_exec Profiles",
   "description": "Schema for config/safe-exec-profiles.yaml \u2014 policy-as-data allowlists for the safe_exec sandbox (edit here, never in safe_exec.py). Permissive by design: each profile carries an optional description, allow list, path heads, pipeline flag and env passthrough; only the top-level shape is required.",
   "type": "object",

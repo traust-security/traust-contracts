@@ -10,7 +10,6 @@
   ],
   "note": "'owned' = the deploying org's own backlog, the canonical distinct-exposure denominator. 'upstream' = community code relied on, reported as an adjacent supply-chain line and never folded into owned. 'external-bu' = engagements performed for another business unit, work-performed only. 'harness-qa' = harness self-measurement, excluded from every metrics lens and never a readable scope.",
   "used_in_schemas": [
-    "corpus-config.schema.json",
     "corpus-registry.schema.json"
   ]
 }

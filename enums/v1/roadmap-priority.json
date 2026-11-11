@@ -2,13 +2,40 @@
   "name": "roadmap_priority",
   "source_schema": "report.schema.json#/$defs/roadmap_priority",
   "description": "Priority labels for explicitly selected future-write roadmap contracts.",
-  "values": ["p0", "p1", "p2", "p3", "p4"],
+  "values": ["p0", "p1", "p2", "p3", "p4", "P0", "P1", "P2", "P3", "P4"],
   "definitions": {
     "p0": "Priority label with numeric rank 0; no urgency or deadline mapping is defined.",
     "p1": "Priority label with numeric rank 1; no urgency or deadline mapping is defined.",
     "p2": "Priority label with numeric rank 2; no urgency or deadline mapping is defined.",
     "p3": "Priority label with numeric rank 3; no urgency or deadline mapping is defined.",
-    "p4": "Priority label with numeric rank 4; no urgency or deadline mapping is defined."
+    "p4": "Priority label with numeric rank 4; no urgency or deadline mapping is defined.",
+    "P0": "Uppercase spelling of p0; readers normalise it to p0.",
+    "P1": "Uppercase spelling of p1; readers normalise it to p1.",
+    "P2": "Uppercase spelling of p2; readers normalise it to p2.",
+    "P3": "Uppercase spelling of p3; readers normalise it to p3.",
+    "P4": "Uppercase spelling of p4; readers normalise it to p4."
+  },
+  "deprecated": {
+    "P0": {
+      "replaced_by": [{ "enum": "roadmap_priority", "value": "p0" }],
+      "note": "Historical reports spell priorities in uppercase."
+    },
+    "P1": {
+      "replaced_by": [{ "enum": "roadmap_priority", "value": "p1" }],
+      "note": "Historical reports spell priorities in uppercase."
+    },
+    "P2": {
+      "replaced_by": [{ "enum": "roadmap_priority", "value": "p2" }],
+      "note": "Historical reports spell priorities in uppercase."
+    },
+    "P3": {
+      "replaced_by": [{ "enum": "roadmap_priority", "value": "p3" }],
+      "note": "Historical reports spell priorities in uppercase."
+    },
+    "P4": {
+      "replaced_by": [{ "enum": "roadmap_priority", "value": "p4" }],
+      "note": "Historical reports spell priorities in uppercase."
+    }
   },
   "standard": { "none": "Project-defined labels; no external standard is adopted." },
   "used_in_schemas": ["pqc-blockers.schema.json", "report.schema.json"]

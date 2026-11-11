@@ -1,59 +1,81 @@
-"""Read authored SQL in deterministic table-then-view bootstrap order."""
+"""Read authored SQL in deterministic table-then-view bootstrap order.
 
-import re
-from functools import cache
+The traust namespace of the one-owner data model: domain tables - inventory,
+dependencies, assessments & findings. Each namespace owns its directory and
+loader under db/v1/ - traust_ops and traust_ledger - with cross-schema FKs
+as the contract between them on Postgres, and table prefixes (`ops_`,
+`ledger_`) bootstrapped into one SQLite file. The db version itself is
+owned by traust_contracts.v1.db.
+"""
+
+from __future__ import annotations
+
 from pathlib import Path
 
 from traust_contracts.paths import storage_dir
+from traust_contracts.v1.db import REVISION
 from traust_contracts.v1.sql import Dialect
 from traust_contracts.v1.sql import bootstrap_files as _bootstrap_files
 from traust_contracts.v1.sql import bootstrap_statements as bootstrap_statements
 
+__all__ = [
+    "CONTRACT_VERSION",
+    "REVISION",
+    "TABLE_ORDER",
+    "VIEW_ORDER",
+    "artifact_run_order_upgrade",
+    "bootstrap_files",
+    "bootstrap_statements",
+    "default_named_at_upgrade",
+    "manifest_sbom_binding_upgrade",
+]
+
 CONTRACT_VERSION = "v1"
-#: Storage schema revision, stamped in traust_storage_meta and checked on
-#: open. Bump it whenever the DDL changes, so a database created under an
-#: older schema is refused instead of failing on its first read or write.
-#: 1: baseline (0.50.0). Rebaselined: the registry, report_finding.blocked_external
-#: and every earlier change are part of revision 1. Databases created under any
-#: earlier schema are recreated, not migrated.
-#: Each later step adds migrations/NNN_to_NNN+1.sql; Store.migrate() runs them.
-#: 2: cached Portfolio forge observations (XWING-2214).
-#: 6: report_finding.owasp_llm_references (OWASP LLM Top 10 category IDs).
-REVISION = 6
 
+#: Tables other tables reference, in dependency order; the loader appends the
+#: remaining schema files alphabetically, so a table must appear here whenever
+#: another table's FK reaches it and alphabetical order would invert that.
+#: Three FKs close cycles and are ALTERs on Postgres (SQLite does not check
+#: parent existence at CREATE): sbom.artifact_id (added in artifact.sql),
+#: repository_ref.manifest_sbom_assessment_id (added in assessment.sql), and
+#: assessment.run_order_id (added by the ops bootstrap, since run_order
+#: references storage tables back).
+TABLE_ORDER: tuple[str, ...] = (
+    "repository",
+    "sbom",
+    "repository_ref",
+    "product",
+    "release",
+    "component",
+    "team",
+    "ownership",
+    "advisory",
+    "package",
+    "dependency",
+    "image",
+    "advisory_package",
+    "assessment",
+    "artifact",
+    "finding",
+    "cwe",
+    "finding_cwe",
+    "finding_label",
+    "finding_external_ref",
+    "decision",
+    "decision_approver",
+    "review_item",
+    "occurrence",
+    "location",
+)
 
-@cache
-def query(dialect: Dialect, filename: str) -> str:
-    return (storage_dir() / dialect / "queries" / filename).read_text(encoding="utf-8")
-
-
-#: Views that other views select FROM, in the order they must be created.
-#: Alphabetical order is not dependency order -- `current_finding` sorts
-#: before `report_current` but selects from it, and PostgreSQL resolves a
-#: view's references at CREATE time, so the glob order alone fails there
-#: while silently succeeding on SQLite.
-#: THE SCHEMA IS THE REFERENCE FOR WHAT A VIEW MUST CARRY. A view is not
-#: correct because its numbers match another projection -- two projections
-#: dropping the same fields agree perfectly and are both wrong. Check it
-#: against the artifact's JSON Schema, and let
-#: tests/test_view_contract_coverage.py fail you if a declared field never
-#: reaches SQL. See storage/v1/README.md, "The schema is the reference".
+#: Views other views select FROM, in creation order (filenames), because
+#: Postgres resolves a view's references at CREATE. retired.sql first drops the
+#: views an older contract created.
 VIEW_ORDER: tuple[str, ...] = (
-    "binding_current.sql",
-    "report_current.sql",
+    "retired.sql",
+    "unowned.sql",
     "ownership_current.sql",
-    "current_finding.sql",
-    "threat_current.sql",
-    "validation_current.sql",
-    "finding_first_seen.sql",
-    "finding_timeline.sql",
-    "pqc_posture.sql",
-    "sla_clock.sql",
-    "sla_threshold.sql",
-    # Reads current_finding, so it must follow it.
-    "pattern_exposure.sql",
-    # Reads threat_current and current_binding.
-    "attack_coverage.sql",
+    "finding_primary_cwe.sql",
 )
 
 
@@ -62,45 +84,44 @@ def bootstrap_files(dialect: Dialect) -> list[Path]:
     return _bootstrap_files(
         storage_dir(),
         dialect,
-        first_tables=(
-            "product",
-            "repo",
-            "product_repo",
-            "artifact_evidence",
-            "artifact_binding",
-            "artifact_location",
-        ),
+        first_tables=TABLE_ORDER,
         view_order=VIEW_ORDER,
     )
 
 
-def migration_files(dialect: Dialect, from_revision: int) -> list[Path]:
-    """Return the delta files that take ``from_revision`` to ``REVISION``, in order.
+def _additive_upgrade(dialect: Dialect, name: str) -> list[str]:
+    path = storage_dir() / dialect / "upgrades" / f"{name}.sql"
+    return list(bootstrap_statements(dialect, path))
 
-    A delta file holds only what re-running the schema files cannot do:
-    ALTER, DROP, data UPDATEs. New tables, indexes and views come from the
-    schema and view files themselves, which Store.migrate() re-runs.
+
+def manifest_sbom_binding_upgrade(dialect: Dialect) -> list[str]:
+    """Load the explicit additive upgrade for a database missing the scan column.
+
+    Callers must inspect repository_ref first and apply these statements only
+    when manifest_sbom_assessment_id is absent. This does not run on bootstrap
+    or infer bindings for existing SBOMs: old coverage remains unknown.
     """
-    directory = storage_dir() / dialect / "migrations"
-    paths = [
-        directory / f"{step:03d}_to_{step + 1:03d}.sql" for step in range(from_revision, REVISION)
-    ]
-    missing = [path.name for path in paths if not path.is_file()]
-    if missing:
-        raise FileNotFoundError(f"missing {dialect} migration: {', '.join(missing)}")
-    return paths
+    return _additive_upgrade(dialect, "manifest_sbom_binding")
 
 
-_VIEW_NAME = re.compile(r"CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w.]+)")
+def artifact_run_order_upgrade(dialect: Dialect) -> list[str]:
+    """Load the explicit additive upgrade for a database missing artifact.run_order_id.
+
+    Callers must inspect artifact first and apply these statements only when
+    run_order_id is absent, on a database that has run_order.work_item_id
+    (contracts#117; it fails first otherwise). It applies whole or not at all:
+    one statement on Postgres, one explicit transaction on SQLite (apply it
+    outside an open transaction). Existing artifacts name no order.
+    """
+    return _additive_upgrade(dialect, "artifact_run_order")
 
 
-def view_names(dialect: Dialect) -> list[str]:
-    """Names of the views storage owns, in creation order, read from the SQL."""
-    names = []
-    for path in bootstrap_files(dialect):
-        if path.parent.name == "views":
-            match = _VIEW_NAME.search(path.read_text(encoding="utf-8"))
-            if match is None:
-                raise ValueError(f"no CREATE VIEW in {path.name}")
-            names.append(match.group(1))
-    return names
+def default_named_at_upgrade(dialect: Dialect) -> list[str]:
+    """Load the explicit additive upgrade for a database missing the naming column.
+
+    Callers must inspect repository_ref first and apply these statements only
+    when default_named_at is absent. This does not run on bootstrap or invent
+    naming times for existing default flags: they stay unknown until the line
+    is named again.
+    """
+    return _additive_upgrade(dialect, "default_named_at")

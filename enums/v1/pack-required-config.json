@@ -1,0 +1,33 @@
+{
+  "name": "pack_required_config",
+  "source_schema": "pack.schema.json#/$defs/asset/properties/requires/properties/config/items",
+  "description": "Config a pack asset can require: traust.yaml top-level keys (traust.schema.json) plus model-registry for model-registry.yaml.",
+  "values": [
+    "home",
+    "database",
+    "artifacts",
+    "process",
+    "http",
+    "logging",
+    "rating",
+    "review",
+    "ledger",
+    "identity",
+    "recording",
+    "allowed_repo_hosts",
+    "forge_hosts",
+    "forge_tokens",
+    "budgets",
+    "remediation",
+    "campaign",
+    "compliance",
+    "feeds",
+    "execution",
+    "locations",
+    "overrides",
+    "model-registry"
+  ],
+  "used_in_schemas": [
+    "pack.schema.json"
+  ]
+}

@@ -11,5 +11,24 @@
   ],
   "used_in_schemas": [
     "triage.schema.json"
-  ]
+  ],
+  "definitions": {
+    "true_positive": "Triage judged the reported claim to be real; decision validity is confirmed.",
+    "hardening": "Historical triage verdict for a real defense-in-depth weakness.",
+    "undetermined": "Triage did not reach a validity answer; requires review.",
+    "false_positive": "Triage judged the reported claim to be wrong.",
+    "duplicate": "The report duplicates an existing finding; it does not create a validity decision."
+  },
+  "standard": {
+    "none": "Project-defined classifier vocabulary; existing meanings are retained."
+  },
+  "deprecated": {
+    "hardening": {
+      "replaced_by": [
+        { "enum": "validity", "value": "confirmed" },
+        { "enum": "finding_kind", "value": "weakness" }
+      ],
+      "note": "Finding kind is separate from validity. true_positive remains the triage verdict."
+    }
+  }
 }

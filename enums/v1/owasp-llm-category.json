@@ -1,0 +1,24 @@
+{
+  "name": "owasp_llm_category",
+  "source_schema": "report.schema.json#/$defs/finding/properties/owasp_llm_references/items",
+  "description": "OWASP Top 10 for LLM Applications (2025) category IDs a finding falls under, cited by ID only.",
+  "values": [
+    "LLM01",
+    "LLM02",
+    "LLM03",
+    "LLM04",
+    "LLM05",
+    "LLM06",
+    "LLM07",
+    "LLM08",
+    "LLM09",
+    "LLM10"
+  ],
+  "note": "Stored by traust-core as finding labels with taxonomy `owasp-llm`. The categories' names and text belong to OWASP (CC BY-SA 4.0) and are not reproduced here.",
+  "used_in_schemas": [
+    "adapter-result.schema.json",
+    "report.schema.json",
+    "threat-model.schema.json",
+    "validation.schema.json"
+  ]
+}

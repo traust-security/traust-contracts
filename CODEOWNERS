@@ -7,13 +7,14 @@
 /schemas/ @traust-security/traust-admins
 /enums/ @traust-security/traust-admins
 /src/traust_contracts/ @traust-security/traust-admins
-/tests/test_compat.py @traust-security/traust-admins
 
 /.gitlab-ci.yml @traust-security/traust-admins
 /.githooks/ @traust-security/traust-admins
 /CODEOWNERS @traust-security/traust-admins
-/ci/gates.py @traust-security/traust-admins
-/release.py @traust-security/traust-admins
+/ci/ @traust-security/traust-admins
 /Makefile @traust-security/traust-admins
 
 * @traust-security/traust-admins
+
+# Tables: changes need the data-model owners (last match wins, so this follows *)
+/db/ @chubirka @smith-xyz

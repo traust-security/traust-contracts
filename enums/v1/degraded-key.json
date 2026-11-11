@@ -1,0 +1,43 @@
+{
+  "name": "degraded_key",
+  "source_schema": "run-manifest.schema.json#/$defs/degraded_key",
+  "schema_enforced": false,
+  "description": "Common degraded coverage causes and audit counters. Registered feed and insight-view identifiers remain owned by their registries; Core validates those subjects without collapsing their counts into generic causes.",
+  "values": [
+    "quota-deferred",
+    "unsupported-host",
+    "no-repo-url",
+    "no-credentials",
+    "unreachable",
+    "error",
+    "ban-suspected",
+    "network-skipped",
+    "db-missing",
+    "db-stale",
+    "db-version-mismatch",
+    "failed",
+    "unverified"
+  ],
+  "definitions": {
+    "quota-deferred": "Coverage was deferred by the source's quota.",
+    "unsupported-host": "The repository's forge host is unsupported.",
+    "no-repo-url": "The observation has no repository URL.",
+    "no-credentials": "Required source credentials were unavailable or refused.",
+    "unreachable": "The source could not be reached.",
+    "error": "A source observation failed or its reply was invalid.",
+    "ban-suspected": "Coverage was skipped because a source ban or secondary rate limit is suspected.",
+    "network-skipped": "The run did not permit network observation.",
+    "db-missing": "The pinned scanner has no usable vulnerability database.",
+    "db-stale": "The pinned scanner's vulnerability database is stale.",
+    "db-version-mismatch": "The vulnerability database does not match the pinned scanner version.",
+    "failed": "Ledger audit counter: layers whose integrity verification failed.",
+    "unverified": "Ledger audit counter: layers that could not be independently verified."
+  },
+  "standard": {
+    "none": "Project-defined operational coverage vocabulary; existing spellings and subject identifiers are preserved."
+  },
+  "note": "The schema's pattern remains historical-compatible. New Core completions accept this vocabulary or identifiers from the registered feed/view domains, and require positive integer counts. Healthy observation outcomes are not degraded causes.",
+  "used_in_schemas": [
+    "run-manifest.schema.json"
+  ]
+}

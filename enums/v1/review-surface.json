@@ -1,16 +1,17 @@
 {
   "name": "review_surface",
   "source_schema": "report.schema.json#/properties/review_surface_coverage/propertyNames",
-  "description": "The six code surfaces every review must answer for: where audits most often find nothing because no step of the review was pointed there.",
+  "description": "The seven code surfaces every review must answer for: where audits most often find nothing because no step of the review was pointed there.",
   "values": [
     "credential-acceptance",
     "ownership-resolution",
     "security-flags",
     "outbound-fetch",
     "stored-content-integrity",
-    "scope-enforcement"
+    "scope-enforcement",
+    "llm-integration"
   ],
-  "note": "Review guidance, not a finding field: a finding on a surface keeps the shared category vocabulary and cwes. Distinct from isolation-dimension (PEACH tenant-boundary parameters). credential-acceptance: what else passes each credential verifier. ownership-resolution: owners matched by name or unescaped pattern. security-flags: every reader of a security-relevant flag, controls that fail open when unconfigured, default keys. outbound-fetch: every outbound call site, including identity-provider discovery and key fetches. stored-content-integrity: the verified bytes are the stored bytes. scope-enforcement: scope and step-up rules hold for every credential type and route.",
+  "note": "Review guidance, not a finding field: a finding on a surface keeps the shared category vocabulary and cwes. Distinct from isolation-dimension (PEACH tenant-boundary parameters). credential-acceptance: what else passes each credential verifier. ownership-resolution: owners matched by name or unescaped pattern. security-flags: every reader of a security-relevant flag, controls that fail open when unconfigured, default keys. outbound-fetch: every outbound call site, including identity-provider discovery and key fetches. stored-content-integrity: the verified bytes are the stored bytes. scope-enforcement: scope and step-up rules hold for every credential type and route. llm-integration: where the code calls a model, agent framework, MCP SDK or vector store (the llm-app detector's tag), the prompt, tool, output and data paths are reviewed; not_applicable when the detector finds no LLM use, citing it. Required for audits dated from 2026-11-02; earlier reports may omit it.",
   "used_in_schemas": [
     "report.schema.json",
     "threat-model.schema.json",

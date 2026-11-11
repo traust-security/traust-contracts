@@ -1,0 +1,12 @@
+{
+  "name": "below_range_candidate_kind",
+  "source_schema": "below-range-packets.schema.json#/$defs/candidate/properties/kind",
+  "description": "Where an installed version sits outside an advisory's stated spans: below every explicit start, or in a gap after a span left without a fix.",
+  "values": [
+    "below_range",
+    "gap"
+  ],
+  "used_in_schemas": [
+    "below-range-packets.schema.json"
+  ]
+}

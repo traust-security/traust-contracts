@@ -1,0 +1,39 @@
+{
+  "name": "work_lane",
+  "source_schema": "",
+  "schema_enforced": false,
+  "description": "Operational vocabulary for traust_ops.run_order.lane; Core enforces new writes, while stored historical text remains readable.",
+  "values": [
+    "full-audit+validate",
+    "full-audit",
+    "impact-lane",
+    "iac-lane",
+    "iac-baseline",
+    "release-passthrough",
+    "threat-model-review",
+    "deps-lane",
+    "diff-scan",
+    "diff-scan-quarterly",
+    "threat-model-quarterly",
+    "none"
+  ],
+  "definitions": {
+    "full-audit+validate": "Full audit followed by validation.",
+    "full-audit": "Full audit without the combined validation lane.",
+    "impact-lane": "Dependency or advisory impact assessment.",
+    "iac-lane": "Incremental infrastructure-as-code assessment.",
+    "iac-baseline": "Initial infrastructure-as-code assessment.",
+    "release-passthrough": "A release event that follows the release-specific routing path.",
+    "threat-model-review": "Threat-model review selected by the router.",
+    "deps-lane": "Dependency assessment selected by the router.",
+    "diff-scan": "Incremental scan of a recorded baseline.",
+    "diff-scan-quarterly": "Quarterly incremental scan.",
+    "threat-model-quarterly": "Quarterly threat-model review.",
+    "none": "Existing router marker for no selected lane; unrouted orders may store null."
+  },
+  "standard": {
+    "none": "Project-defined operations vocabulary; existing value spellings are preserved."
+  },
+  "note": "Live DDL consumer: traust_ops.run_order.lane. This is not a JSON Schema enum site. Diagnostic detail belongs in structured logs, not in classifier values.",
+  "used_in_schemas": []
+}

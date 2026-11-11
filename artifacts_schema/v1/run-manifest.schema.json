@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/run-manifest.schema.json",
+  "title": "Run manifest",
+  "description": "Per-order detail that is read one order at a time (data model §4a, Appendix G): the config in force, the budget verdict at admission, the approval, progress and degraded keys. run_order.artifact_id points at the latest manifest; each change is a new artifact (artifacts are append-only), so earlier manifests stay as history. The manifest does not name its order, so orders in the same state share one artifact.",
+  "type": "object",
+  "required": ["artifact"],
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {"const": "run-manifest"},
+    "config": {
+      "description": "Config documents in force when the order was planned, by digest (the pack file's digest is the pack version).",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["name", "digest"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]*(:[a-z0-9_.-]+)?$", "description": "e.g. pack:security, budget-policy"},
+          "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the document's bytes"},
+          "artifact_id": {"type": "string", "format": "uuid", "description": "The stored document, when it is kept as an artifact."}
+        }
+      }
+    },
+    "budget": {
+      "description": "The lane's budget verdict when admission decided this order.",
+      "type": "object",
+      "required": ["lane", "status", "spent_usd", "estimate_usd"],
+      "additionalProperties": false,
+      "properties": {
+        "lane": {"type": "string", "minLength": 1},
+        "status": {"type": "string", "enum": ["within", "over", "no_budget"]},
+        "enforcement": {"type": ["string", "null"], "enum": ["none", "observe", "advisory", "enforced", null]},
+        "spent_usd": {"$ref": "#/$defs/usd"},
+        "estimate_usd": {"oneOf": [{"$ref": "#/$defs/usd"}, {"type": "null"}], "description": "null = unknown cost"},
+        "budget_usd": {"oneOf": [{"$ref": "#/$defs/usd"}, {"type": "null"}]}
+      }
+    },
+    "approval": {
+      "type": "object",
+      "required": ["approver", "approved_at"],
+      "additionalProperties": false,
+      "properties": {
+        "approver": {"type": "string", "pattern": "^(human|machine):.+$", "description": "The verified principal, as rows store actors."},
+        "approved_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "progress": {
+      "description": "Where a running order has got to, so a re-leased order resumes.",
+      "type": "object",
+      "required": ["updated_at"],
+      "additionalProperties": false,
+      "properties": {
+        "step": {"type": ["integer", "null"], "minimum": 0, "description": "Steps (phases, stages) done."},
+        "shards_done": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "updated_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "sessions": {
+      "description": "Runner-computed evidence of staged inputs and the declared output, including failed sessions. Entries are append-only; an identical retry is not appended twice.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/session"}
+    },
+    "degraded": {
+      "description": "What the run could not see, by key (e.g. unreachable, quota-deferred, db-stale), with a count. A degraded order is never reported green.",
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/degraded_key"},
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    }
+  },
+  "$defs": {
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skill", "mode", "executor_session", "models", "task_sha256", "inputs", "output"],
+      "properties": {
+        "skill": {"$ref": "session-task.schema.json#/$defs/name"},
+        "mode": {"$ref": "session-task.schema.json#/$defs/name"},
+        "executor_session": {"type": ["string", "null"], "minLength": 1},
+        "models": {"$ref": "session-task.schema.json#/$defs/models"},
+        "task_sha256": {"$ref": "#/$defs/sha256"},
+        "inputs": {
+          "description": "One entry per task-relative file path, sorted by path. The recording boundary enforces unique paths in linear time.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "bytes", "sha256"],
+            "properties": {
+              "path": {"$ref": "session-task.schema.json#/$defs/path"},
+              "bytes": {"type": "integer", "minimum": 0},
+              "sha256": {"$ref": "#/$defs/sha256"}
+            }
+          }
+        },
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "sha256", "artifact_id"],
+          "properties": {
+            "path": {"allOf": [{"$ref": "session-task.schema.json#/$defs/path"}, {"pattern": "^output/"}]},
+            "sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+            "artifact_id": {"type": ["string", "null"], "format": "uuid"}
+          },
+          "allOf": [{"if": {"properties": {"artifact_id": {"type": "string"}}}, "then": {"properties": {"sha256": {"$ref": "#/$defs/sha256"}}}}]
+        }
+      }
+    },
+    "sha256": {"type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[0-9a-f]{64}$"},
+    "degraded_key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]*$",
+      "description": "Historical-compatible key shape. New Core completions enforce the degraded_key vocabulary or registered feed/view identifiers; dynamic subject identifiers retain their own coverage counts."
+    },
+    "usd": {"type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?$"}
+  }
+}

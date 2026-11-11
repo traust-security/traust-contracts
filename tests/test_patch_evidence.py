@@ -15,7 +15,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 REPO_ROOT = Path(__file__).parent.parent
-SCHEMA_DIR = REPO_ROOT / "schemas" / "v1"
+SCHEMA_DIR = REPO_ROOT / "artifacts_schema" / "v1"
 
 
 def _validator():

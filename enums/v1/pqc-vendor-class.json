@@ -1,0 +1,25 @@
+{
+  "name": "pqc_vendor_class",
+  "source_schema": "pqc-vendor-claims.schema.json#/$defs/vendor_class",
+  "description": "What kind of vendor or dependency a PQC vendor claim is about.",
+  "values": [
+    "provider",
+    "library",
+    "ecosystem",
+    "service",
+    "internal"
+  ],
+  "definitions": {
+    "provider": "A crypto provider or toolchain (e.g. OpenSSL, Go, a JDK).",
+    "library": "A crypto library that packages depend on.",
+    "ecosystem": "A signing or identity ecosystem (e.g. Sigstore, GnuPG, Kerberos).",
+    "service": "A hosted service the fleet calls.",
+    "internal": "The organization's own shared services."
+  },
+  "standard": {
+    "none": "Project-defined vocabulary for curated vendor PQC claims."
+  },
+  "used_in_schemas": [
+    "pqc-vendor-claims.schema.json"
+  ]
+}

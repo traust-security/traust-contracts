@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "traust-contracts"
-version = "0.62.3"
+version = "0.1.0"
 license = "Apache-2.0"
 description = "Contract surface for the AI security ledger ecosystem: schemas and shared enums"
 requires-python = ">=3.11"
@@ -24,7 +24,7 @@ dependencies = [
 postgres = ["psycopg>=3"]
 
 [dependency-groups]
-dev = ["psycopg[binary]>=3", "pytest>=9.1.1", "ruff>=0.6", "vulture>=2.16"]
+dev = ["psycopg[binary]>=3", "pytest>=9.1.1", "pytest-xdist>=3", "ruff>=0.6", "vulture>=2.16"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/traust_contracts"]
@@ -33,19 +33,25 @@ packages = ["src/traust_contracts"]
 exclude = ["/.ci-venv", "/.venv", "/tests/fixtures/storage"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"schemas/v1" = "traust_contracts/schemas/v1"
+"artifacts_schema/v1" = "traust_contracts/artifacts_schema/v1"
+"views_schema/v1" = "traust_contracts/views_schema/v1"
 "config/v1" = "traust_contracts/config/v1"
 "enums/v1" = "traust_contracts/enums/v1"
-"storage/v1" = "traust_contracts/storage/v1"
-"ledger/v1" = "traust_contracts/ledger/v1"
+"mappings/v1" = "traust_contracts/mappings/v1"
+"db/v1/traust" = "traust_contracts/db/v1/traust"
+"db/v1/traust_ops" = "traust_contracts/db/v1/traust_ops"
+"db/v1/traust_ledger" = "traust_contracts/db/v1/traust_ledger"
 
 [tool.hatch.build]
 artifacts = [
-    "schemas/v1/**",
+    "artifacts_schema/v1/**",
+    "views_schema/v1/**",
     "config/v1/**",
     "enums/v1/**",
-    "storage/v1/**",
-    "ledger/v1/**",
+    "mappings/v1/**",
+    "db/v1/traust/**",
+    "db/v1/traust_ops/**",
+    "db/v1/traust_ledger/**",
 ]
 
 [tool.pytest.ini_options]

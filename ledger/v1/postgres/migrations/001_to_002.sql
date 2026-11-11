@@ -1,4 +1,0 @@
--- Placeholder for ledger v1 revision 1 -> 2.
---
--- Ledger schema files are not re-runnable: a delta carries every change
--- (columns and indexes) its step needs.

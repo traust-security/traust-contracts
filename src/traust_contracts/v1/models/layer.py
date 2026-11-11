@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import Field
 
 from traust_contracts.v1.enums import (
     DispositionEmbargo,
     DispositionResolution,
-    LayerReviewQueueReason,
+    EvidenceGrade,
     RestatementReason,
     RestatementTarget,
+    ReviewReason,
     Severity,
     Validity,
 )
@@ -88,6 +89,8 @@ class LayerRestatement(ContractModel):
 
 
 class LayerEvent(ContractModel):
+    omit_unset_empty_fields = frozenset({"evidence_refs"})
+
     # Timestamps are validated here rather than left to the schema: jsonschema
     # asserts `format: date-time` only when the optional rfc3339-validator
     # package is present, so as bare `str` these were never checked anywhere.
@@ -97,10 +100,11 @@ class LayerEvent(ContractModel):
     source: LayerSource
     disposition: LayerDisposition
     rationale: str
+    evidence_refs: list[Annotated[str, Field(min_length=1)]] = Field(default_factory=list)
     occurred_at: IsoTimestamp | None = None
     harness_version: str | None = None
     auto_accept_tier: bool | None = None
-    evidence_grade: str | None = None
+    evidence_grade: EvidenceGrade | str | None = None
     # Stamped by the ledger write path. Declared here as well as in the schema
     # because ContractModel ignores unknown keys: without these fields a
     # from_dict/to_dict round-trip silently drops the identity stamp.
@@ -108,41 +112,64 @@ class LayerEvent(ContractModel):
     fingerprint_algo: str | None = None
     alias: dict[str, Any] | None = None
     finding: dict[str, Any] | None = None
+    # Emission-time-resolved hardening risk weight, carried on the event so
+    # ledger replays never re-derive it (schema $defs/event.risk_weight).
+    risk_weight: dict[str, Any] | None = None
     restatement: LayerRestatement | None = None
 
 
 class ReviewItem(ContractModel):
-    finding_ref: str
-    queue_reason: LayerReviewQueueReason
+    """A queued statement in the layer artifact, not the core review-item row."""
+
+    queued_at: IsoTimestamp
+    source_ref: str = Field(min_length=1)
+    quote: str = Field(min_length=1)
+    author: str = Field(min_length=1)
     status: str
-    recorded_at: IsoTimestamp
-    source: LayerSource
     submitted_by: LayerActor | None = None
-    disposition: LayerDisposition | None = None
+    suggested_finding_ref: str | None = None
+    suggested_disposition: LayerDisposition | None = None
+    queue_reason: ReviewReason | None = None
     resolution_note: str | None = None
-    rationale: str | None = None
 
 
 class LayerMetadata(ContractModel):
     audit_report: str
     repository: str
-    created: str
+    created: IsoTimestamp
     harness_version: str
     audit_commit: str | None = None
     audit_report_sha256: str | None = None
     audit_report_ref: str | None = None
-    updated: str | None = None
+    updated: IsoTimestamp | None = None
     claim_hashes: dict[str, str] = Field(default_factory=dict)
     finding_aliases: dict[str, Any] = Field(default_factory=dict)
     external_refs: dict[str, list[ExternalRef]] = Field(default_factory=dict)
     merkle_root: str | None = None
     merkle_epoch: int | None = None
     merkle_size: int | None = None
+    # Stamped by the ledger write path; declared here for the same reason as
+    # fingerprint on the event — ContractModel ignores unknown keys, so a
+    # schema-only field round-trips to nothing.
+    merkle_root_signature: str | None = None
+    merkle_signing_method: str | None = None
+    merkle_signature_format: int | None = None
+    merkle_algorithm: str | None = None
+    leaf_format: int | None = None
+    pre_merkle_checkpoint: Annotated[str, Field(pattern="^[0-9a-f]{64}$")] | None = None
+    artifact_digests: dict[str, Annotated[str, Field(pattern="^[0-9a-f]{64}$")]] = Field(
+        default_factory=dict
+    )
 
 
 class Layer(ContractModel):
     """Findings disposition layer ledger."""
 
+    omit_unset_empty_fields = frozenset({"baseline_claims"})
+
     metadata: LayerMetadata
     events: list[LayerEvent] = Field(default_factory=list)
     needs_review: list[ReviewItem] = Field(default_factory=list)
+    baseline_claims: dict[str, Annotated[str, Field(pattern="^[a-f0-9]{64}$")]] = Field(
+        default_factory=dict
+    )

@@ -23,7 +23,7 @@ from typing import Any, ClassVar
 import jsonschema
 import pytest
 
-SCHEMA_DIR = pathlib.Path(__file__).resolve().parents[1] / "schemas" / "v1"
+SCHEMA_DIR = pathlib.Path(__file__).resolve().parents[1] / "artifacts_schema" / "v1"
 LAYER_SCHEMA = json.loads((SCHEMA_DIR / "layer.schema.json").read_text())
 
 

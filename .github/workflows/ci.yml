@@ -1,0 +1,56 @@
+# Lint and the full test suite on every PR, in the merge queue, and after each merge, so
+# contracts stays aligned with what traust-core pins. Mirrors the Makefile.
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main, development]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - run: uv sync --frozen
+      - run: make lint
+      - run: uv run python ci/enum_registry.py --check --enforce
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: traust
+          POSTGRES_PASSWORD: traust-test-only
+          POSTGRES_DB: traust_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U traust" --health-interval 2s
+          --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --frozen
+      # tests/test_config.py reads config fixtures from a sibling traust checkout
+      # (../traust/tests/fixtures/config), the layout of a local mono-checkout.
+      - run: git clone --depth 1 https://github.com/traust-security/traust.git ../traust
+      # The Postgres half must run here; a skip (database unreachable) fails the job.
+      - run: uv run pytest tests/ -q -W "error:PostgreSQL E2E skipped:pytest.PytestWarning"

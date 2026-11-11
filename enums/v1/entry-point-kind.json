@@ -1,0 +1,23 @@
+{
+  "name": "entry_point_kind",
+  "source_schema": "threat-model.schema.json#/$defs/entry_point_kind",
+  "description": "What kind of interface a threat model's entry point is. A coverage check maps each kind to the deterministic pre-scan that enumerates it; kinds no pre-scan enumerates are reported as uncovered, and an entry point with no kind as unexplained.",
+  "values": [
+    "http-api",
+    "grpc-api",
+    "k8s-controller",
+    "llm-integration",
+    "event-consumer",
+    "network-peer",
+    "cli",
+    "file-input",
+    "deploy-config",
+    "ci-supply-chain",
+    "metrics-debug",
+    "other"
+  ],
+  "note": "http-api: an HTTP, REST, GraphQL or WebSocket interface the code serves. grpc-api: a gRPC service the code serves. k8s-controller: a Kubernetes controller, reconciler or admission webhook acting on objects users create. llm-integration: a model, agent, MCP server or retrieval interface. event-consumer: a queue, topic or event stream the code consumes. network-peer: any other network protocol the code speaks (peer replication, custom TCP or UDP). cli: a command-line or local process interface. file-input: files, archives, uploads or data directories the code reads. deploy-config: deployment configuration and manifests (RBAC, Helm values, environment). ci-supply-chain: build, CI and dependency inputs. metrics-debug: metrics, health, profiling or debug endpoints. other: none of these.",
+  "used_in_schemas": [
+    "threat-model.schema.json"
+  ]
+}

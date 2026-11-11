@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/traust-contracts/schemas/v1/feeds.schema.json",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/feeds.schema.json",
   "title": "Security Feeds Registry",
   "description": "Schema for config/feeds.yaml \u2014 the single source of truth for every external vulnerability/exploitability source the harness consumes (cached or live). Permissive by design: it validates the top-level shape and per-source essentials so a wrong-estate or malformed file fails fast, without straitjacketing the many optional per-source fields.",
   "type": "object",

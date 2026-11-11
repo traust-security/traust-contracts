@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/fleet-fix.schema.json",
+  "title": "Fleet-fix transform specification",
+  "description": "One reviewed transform applied across every repo affected by a systemic (Lens 3) pattern \u2014 capability C5. The spec IS the change: it must carry its own golden tests, and apply_fleet_fix.py refuses to run a spec whose tests fail. Appliers only modify working trees and emit diffs; committing, forking, and MR creation are the skill's later, human-gated stages.",
+  "type": "object",
+  "required": [
+    "id",
+    "pattern_ref",
+    "description",
+    "matcher",
+    "rewrite",
+    "guards",
+    "tests"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "pattern_ref": {
+      "type": "string",
+      "description": "The systemic pattern this fixes (insecure-patterns CWE entry or PROGRESS.md rollup name)"
+    },
+    "description": {
+      "type": "string"
+    },
+    "matcher": {
+      "type": "object",
+      "required": [
+        "kind",
+        "file_glob"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "pinned_ref_line",
+            "ast_grep"
+          ]
+        },
+        "file_glob": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Repo-relative globs the matcher may touch \u2014 everything else is out of bounds"
+        },
+        "context_regex": {
+          "type": "string",
+          "description": "pinned_ref_line: a line matching this must appear within context_window lines BEFORE the match line"
+        },
+        "context_window": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3
+        },
+        "match_regex": {
+          "type": "string",
+          "description": "pinned_ref_line: the line to rewrite; group 1 must capture leading indentation, group 2 the mutable ref"
+        },
+        "url_regex": {
+          "type": "string",
+          "description": "pinned_ref_line: nearest PRECEDING line whose group 1 captures the git URL the resolver pins against"
+        },
+        "url_window": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 10
+        },
+        "pattern": {
+          "type": "string",
+          "description": "ast_grep: the --pattern expression"
+        },
+        "lang": {
+          "type": "string",
+          "description": "ast_grep: --lang value"
+        }
+      }
+    },
+    "resolver": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "git_ls_remote"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "default": "main",
+          "description": "remote ref whose current SHA replaces the mutable ref (per matched URL)"
+        }
+      }
+    },
+    "rewrite": {
+      "type": "object",
+      "required": [
+        "template"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "template": {
+          "type": "string",
+          "description": "Replacement line. Placeholders: {indent} {sha} {short_sha} {ref} {date} {id}. ast_grep kind uses this as the --rewrite expression instead."
+        }
+      }
+    },
+    "guards": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_files_changed": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "require_clean_tree": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Golden tests run before ANY repo is touched (with a pinned test SHA); a failing test aborts the whole fleet application",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "file",
+          "before",
+          "after_contains"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string",
+            "description": "repo-relative path the fixture is written to (must match file_glob)"
+          },
+          "before": {
+            "type": "string"
+          },
+          "after_contains": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "after_not_contains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

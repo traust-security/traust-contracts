@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/corpus-registry.schema.json",
+  "title": "Corpus subject registry",
+  "description": "Who each audited subject belongs to. Ownership decides which denominator a finding counts toward, and until now it was declared only in the deployment's corpus-config and materialised in the harness's own SQLite projection -- so no contract consumer could compute 'X% of our repos' at all. This registry is a configuration document modelled as an artifact, the same shape as compliance-scope and org-parameters: the deployment declares it, the harness emits it from the corpus resolution, and storage projects it so findings can be joined to ownership in SQL.",
+  "type": "object",
+  "required": ["version", "subjects"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "updated": {
+      "type": "string",
+      "description": "When this registry was last regenerated from the corpus resolution."
+    },
+    "note": {
+      "type": "string"
+    },
+    "subjects": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/subject" }
+    }
+  },
+  "$defs": {
+    "subject": {
+      "type": "object",
+      "required": ["subject_id", "tree", "ownership", "business_unit"],
+      "additionalProperties": false,
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The same opaque subject identifier used in artifact_binding.subject_id. This is the join key: without it, ownership cannot reach a finding."
+        },
+        "tree": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The corpus tree this subject was resolved from. Kept because ownership is declared per tree in corpus-config, so this is the provenance of the ownership value."
+        },
+        "ownership": {
+          "type": "string",
+          "enum": ["owned", "upstream", "external-bu", "harness-qa"],
+          "description": "See enums/v1/ownership.json. 'harness-qa' subjects are registered but excluded from every metrics lens."
+        },
+        "business_unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "description": "Engagement or tree label, for grouping cuts that are narrower than a business unit."
+        },
+        "product": {
+          "type": "string",
+          "description": "Product this subject ships in, when the inventory declares one."
+        },
+        "repo_url": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Git ref audited, when this is a ref-specific audit rather than HEAD."
+        },
+        "ref_kind": {
+          "type": "string",
+          "enum": ["branch", "tag", "default", "stream"]
+        },
+        "is_branch_audit": {
+          "type": "boolean",
+          "description": "Whether this subject is a re-audit of a non-default ref. Load-bearing for every count: a large share of audits are branch re-audits of the same code, so a denominator that does not exclude them overstates coverage and double-counts exposure."
+        }
+      }
+    }
+  }
+}

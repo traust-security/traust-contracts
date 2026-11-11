@@ -1,0 +1,33 @@
+{
+  "name": "run_order_state",
+  "source_schema": "",
+  "schema_enforced": false,
+  "description": "Operational vocabulary for traust_ops.run_order.state; Core enforces new writes, while stored historical text remains readable.",
+  "values": [
+    "planned",
+    "awaiting_approval",
+    "queued",
+    "leased",
+    "succeeded",
+    "degraded",
+    "refused",
+    "withheld",
+    "failed"
+  ],
+  "definitions": {
+    "planned": "A routing or scheduling request exists but admission has not queued it.",
+    "awaiting_approval": "Admission is waiting for a verified approval before queueing.",
+    "queued": "The order is admitted and available for claim.",
+    "leased": "A worker holds the order lease.",
+    "succeeded": "The work completed successfully.",
+    "degraded": "The work completed with explicitly counted coverage gaps.",
+    "refused": "The worker declined work that could not be performed under its policy.",
+    "withheld": "Admission dropped the planned request, for example because of its budget.",
+    "failed": "The work failed to complete."
+  },
+  "standard": {
+    "none": "Project-defined operations vocabulary; existing value spellings are preserved."
+  },
+  "note": "Live DDL consumer: traust_ops.run_order.state. This is not a JSON Schema enum site. Diagnostic detail belongs in structured logs, not in classifier values.",
+  "used_in_schemas": []
+}

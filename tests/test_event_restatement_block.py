@@ -28,7 +28,7 @@ import pytest
 from traust_contracts.v1.enums import RestatementReason, RestatementTarget, SourceType
 from traust_contracts.v1.models.layer import LayerEvent
 
-SCHEMA_DIR = pathlib.Path(__file__).resolve().parents[1] / "schemas" / "v1"
+SCHEMA_DIR = pathlib.Path(__file__).resolve().parents[1] / "artifacts_schema" / "v1"
 LAYER_SCHEMA = json.loads((SCHEMA_DIR / "layer.schema.json").read_text())
 
 AUTHORITY: dict[str, Any] = {"ticket": "SEC-1234"}

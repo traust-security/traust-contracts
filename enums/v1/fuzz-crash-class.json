@@ -1,0 +1,37 @@
+{
+  "name": "fuzz_crash_class",
+  "source_schema": "fuzz-report.schema.json#/$defs/crash_class",
+  "description": "What a fuzz crasher did to the target.",
+  "values": [
+    "panic",
+    "index_out_of_range",
+    "nil_dereference",
+    "out_of_memory",
+    "timeout",
+    "integer_overflow",
+    "memory_corruption",
+    "memory_leak",
+    "uncaught_exception",
+    "process_exit",
+    "invariant_violation"
+  ],
+  "definitions": {
+    "panic": "A runtime panic not covered by a narrower class.",
+    "index_out_of_range": "An index or slice bound was exceeded.",
+    "nil_dereference": "A nil or null pointer was dereferenced.",
+    "out_of_memory": "Allocation exceeded the memory limit.",
+    "timeout": "One input ran past the per-input time limit (hang or unbounded loop).",
+    "integer_overflow": "An arithmetic overflow or wrap was detected.",
+    "memory_corruption": "A sanitizer reported an out-of-bounds access, use-after-free or similar.",
+    "memory_leak": "A leak sanitizer reported unreleased memory.",
+    "uncaught_exception": "An exception escaped the entry point (managed runtimes).",
+    "process_exit": "The target exited the process (os.Exit, abort).",
+    "invariant_violation": "A property the harness asserts failed without a crash."
+  },
+  "standard": {
+    "none": "Project-defined vocabulary for fuzz reports."
+  },
+  "used_in_schemas": [
+    "fuzz-report.schema.json"
+  ]
+}

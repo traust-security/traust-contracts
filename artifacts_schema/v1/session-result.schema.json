@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/session-result.schema.json",
+  "title": "Session result",
+  "description": "Executor identity, measured model usage and an optional error; the judged document is the task's declared output, not this envelope.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session", "usage", "error"],
+  "properties": {
+    "session": {"type": "string", "minLength": 1},
+    "usage": {"type": "array", "items": {"$ref": "#/$defs/usage"}},
+    "error": {"type": ["string", "null"], "minLength": 1}
+  },
+  "$defs": {
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "occurred_at", "tokens_in", "tokens_out"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1},
+        "model": {"type": "string", "minLength": 1},
+        "occurred_at": {"type": "string", "format": "date-time"},
+        "tokens_in": {"type": "integer", "minimum": 0},
+        "tokens_out": {"type": "integer", "minimum": 0},
+        "cache_read": {"type": "integer", "minimum": 0},
+        "cache_creation": {"type": "integer", "minimum": 0},
+        "skill": {"type": ["string", "null"]},
+        "session": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

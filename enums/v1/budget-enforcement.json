@@ -1,7 +1,7 @@
 {
   "name": "budget_enforcement",
-  "source_schema": "budget-policy.schema.json#/properties/budget_policy/properties/enforcement",
-  "description": "Values of `enforcement` in budget-policy.schema.json.",
+  "source_schema": "traust.schema.json#/properties/budgets/items/properties/enforcement",
+  "description": "Values of `enforcement` on a lane's budget in traust.schema.json.",
   "values": [
     "none",
     "observe",
@@ -9,6 +9,7 @@
     "enforced"
   ],
   "used_in_schemas": [
-    "budget-policy.schema.json"
+    "run-manifest.schema.json",
+    "traust.schema.json"
   ]
 }

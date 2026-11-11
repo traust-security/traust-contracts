@@ -1,0 +1,271 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/isolation-review.schema.json",
+  "title": "Tenant-isolation review report",
+  "description": "Service-level tenant-isolation review (PEACH applied by reference only \u2014 framework cited by name/URL, all check wording original to this repository). Enforcement gate: schema validation script (mirror of this schema). Every partial/no dimension result MUST cite evidence (file:line or finding IDs). Reports land under your isolation review output directory per service.",
+  "type": "object",
+  "required": [
+    "title",
+    "metadata",
+    "interfaces",
+    "gaps",
+    "posture"
+  ],
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "service",
+        "repos",
+        "graph_ref",
+        "harness_version",
+        "reviewed_at"
+      ],
+      "properties": {
+        "service": {
+          "type": "string"
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "graph_ref": {
+          "type": "string",
+          "$comment": "portfolio-graph.db path + ref/mtime the repo set was resolved from, or 'manual' with the reason in notes"
+        },
+        "harness_version": {
+          "type": "string"
+        },
+        "reviewed_at": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string",
+          "$comment": "citation-only, e.g. 'PEACH v1.1 (by reference)' \u2014 never adapted text"
+        }
+      }
+    },
+    "interfaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/interface"
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/gap"
+      },
+      "$comment": "ordered worst-first (prioritized)"
+    },
+    "posture": {
+      "type": "object",
+      "required": [
+        "overall",
+        "summary"
+      ],
+      "properties": {
+        "overall": {
+          "enum": [
+            "strong",
+            "adequate",
+            "weak",
+            "critical-gap"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "interfaces_reviewed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dimension_rollup": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "$comment": "optional counts, e.g. {\"yes\": 12, \"partial\": 4, \"no\": 2, \"na\": 2}"
+        }
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "interface": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "exposure",
+        "complexity",
+        "dimensions"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^IF-[0-9]+$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "api",
+            "data-store",
+            "queue",
+            "ingress",
+            "webhook",
+            "cli",
+            "other"
+          ]
+        },
+        "exposure": {
+          "enum": [
+            "public",
+            "tenant",
+            "partner",
+            "internal"
+          ]
+        },
+        "complexity": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "shared_instance": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "$comment": "true = every tenant hits the same running instance; false = per-tenant copies; null = undetermined"
+        },
+        "repos": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "dimensions": {
+          "type": "object",
+          "required": [
+            "privilege",
+            "encryption",
+            "authentication",
+            "connectivity",
+            "hygiene"
+          ],
+          "properties": {
+            "privilege": {
+              "$ref": "#/definitions/dimension"
+            },
+            "encryption": {
+              "$ref": "#/definitions/dimension"
+            },
+            "authentication": {
+              "$ref": "#/definitions/dimension"
+            },
+            "connectivity": {
+              "$ref": "#/definitions/dimension"
+            },
+            "hygiene": {
+              "$ref": "#/definitions/dimension"
+            }
+          }
+        }
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "required": [
+        "result"
+      ],
+      "properties": {
+        "result": {
+          "enum": [
+            "yes",
+            "partial",
+            "no",
+            "na"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "$comment": "file:line references (repo//path:line) or finding/threat IDs from existing artifacts"
+        },
+        "rationale": {
+          "type": "string"
+        }
+      },
+      "if": {
+        "properties": {
+          "result": {
+            "enum": [
+              "partial",
+              "no"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "result",
+          "evidence"
+        ],
+        "properties": {
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "required": [
+        "severity",
+        "interface_id",
+        "description",
+        "remediation"
+      ],
+      "properties": {
+        "severity": {
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational"
+          ]
+        },
+        "interface_id": {
+          "type": "string",
+          "pattern": "^IF-[0-9]+$"
+        },
+        "description": {
+          "type": "string"
+        },
+        "remediation": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

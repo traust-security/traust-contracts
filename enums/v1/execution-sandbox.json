@@ -1,0 +1,12 @@
+{
+  "name": "execution_sandbox",
+  "source_schema": "traust.schema.json#/properties/execution/properties/sandbox",
+  "description": "How lanes run a target repository's own build and test code: none (scrubbed environment on a disposable copy) or podman (rootless nested container).",
+  "values": [
+    "none",
+    "podman"
+  ],
+  "used_in_schemas": [
+    "traust.schema.json"
+  ]
+}

@@ -1,0 +1,943 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/validation.schema.json",
+  "title": "Live Validation Report Schema",
+  "description": "Schema for *-validation.json reports produced by the validate-findings harness. Records replay, attack-chain, and novel-attack results against a live authorized target.",
+  "type": "object",
+  "required": [
+    "title",
+    "metadata",
+    "source_reports",
+    "summary",
+    "validated_findings",
+    "attack_chains",
+    "novel_findings",
+    "execution_log_ref"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "pattern": "(?i)(validation|live|attack|exploit|red.?team)"
+    },
+    "metadata": {
+      "$ref": "#/$defs/validation_metadata"
+    },
+    "source_reports": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source_report"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "validated_findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/validated_finding"
+      }
+    },
+    "attack_chains": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/attack_chain"
+      }
+    },
+    "novel_findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/novel_finding"
+      }
+    },
+    "negative_results": {
+      "type": "array",
+      "items": {
+        "$ref": "report.schema.json#/$defs/negative_result"
+      }
+    },
+    "execution_log_ref": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Relative path to the append-only validation-audit.jsonl"
+    },
+    "execution_log_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "footer": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "confirmed",
+        "refuted",
+        "inconclusive",
+        "blocked_by_scope",
+        "not_attempted"
+      ]
+    },
+    "technique": {
+      "type": "string",
+      "enum": [
+        "replay",
+        "adapted",
+        "chained",
+        "novel",
+        "recon",
+        "skip"
+      ]
+    },
+    "classification": {
+      "type": "string",
+      "enum": [
+        "safe",
+        "mutating",
+        "destructive"
+      ]
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "k8s",
+        "container",
+        "wasm"
+      ]
+    },
+    "scope_binding_mode": {
+      "type": "string",
+      "enum": [
+        "explicit",
+        "inline",
+        "inferred",
+        "mixed",
+        "none"
+      ]
+    },
+    "validation_metadata": {
+      "type": "object",
+      "required": [
+        "date",
+        "harness_version",
+        "scope_binding_mode",
+        "target_fingerprint"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "harness_version": {
+          "type": "string",
+          "minLength": 3
+        },
+        "scope_binding_mode": {
+          "$ref": "#/$defs/scope_binding_mode"
+        },
+        "scope_source": {
+          "type": "string",
+          "description": "Path to targets.yaml or summary of inline/inferred scope"
+        },
+        "engagement": {
+          "type": "string"
+        },
+        "authorized_by": {
+          "type": "string"
+        },
+        "expires": {
+          "type": "string",
+          "format": "date"
+        },
+        "target_fingerprint": {
+          "type": "array",
+          "minItems": 0,
+          "items": {
+            "$ref": "#/$defs/fingerprint"
+          }
+        },
+        "target_environment": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What this run was executed AGAINST -- the bound cluster context(s), a cluster role, an environment id. Named target_environment, beside target_fingerprint and target_attestation, because `environment` alone is already taken in this domain: /validate-findings uses it for the SAFETY class of an engagement (`environment: lab` gates --auto), which is a different fact. Two runs of the same finding set against different target environments are not re-runs of each other and neither supersedes the other -- measured, a hub run and a spoke run of one subject covered the same findings and disagreed on a material share of the verdicts, some confirmed against one target and refuted against the other. Optional, because artifacts predate it -- but ABSENT means UNKNOWN, not 'the same as the others', and a consumer must not merge unknowns."
+        },
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "interactive",
+                "auto",
+                "dry-run"
+              ]
+            },
+            "by": {
+              "type": "string"
+            },
+            "at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "environment": {
+              "type": "string"
+            }
+          }
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "additional": {
+          "type": "object"
+        },
+        "target_attestation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "P2 pre-flight attestation summary (attest_target.py): {attested, checks[], fingerprint}. The full artifact lives beside the report as target-attestation.json; reports at/after harness 0.176.0 without one cannot ledger verdicts (emitter routes everything to environment_invalid/needs_review)."
+        }
+      }
+    },
+    "fingerprint": {
+      "type": "object",
+      "required": [
+        "adapter",
+        "identity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "$ref": "#/$defs/adapter"
+        },
+        "identity": {
+          "type": "string",
+          "description": "kube context name, container id, or wasm artifact path"
+        },
+        "version": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        }
+      }
+    },
+    "source_report": {
+      "type": "object",
+      "required": [
+        "kind",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "security-audit",
+            "threat-model",
+            "triage"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "by_verdict",
+        "by_technique"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "prose": {
+          "type": "string"
+        },
+        "by_verdict": {
+          "type": "object",
+          "required": [
+            "confirmed",
+            "refuted",
+            "inconclusive",
+            "blocked_by_scope",
+            "not_attempted"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "confirmed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "refuted": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "inconclusive": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "blocked_by_scope": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_attempted": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "by_technique": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "novel_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chain_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "highest_impact_chain": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "evidence_artifact": {
+      "type": "object",
+      "required": [
+        "type",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "log",
+            "manifest",
+            "http",
+            "dump",
+            "screenshot",
+            "diff",
+            "stdout",
+            "other"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "caption": {
+          "type": "string"
+        },
+        "redacted": {
+          "type": "boolean",
+          "description": "True when this evidence file had secrets stripped before it was retained. Chain of custody: a consumer must be able to tell sanitised evidence from raw, and dropping the flag would make the two indistinguishable."
+        }
+      }
+    },
+    "step_result": {
+      "type": "object",
+      "required": [
+        "step_id",
+        "adapter",
+        "verb",
+        "classification",
+        "verdict"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "step_id": {
+          "type": "string"
+        },
+        "finding_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "novel_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "adapter": {
+          "$ref": "#/$defs/adapter"
+        },
+        "verb": {
+          "type": "string"
+        },
+        "target": {
+          "type": "object"
+        },
+        "classification": {
+          "$ref": "#/$defs/classification"
+        },
+        "verdict": {
+          "$ref": "#/$defs/verdict"
+        },
+        "expected": {
+          "type": "string"
+        },
+        "observed": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_artifact"
+          }
+        },
+        "rollback_performed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "rollback_output": {
+          "type": "string"
+        },
+        "scope_reason": {
+          "type": "string"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "soundness_flag": {
+          "type": "string",
+          "description": "Set when a refuted verdict was gated to inconclusive by the refutation-soundness gate: error-signature:<name> | rbac-zero-subjects | rbac-template-placeholder | target-not-deployed."
+        },
+        "error": {
+          "type": "string",
+          "description": "Environmental failure note (e.g. probe-target-not-found)."
+        },
+        "controls": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/positive_control"
+          }
+        },
+        "differential": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/differential_probe"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/replay_artifact"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "validated_finding": {
+      "type": "object",
+      "required": [
+        "source_id",
+        "source_report",
+        "verdict",
+        "technique"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "description": "Finding ID in the source security-audit / triage report"
+        },
+        "source_report": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "claimed_severity": {
+          "$ref": "report.schema.json#/$defs/severity_level"
+        },
+        "verdict": {
+          "$ref": "#/$defs/verdict"
+        },
+        "technique": {
+          "$ref": "#/$defs/technique"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/step_result"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence_artifact"
+          }
+        },
+        "observed_impact": {
+          "type": "string"
+        },
+        "deviation_from_claim": {
+          "type": "string"
+        },
+        "rollback_performed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "not_attempted_reason": {
+          "type": "string"
+        },
+        "soundness_flag": {
+          "type": "string",
+          "description": "Machine-readable reason the driving refutation was un-emittable (soundness gate). Findings carrying this flag route to needs_review, never to the false-positive/countersign path."
+        },
+        "evidence_grade": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "E0",
+            "E1",
+            "E2",
+            "E3",
+            null
+          ],
+          "description": "P4 confirmation grade: E0 observed effect artifact; E1 authenticated success response to the exploit action itself; E2 strong inference (config + reachable path shown separately); E3 error-message/behavioral inference only. Required on confirmed verdicts at/after harness 0.179.0. Only E0/E1 carry class-1 (override) power."
+        },
+        "grade_rationale": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why this grade: name the artifact (E0), the response (E1), or the inference chain (E2/E3)."
+        },
+        "severity_validation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/severity_validation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "chain_context": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "chain_id",
+                "chain_severity",
+                "role"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "chain_id": {
+                  "type": "string"
+                },
+                "chain_severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low"
+                  ]
+                },
+                "role": {
+                  "type": "string",
+                  "minLength": 5,
+                  "description": "This finding's role in the demonstrated chain (e.g. 'initial access', 'privilege pivot', 'necessary link')."
+                }
+              }
+            }
+          ],
+          "description": "P9 chain amplification: membership in a demonstrated attack chain is severity evidence for the constituent — cite it in the severity proposal rationale."
+        }
+      }
+    },
+    "attack_chain": {
+      "type": "object",
+      "required": [
+        "chain_id",
+        "name",
+        "entry_point",
+        "terminal_asset",
+        "steps",
+        "verdict"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "chain_id": {
+          "type": "string",
+          "pattern": "^CHAIN-[0-9]{3,4}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 5
+        },
+        "entry_point": {
+          "type": "string"
+        },
+        "terminal_asset": {
+          "type": "string"
+        },
+        "mitre_attack_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$"
+          }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/step_result"
+          }
+        },
+        "verdict": {
+          "$ref": "#/$defs/verdict"
+        },
+        "narrative": {
+          "type": "string"
+        }
+      }
+    },
+    "novel_finding": {
+      "allOf": [
+        {
+          "$ref": "report.schema.json#/$defs/finding"
+        }
+      ],
+      "properties": {
+        "discovery_method": {
+          "type": "string",
+          "enum": [
+            "recon-diff",
+            "pattern-probe",
+            "chain-emergent",
+            "ai-hypothesis"
+          ]
+        },
+        "chain_context": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "step_ref": {
+          "type": "string"
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "positive_control": {
+      "type": "object",
+      "required": [
+        "name",
+        "kind",
+        "ok"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 3,
+          "description": "What the control proves, e.g. 'same-client allowed-action succeeds' or 'planted canary secret readable'."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "must_succeed",
+            "must_deny"
+          ],
+          "description": "Expected behavior of the control action, independent of the finding under test."
+        },
+        "verb": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "What actually happened (truncated transcript)."
+        },
+        "ok": {
+          "type": "boolean",
+          "description": "Control behaved as its kind expects — the assay is proven live."
+        }
+      },
+      "description": "P1 assay-validity control paired with a refutation-capable probe: a same-path action that MUST succeed (or MUST be denied) independent of the finding. A refuted verdict without a passing control is quarantined by the soundness gate (missing-positive-control / failed-positive-control) for reports at/after harness 0.177.0."
+    },
+    "differential_probe": {
+      "type": "object",
+      "required": [
+        "neighbor_action",
+        "discriminated"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "neighbor_action": {
+          "type": "string",
+          "minLength": 3,
+          "description": "The paired action with a KNOWN-DIFFERENT expected outcome (e.g. same subject, a verb it IS allowed; same route, a role that IS authorized)."
+        },
+        "neighbor_expected": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "neighbor_observed": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "claimed_observed": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Outcome of the claimed action, for side-by-side comparison."
+        },
+        "discriminated": {
+          "type": "boolean",
+          "description": "The two outcomes differed as expected — the oracle can tell allowed from denied. Identical outcomes = non-discriminating oracle = the refutation is unsound regardless of direction."
+        }
+      },
+      "description": "P3 differential probe for authz claims: probe the claimed action AND a neighbor with a known-different expected outcome in the same session. Enforced by the soundness gate (non-discriminating-oracle)."
+    },
+    "severity_validation": {
+      "type": "object",
+      "required": [
+        "demonstrated"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "demonstrated": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "attack_vector": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "network",
+                "adjacent",
+                "local",
+                "physical",
+                null
+              ],
+              "description": "Vector the exploit ACTUALLY used."
+            },
+            "privileges_required": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "none",
+                "low",
+                "high",
+                null
+              ],
+              "description": "Privileges the probe identity ACTUALLY held at success time."
+            },
+            "user_interaction": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "none",
+                "required",
+                null
+              ]
+            },
+            "scope_crossed": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "Did the observed effect cross a namespace/tenant/node boundary (from the E0 artifact)?"
+            },
+            "impacts": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string",
+                "enum": [
+                  "confidentiality",
+                  "integrity",
+                  "availability"
+                ]
+              },
+              "description": "Impact axes actually evidenced (what was read/written/disrupted)."
+            }
+          },
+          "description": "CVSS v3.1 vector components as OBSERVATIONS from the live run."
+        },
+        "claimed_vector": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "claimed_score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "demonstrated_score_estimate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Score recomputed with demonstrated components substituted into the claimed vector."
+        },
+        "delta": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "demonstrated_score_estimate - claimed_score (signed)."
+        },
+        "proposal": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "severity",
+                "rationale"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "high",
+                    "medium",
+                    "low",
+                    "informational"
+                  ]
+                },
+                "rationale": {
+                  "type": "string",
+                  "minLength": 20
+                }
+              }
+            }
+          ],
+          "description": "Machine severity-adjustment PROPOSAL (emitted when |delta| >= 1.0 and the finding's evidence_grade is E0/E1/E2 — never E3). Routed to the countersign queue; machines never write disposition.severity."
+        }
+      },
+      "description": "P9: severity validated from live observations. Downgrades are as valuable as upgrades (e.g. exploitation demonstrably required cluster-admin)."
+    },
+    "canonical_write": {
+      "description": "Opt-in contract for novel findings; historical validation is unchanged.",
+      "allOf": [
+        { "$ref": "#" },
+        {
+          "properties": {
+            "novel_findings": {
+              "items": { "$ref": "report.schema.json#/$defs/canonical_finding" }
+            }
+          }
+        }
+      ]
+    },
+    "replay_artifact": {
+      "type": "object",
+      "required": [
+        "script_ref"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "script_ref": {
+          "type": "string",
+          "description": "Path (relative to the validation dir) of the self-contained replay script for this probe, e.g. artifacts/replay/S3.sh."
+        },
+        "inputs_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Path of recorded inputs (request bodies, manifests) the script consumes."
+        },
+        "cluster_fingerprint_sha": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "sha256 of the target-attestation.json fingerprint block at probe time — replay is only meaningful against a matching environment."
+        }
+      },
+      "description": "P8: every probe records a replay artifact so a countersign human — or a later re-adjudication — can re-run the exact probe instead of trusting the transcript."
+    }
+  }
+}

@@ -8,6 +8,7 @@
     "dry-run"
   ],
   "used_in_schemas": [
+    "validation-authorization.schema.json",
     "validation.schema.json"
   ]
 }

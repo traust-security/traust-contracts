@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/validation-authorization.schema.json",
+  "title": "Validation authorization",
+  "description": "The reviewed plan digest and complete rules-of-engagement snapshot approved for a validation run. Possession of these bytes is not proof of identity; the service verifies the approver before publication and rechecks the scope at execution.",
+  "type": "object",
+  "required": ["artifact", "plan_id", "plan_digest", "approved_by", "approved_at", "mode", "scope", "skip_step_ids", "permit_destructive"],
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {"const": "validation-authorization"},
+    "plan_id": {"type": "string", "format": "uuid"},
+    "plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "approved_by": {"type": "string", "pattern": "^(human|machine):.+$"},
+    "approved_at": {"type": "string", "format": "date-time"},
+    "mode": {
+      "allOf": [
+        {"$ref": "validation.schema.json#/$defs/validation_metadata/properties/approval/properties/mode"},
+        {"not": {"const": "dry-run"}}
+      ]
+    },
+    "scope": {"$ref": "#/$defs/scope"},
+    "skip_step_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "permit_destructive": {"type": "boolean"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"mode": {"const": "auto"}}, "required": ["mode"]},
+      "then": {
+        "properties": {
+          "scope": {
+            "properties": {
+              "environment": {"const": "lab"},
+              "modes": {"contains": {"const": "explicit"}}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "required": ["engagement", "authorized_by", "environment", "expires", "modes", "clusters", "off_limits", "browser", "containers", "images", "wasm_artifact_ids", "credential_probe_classes", "inventory_aws_profiles", "inventory_cluster_contexts"],
+      "additionalProperties": false,
+      "properties": {
+        "engagement": {"type": ["string", "null"]},
+        "authorized_by": {"type": ["string", "null"]},
+        "environment": {"type": ["string", "null"]},
+        "expires": {"oneOf": [{"type": "string", "format": "date"}, {"type": "null"}]},
+        "modes": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {
+            "allOf": [
+              {"$ref": "validation.schema.json#/$defs/scope_binding_mode"},
+              {"not": {"anyOf": [{"const": "mixed"}, {"const": "none"}]}}
+            ]
+          }
+        },
+        "clusters": {"type": "array", "items": {"$ref": "#/$defs/cluster"}},
+        "off_limits": {"type": "array", "items": {"$ref": "#/$defs/off_limit"}},
+        "browser": {"type": "array", "items": {"$ref": "#/$defs/browser"}},
+        "containers": {"$ref": "#/$defs/names"},
+        "images": {"$ref": "#/$defs/names"},
+        "wasm_artifact_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "format": "uuid"}},
+        "credential_probe_classes": {"$ref": "#/$defs/names"},
+        "inventory_aws_profiles": {"$ref": "#/$defs/names"},
+        "inventory_cluster_contexts": {"$ref": "#/$defs/names"}
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "required": ["context", "namespaces", "explicit_namespaces", "verbs_denied"],
+      "additionalProperties": false,
+      "properties": {
+        "context": {"type": "string", "minLength": 1},
+        "namespaces": {"$ref": "#/$defs/names"},
+        "explicit_namespaces": {"$ref": "#/$defs/names"},
+        "verbs_denied": {"$ref": "#/$defs/names"}
+      }
+    },
+    "off_limit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "context": {"type": ["string", "null"]},
+        "namespace": {"type": ["string", "null"]},
+        "resource": {"type": ["string", "null"]},
+        "verb": {"type": ["string", "null"]},
+        "name": {"type": ["string", "null"]},
+        "image": {"type": ["string", "null"]}
+      }
+    },
+    "browser": {
+      "type": "object",
+      "required": ["victim_origin", "attacker_origins", "allowed_verbs"],
+      "additionalProperties": false,
+      "properties": {
+        "victim_origin": {"type": "string", "minLength": 1},
+        "attacker_origins": {"$ref": "#/$defs/names"},
+        "allowed_verbs": {"$ref": "#/$defs/names"}
+      }
+    },
+    "names": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  }
+}

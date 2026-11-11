@@ -17,7 +17,9 @@ import pytest
 from traust_contracts.v1 import risk_rating as rr
 
 ROOT = Path(__file__).resolve().parent.parent
-SCHEMA = json.loads((ROOT / "schemas/v1/threat-model.schema.json").read_text(encoding="utf-8"))
+SCHEMA = json.loads(
+    (ROOT / "artifacts_schema/v1/threat-model.schema.json").read_text(encoding="utf-8")
+)
 
 L = dict(zip(rr.LIKELIHOOD_FACTORS, [5, 2, 7, 1, 3, 6, 9, 2], strict=True))
 T = dict(zip(rr.TECHNICAL_IMPACT_FACTORS, [9, 7, 5, 8], strict=True))

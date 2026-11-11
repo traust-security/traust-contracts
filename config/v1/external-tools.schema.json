@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/traust-contracts/schemas/v1/external-tools.schema.json",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/external-tools.schema.json",
   "title": "External Tools Manifest",
   "description": "Schema for config/external-tools.yaml \u2014 the roster of unpinned PATH-invoked deterministic scanners whose detection content ages with the install. Permissive by design: each tool entry carries many optional fields (upstream, version_regex, signing_policy, notes); only name and expected floor are required.",
   "type": "object",

@@ -1,0 +1,17 @@
+{
+  "name": "below_range_gap_reason",
+  "source_schema": "below-range-packets.schema.json#/$defs/coverage_gap/properties/reason",
+  "description": "Why a below-range candidate or lookup couldn't be checked. A coverage gap is never clean.",
+  "values": [
+    "nuget_id_unresolved",
+    "osv_unanswered",
+    "advisory_unreadable",
+    "over_max_candidates",
+    "source_unavailable",
+    "no_usable_fix_patch"
+  ],
+  "used_in_schemas": [
+    "below-range-packets.schema.json",
+    "below-range-verdicts.schema.json"
+  ]
+}
