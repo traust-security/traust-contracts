@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/coverage.schema.json",
+  "title": "Coverage view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's coverage view (the census): for a scope (named products and teams, else every repository), what each repository had assessed by population.as_of, the repositories never assessed, and the coverage gaps their latest default-line secure-code audits report. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": ["repositories", "population", "gaps"],
+  "additionalProperties": false,
+  "properties": {
+    "repositories": {"$ref": "#/$defs/count", "description": "Repositories in scope."},
+    "population": {"$ref": "#/$defs/population"},
+    "gaps": {"$ref": "#/$defs/coverage"}
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "uuid": {"type": "string", "format": "uuid"},
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The assessment kind. Recorded kinds come from the assessment-kind registry and are served in their canonical spelling (secure_code, not secure-code); a historical stored value outside the registry is preserved as it was recorded."
+    },
+    "population": {
+      "description": "What the scope had assessed by as_of, per repository and kind.",
+      "type": "object",
+      "required": ["as_of", "rows", "never_assessed_repository_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "as_of": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The point in time the population is read at: the filter's, else when the view was built."
+        },
+        "rows": {
+          "description": "One row per repository and kind with at least one assessment by as_of, ordered by repository then kind.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/population_row"}
+        },
+        "never_assessed_repository_ids": {
+          "description": "Repositories in scope with no assessment of any kind by as_of, in UUID order. A repository audited clean is assessed, not absent.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/uuid"}
+        }
+      }
+    },
+    "population_row": {
+      "type": "object",
+      "required": ["repository_id", "kind", "latest", "default_line", "branches"],
+      "additionalProperties": false,
+      "properties": {
+        "repository_id": {"$ref": "#/$defs/uuid"},
+        "kind": {"$ref": "#/$defs/kind"},
+        "latest": {
+          "description": "The newest assessment of this kind on the repository's default line by as_of; null when every one ran on another branch.",
+          "oneOf": [{"$ref": "#/$defs/assessment"}, {"type": "null"}]
+        },
+        "default_line": {"$ref": "#/$defs/count", "description": "Assessments of this kind on the default line by as_of."},
+        "branches": {"$ref": "#/$defs/count", "description": "Assessments of this kind on other branches by as_of (re-audits)."}
+      }
+    },
+    "assessment": {
+      "description": "A recorded assessment: one run of one assessor over a repository ref (or an image).",
+      "type": "object",
+      "required": [
+        "id",
+        "created_at",
+        "repository_ref_id",
+        "image_id",
+        "baseline_assessment_id",
+        "run_order_id",
+        "kind",
+        "status",
+        "assessor",
+        "assessor_version",
+        "occurred_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/uuid"},
+        "created_at": {"type": "string", "format": "date-time", "description": "When it was recorded."},
+        "repository_ref_id": {"$ref": "#/$defs/uuid"},
+        "image_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}], "description": "The image examined, for a container scan; else null."},
+        "baseline_assessment_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}], "description": "What a diff scan or verification compared against; else null."},
+        "run_order_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}], "description": "The order that produced it; null when manual or imported."},
+        "kind": {"$ref": "#/$defs/kind"},
+        "status": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Its outcome (for example completed or degraded; degraded ran without a usable input and is never read as clean). The vocabulary has no contracts registry yet, so any non-empty recorded value is preserved."
+        },
+        "assessor": {"type": "string", "minLength": 1, "description": "The principal that ran it (skill:<name>, tool:<name>, user:<id>), raw."},
+        "assessor_version": {"type": "string", "description": "The assessor's version, raw; may be empty."},
+        "occurred_at": {"type": "string", "format": "date-time", "description": "When the assessment ran."}
+      }
+    },
+    "coverage": {
+      "description": "What the scope's latest default-line secure-code audits say they could not examine. Read from the latest audits as currently recorded, not as of population.as_of.",
+      "type": "object",
+      "required": ["examined", "total", "gaps"],
+      "additionalProperties": false,
+      "properties": {
+        "examined": {"$ref": "#/$defs/count", "description": "Of those latest audits, how many had a report document to read."},
+        "total": {"$ref": "#/$defs/count", "description": "Repositories in scope with a latest default-line secure-code audit."},
+        "gaps": {
+          "description": "One family per (tool, system) the audits reported they could not examine, most repositories first, then by tool and system.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/gap"}
+        }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "required": ["tool", "system", "repositories", "items", "signals", "example_repository_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {"type": "string", "description": "The tool or check that could not run, raw."},
+        "system": {"type": "string", "description": "What it could not examine (a framework, language or system), raw."},
+        "repositories": {"type": "integer", "minimum": 1, "description": "Repositories whose latest audit reported this gap."},
+        "items": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "The unexamined items the audits counted, summed; null when no audit gave a count."
+        },
+        "signals": {
+          "description": "How the gap was recorded, counted over the reported gaps: structured (the recording convention), steps (a deterministic pre-scan recorded as skipped) or text (a known emitter phrasing; lowest confidence). Only signals seen appear.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"enum": ["structured", "steps", "text"]},
+          "additionalProperties": {"type": "integer", "minimum": 1}
+        },
+        "example_repository_ids": {
+          "description": "Up to eight of those repositories, from the newest audit first.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/uuid"}
+        }
+      }
+    }
+  }
+}

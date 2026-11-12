@@ -365,6 +365,21 @@ string in its shortest fixed-point form. JSON Schema checks structure and ranges
 arithmetic across fields. Core owns the replay, policy and rendering; titles, URLs,
 principals and rationales are raw untrusted data.
 
+`views_schema/v1/coverage.schema.json` is the contract for Core's coverage view (the census):
+for a scope, what each repository had assessed by `population.as_of` (one row per repository
+and kind, with the newest default-line assessment, or null when every one ran on another
+branch, and the default-line and branch run counts), the repositories never assessed, and the
+coverage gaps the latest default-line secure-code audits report. Every serialized field is
+required, nullable ones included. An embedded assessment is a recorded row (`id`,
+`created_at` and times always present). `kind` is served in its canonical spelling and
+`status` is any non-empty recorded value: the `assessment-kind` registry is named, not
+enforced, because historical stored values are preserved, and `assessment-status` has no
+registry yet. The gap figures are read from the latest audits as currently recorded, not as
+of `population.as_of`. A gap family counts at least one repository, at least one recording
+signal (`structured`, `steps`, `text`) and up to eight unique example repositories. JSON
+Schema checks structure and ranges, not arithmetic across fields. Core owns the census, gap
+extraction and rendering; tools, systems and assessors are raw untrusted data.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
