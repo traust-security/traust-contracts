@@ -219,7 +219,7 @@ def test_top_lists_only_open_critical_and_high(
         validator.validate(document)
 
 
-@pytest.mark.parametrize("score", ["9.8", "10", "10.0", "0", "0.0", "7.50", None])
+@pytest.mark.parametrize("score", ["9.8", "10", "10.0", "0", "0.0", "7.50", "7.5000000000", None])
 def test_cvss_score_is_an_exact_decimal_string_from_0_to_10(
     validator: Draft202012Validator, document: dict[str, Any], score: str | None
 ) -> None:

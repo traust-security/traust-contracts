@@ -343,7 +343,7 @@ more than `total`. `repositories` has one row per repository in scope, including
 no findings. A tally separates `open` (exposure, by severity) from hardening, resolved,
 risk-accepted and false-positive findings; `tracked` is everything but false positives.
 `top` lists the open critical and high findings. `cvss_score` is an exact decimal string from
-0 to 10, or null when unscored. `categories` counts findings per category label (null key =
+0 to 10 whose scale may vary by backend (compare as decimals), or null when unscored. `categories` counts findings per category label (null key =
 unlabelled); its `open_by_severity` always carries the five rated keys and carries `unrated`
 only when counted. `attack_scenarios` is filled only for a product or team scope. Severity keys
 match the `scanner-severity` registry. JSON Schema checks structure and ranges, not count
