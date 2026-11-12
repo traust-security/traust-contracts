@@ -390,6 +390,19 @@ the `remediation-status` registry, tied by test. `by_status` counts rows per sta
 a work item under several products counts once per product. Core owns the work-item fold and
 rendering; URLs, branches and tracker references are raw untrusted data.
 
+`views_schema/v1/census.schema.json` is the contract for Core's census view, the denominator
+authority: for a scope as of `as_of`, the repository counts (in scope, reported,
+dispositioned, never assessed), one cut per corpus ownership class present (registry order,
+then the unregistered cut whose `ownership` is null; at most one each), the scope's products
+by slug, and the declared-IaC and container findings counted apart from the cuts. A cut's
+distinct vulnerabilities are default-line findings that are neither false positives nor
+hardening; `occurrences`, `hardening`, `false_positives`, `branch_confirmed` and `branch_only`
+say how the rest were counted. Severity counts always carry all six keys, `unrated` included.
+Ownership classes use the `ownership` registry, tied by test. Every serialized field is
+required. JSON Schema checks structure and ranges, not arithmetic across fields. Core owns the
+corpus registry, the population and the fold; product names, business units and URLs are raw
+untrusted data.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
