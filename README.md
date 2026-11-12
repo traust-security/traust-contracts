@@ -380,6 +380,16 @@ signal (`structured`, `steps`, `text`) and up to eight unique example repositori
 Schema checks structure and ranges, not arithmetic across fields. Core owns the census, gap
 extraction and rendering; tools, systems and assessors are raw untrusted data.
 
+`views_schema/v1/remediation-index.schema.json` is the contract for Core's remediation-index
+view: every remediation work item of the scope's repositories as it stands now (there is no
+`as_of`), grouped per named product in the filter's order or in one group whose `product` is
+null, repositories by URL and each repository's items oldest first. A row carries the
+product slug, repository URL, work item ID, status, covered finding count, HTTPS fork URL,
+fix branch and tracker reference, the last three null until they exist. Statuses come from
+the `remediation-status` registry, tied by test. `by_status` counts rows per status seen, so
+a work item under several products counts once per product. Core owns the work-item fold and
+rendering; URLs, branches and tracker references are raw untrusted data.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
