@@ -228,7 +228,11 @@ def test_cvss_score_is_an_exact_decimal_string_from_0_to_10(
 
 
 @pytest.mark.parametrize(
-    "score", ["11", "10.1", "-1", "9.8.1", "1E+1", "", " 9.8", ".5", "9.", 9.8, 10]
+    "score",
+    [
+        *("11", "10.1", "-1", "9.8.1", "1E+1", "", " 9.8", ".5", "9."),
+        *("9.8\n", "10\n", "9.8\r", 9.8, 10),
+    ],
 )
 def test_out_of_range_or_non_string_cvss_scores_are_rejected(
     validator: Draft202012Validator, document: dict[str, Any], score: Any

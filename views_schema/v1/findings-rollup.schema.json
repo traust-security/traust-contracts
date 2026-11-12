@@ -27,7 +27,7 @@
       "items": {"$ref": "#/$defs/repository"}
     },
     "top": {
-      "description": "Every open critical or high finding in scope, critical first, then highest CVSS score (unscored last), then repository URL. Empty when none is open.",
+      "description": "Every open critical or high finding in scope, critical first, then highest CVSS score, with every unscored finding after every scored one (a score of 0 still ranks above an unscored finding), then repository URL. Empty when none is open.",
       "type": "array",
       "items": {"$ref": "#/$defs/top_finding"}
     },
@@ -137,6 +137,7 @@
         "cvss_score": {
           "type": ["string", "null"],
           "pattern": "^(10(\\.0+)?|[0-9](\\.[0-9]+)?)$",
+          "not": {"type": "string", "pattern": "[^0-9.]"},
           "description": "CVSS base score from 0 to 10 as an exact decimal string (for example \"9.8\"); the scale can vary by storage backend (\"7.5\" and \"7.5000000000\" are the same score), so compare as decimals. Null when the finding is unscored."
         },
         "execution_proven": {"type": "boolean"},
