@@ -35,15 +35,26 @@ Landing table by table, one pull-request-sized part per plan section:
       `advisory`, `image`, `advisory_package` — `sbom`, `dependency` and
       `image` are append-only (reject-mutation triggers); the Part 1
       `repository_ref.manifest_sbom_id` FK lands here
-- [ ] Part 3 — sections 3a/3b, Assessments & findings
-- [ ] Part 4 — section 4, Operations — lands in [db/v1/traust_ops](../traust_ops/)
+- [x] Part 3 — sections 3a/3b, Assessments & findings: `assessment`,
+      `artifact`, `finding`, `occurrence`, `location`, `location_hash`,
+      `cwe`, `finding_cwe`, `finding_label`, `finding_external_ref`,
+      `decision`, `decision_approver`, `review_item`
+- [x] Part 4 — section 4, Operations — landed in [db/v1/traust_ops](../traust_ops/):
+      `run_batch`, `run_order`, `spend_event`, `feed_snapshot`,
+      `assessment_input`
 - [x] Part 5 — section 5, Ledger — reworked in [db/v1/traust_ledger](../traust_ledger/):
       `layers` + `events`, keyed by storage UUIDs
 
-Queries and the write protocol (Store) are out of scope until the DDL lands;
-the first view set has landed (below). The previous projection model (its
-schema, queries, migrations and Store) was removed with it; databases
-created under it are recreated, not migrated.
+The DDL has landed. Contracts ships no Store: reads and writes are traust-core's
+repositories and services, the tables' one owner. The previous projection model
+(its schema, queries, migrations and Store) was removed with this revision;
+databases created under it are recreated, not migrated.
+
+Dashboard aggregates are not SQL views here. traust-core's Insight views build
+them from its domain services and serve them at `GET /v1/insights/{name}`; each
+view's stable shape is its `ViewModel` schema in
+[`views_schema/v1`](../../../views_schema/v1/) (see the top-level README,
+*Insight view contracts*).
 
 ### Bootstrap constraint corrections
 
