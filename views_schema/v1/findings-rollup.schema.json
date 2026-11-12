@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json",
+  "title": "Findings rollup view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's findings-rollup view: disposition-aware finding counts for a scope (named products and teams, else every repository) at a point in time, per product, per repository and per category label, with the open critical and high findings listed. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included. JSON Schema checks structure and ranges, not count arithmetic.",
+  "type": "object",
+  "required": ["as_of", "total", "products", "repositories", "top", "categories", "attack_scenarios"],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "The point in time the scope was read at; null means current recorded state when the view was built."
+    },
+    "total": {
+      "$ref": "#/$defs/tally",
+      "description": "Every finding in scope counted once, including a finding in a repository that several products ship."
+    },
+    "products": {
+      "description": "One row per product the filter names, by slug. Empty when no product is named. A finding in a repository several products ship counts under each, so product rows can sum to more than total.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/product"}
+    },
+    "repositories": {
+      "description": "One row per repository in scope, by URL, including repositories with no findings.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/repository"}
+    },
+    "top": {
+      "description": "Every open critical or high finding in scope, critical first, then highest CVSS score, with every unscored finding after every scored one (a score of 0 still ranks above an unscored finding), then repository URL. Empty when none is open.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/top_finding"}
+    },
+    "categories": {
+      "description": "Every finding in scope counted per category label, most findings first; findings without a category label form the group whose key is null.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/category"}
+    },
+    "attack_scenarios": {
+      "description": "The latest threat models' attack scenarios for the repositories in scope, verbatim. Populated only when the filter names products or teams; empty otherwise.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/attack_scenario"}
+    }
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "severity_counts": {
+      "description": "Counts by effective severity; unrated counts findings with no severity. Every key is always present.",
+      "type": "object",
+      "required": ["critical", "high", "medium", "low", "informational", "unrated"],
+      "additionalProperties": false,
+      "properties": {
+        "critical": {"$ref": "#/$defs/count"},
+        "high": {"$ref": "#/$defs/count"},
+        "medium": {"$ref": "#/$defs/count"},
+        "low": {"$ref": "#/$defs/count"},
+        "informational": {"$ref": "#/$defs/count"},
+        "unrated": {"$ref": "#/$defs/count"}
+      }
+    },
+    "tally": {
+      "description": "Disposition-aware counts. Only open is exposure; hardening, resolved, risk_accepted and false_positive say why a finding is not.",
+      "type": "object",
+      "required": [
+        "open",
+        "hardening",
+        "resolved",
+        "risk_accepted",
+        "false_positive",
+        "execution_proven",
+        "unverified",
+        "decided",
+        "remediated",
+        "tracked"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "open": {"$ref": "#/$defs/severity_counts", "description": "Open findings by severity."},
+        "hardening": {"$ref": "#/$defs/count", "description": "Defense-in-depth gaps with no demonstrated exploit path."},
+        "resolved": {"$ref": "#/$defs/count"},
+        "risk_accepted": {"$ref": "#/$defs/count"},
+        "false_positive": {"$ref": "#/$defs/count"},
+        "execution_proven": {"$ref": "#/$defs/count", "description": "Open findings with execution proof."},
+        "unverified": {"$ref": "#/$defs/count", "description": "Open findings with no verdict yet or only a claimed one."},
+        "decided": {"$ref": "#/$defs/count", "description": "Findings with at least one recorded decision, in any state."},
+        "remediated": {"$ref": "#/$defs/severity_counts", "description": "Resolved findings by severity."},
+        "tracked": {"$ref": "#/$defs/count", "description": "Findings that are not false positives: open (all severities) + hardening + resolved + risk_accepted."}
+      }
+    },
+    "product": {
+      "type": "object",
+      "required": ["product_id", "slug", "name", "repositories", "tally"],
+      "additionalProperties": false,
+      "properties": {
+        "product_id": {"type": "string", "format": "uuid"},
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "repositories": {"$ref": "#/$defs/count", "description": "Repositories the product ships."},
+        "tally": {"$ref": "#/$defs/tally"}
+      }
+    },
+    "repository": {
+      "type": "object",
+      "required": ["repository_id", "repository_url", "tally", "hardening_categories"],
+      "additionalProperties": false,
+      "properties": {
+        "repository_id": {"type": "string", "format": "uuid"},
+        "repository_url": {"type": "string", "description": "Raw registered URL, preserved as data."},
+        "tally": {"$ref": "#/$defs/tally"},
+        "hardening_categories": {
+          "description": "Hardening findings per category label, by label; uncategorized for findings without one. Only categories with at least one hardening finding appear.",
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "top_finding": {
+      "type": "object",
+      "required": [
+        "finding_id",
+        "repository_url",
+        "title",
+        "severity",
+        "cvss_score",
+        "execution_proven",
+        "sla_due"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {"type": "string", "format": "uuid"},
+        "repository_url": {"type": "string"},
+        "title": {
+          "type": "string",
+          "description": "Raw untrusted finding title, preserved as data rather than authored Markdown or HTML."
+        },
+        "severity": {"type": "string", "enum": ["critical", "high"], "description": "Effective severity."},
+        "cvss_score": {
+          "type": ["string", "null"],
+          "pattern": "^(10(\\.0+)?|[0-9](\\.[0-9]+)?)$",
+          "not": {"type": "string", "pattern": "[^0-9.]"},
+          "description": "CVSS base score from 0 to 10 as an exact decimal string (for example \"9.8\"); the scale can vary by storage backend (\"7.5\" and \"7.5000000000\" are the same score), so compare as decimals. Null when the finding is unscored."
+        },
+        "execution_proven": {"type": "boolean"},
+        "sla_due": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When the finding's SLA falls due; null when no SLA deadline applies."
+        }
+      }
+    },
+    "category": {
+      "type": "object",
+      "required": [
+        "key",
+        "findings",
+        "open",
+        "hardening",
+        "accepted",
+        "resolved",
+        "false_positives",
+        "open_by_severity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": ["string", "null"],
+          "description": "The category label, raw; null groups the findings without one."
+        },
+        "findings": {"$ref": "#/$defs/count", "description": "Every finding in the group, false positives included."},
+        "open": {"$ref": "#/$defs/count"},
+        "hardening": {"$ref": "#/$defs/count"},
+        "accepted": {"$ref": "#/$defs/count"},
+        "resolved": {"$ref": "#/$defs/count"},
+        "false_positives": {"$ref": "#/$defs/count"},
+        "open_by_severity": {
+          "description": "Open findings by effective severity. The five rated keys are always present; unrated appears only when at least one open finding has no severity.",
+          "type": "object",
+          "required": ["critical", "high", "medium", "low", "informational"],
+          "additionalProperties": false,
+          "properties": {
+            "critical": {"$ref": "#/$defs/count"},
+            "high": {"$ref": "#/$defs/count"},
+            "medium": {"$ref": "#/$defs/count"},
+            "low": {"$ref": "#/$defs/count"},
+            "informational": {"$ref": "#/$defs/count"},
+            "unrated": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    },
+    "attack_scenario": {
+      "description": "One threat's attack narrative from a repository's latest threat model, verbatim.",
+      "type": "object",
+      "required": ["assessment_id", "repository_id", "label", "threat", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {"type": "string", "format": "uuid"},
+        "repository_id": {"type": "string", "format": "uuid"},
+        "label": {"type": "string", "description": "The section-4 threat id the scenario narrates (for example T3), raw."},
+        "threat": {"type": ["string", "null"], "description": "The scenario's threat name, raw; null when the threat model gives none."},
+        "steps": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Raw untrusted narrative steps, in order, preserved as data."
+        }
+      }
+    }
+  }
+}

@@ -334,6 +334,22 @@ composition and ordering. No inventory declaration, stored projection or new art
 kind is introduced. The CLI retains its legacy bare JSON array separately from this
 canonical wrapper, with CSV produced by Core's shared renderer.
 
+`views_schema/v1/findings-rollup.schema.json` is the contract for Core's findings-rollup
+view: disposition-aware finding counts for a scope at a point in time. It requires every
+serialized field, nullable ones included (`as_of` null means current recorded state). `total`
+counts each finding in scope once. `products` has one row per product the filter names, and a
+finding in a repository several products ship counts under each, so product rows can sum to
+more than `total`. `repositories` has one row per repository in scope, including those with
+no findings. A tally separates `open` (exposure, by severity) from hardening, resolved,
+risk-accepted and false-positive findings; `tracked` is everything but false positives.
+`top` lists the open critical and high findings. `cvss_score` is an exact decimal string from
+0 to 10 whose scale may vary by backend (compare as decimals), or null when unscored. `categories` counts findings per category label (null key =
+unlabelled); its `open_by_severity` always carries the five rated keys and carries `unrated`
+only when counted. `attack_scenarios` is filled only for a product or team scope. Severity keys
+match the `scanner-severity` registry. JSON Schema checks structure and ranges, not count
+arithmetic. Core owns the typed `FindingsRollup` model, the scoping and disposition fold,
+validation and rendering; titles, URLs, labels and narrative steps are raw untrusted data.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
