@@ -129,9 +129,41 @@ def test_findings_is_a_nonnegative_count(
 
 
 @pytest.mark.parametrize(
-    "fork_url", ["http://example.com/org/repo", "git@example.com:org/repo", ""]
+    "fork_url",
+    ["https://github.com/a/b", "https://gitlab.example.com/group/sub/repo", "https://h/a/b.c_d-e"],
 )
-def test_a_fork_is_an_https_repository_url(
+def test_a_fork_is_cores_canonical_https_repository_url(
+    validator: Draft202012Validator, document: dict[str, Any], fork_url: str
+) -> None:
+    document["rows"][0]["fork_url"] = fork_url
+    validator.validate(document)
+
+
+@pytest.mark.parametrize(
+    "fork_url",
+    [
+        "https://",
+        "https://github.com",
+        "https://github.com/",
+        "https://github.com/a",
+        "https://github.com/a/b/",
+        "https://GitHub.com/a/b",
+        "https://user@github.com/a/b",
+        "https://github.com:8443/a/b",
+        "https://github.com/a/b?x=1",
+        "https://github.com/a/b#x",
+        "https://github.com/a/../b",
+        "https://github.com/./b",
+        "https://github.com/-a/b",
+        "https://gith..ub.com/a/b",
+        "https://-github.com/a/b",
+        "https://github.com/a/b\n",
+        "http://example.com/org/repo",
+        "git@example.com:org/repo",
+        "",
+    ],
+)
+def test_malformed_fork_urls_are_rejected(
     validator: Draft202012Validator, document: dict[str, Any], fork_url: str
 ) -> None:
     document["rows"][0]["fork_url"] = fork_url

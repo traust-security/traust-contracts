@@ -60,8 +60,9 @@
         "findings": {"type": "integer", "minimum": 0, "description": "Findings the work item covers."},
         "fork_url": {
           "type": ["string", "null"],
-          "pattern": "^https://",
-          "description": "Where the fix is pushed (a private mirror, or the repository itself), an HTTPS repository URL; null until the work item is forked."
+          "pattern": "^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(/[A-Za-z0-9._-]+){2,}$",
+          "not": {"type": "string", "pattern": "^https://[^/]*\\.\\.|/\\.\\.?(/|$)|/-|\\s"},
+          "description": "Where the fix is pushed (a private mirror, or the repository itself), in Core's canonical HTTPS repository URL form: https://, a lowercase hostname, then at least an owner and a repository path segment; no credentials, port, query, fragment, trailing slash, whitespace, dot segments or segment-leading dash. Null until the work item is forked."
         },
         "fix_branch": {"type": ["string", "null"], "description": "The branch the fix is on, raw; null until reported."},
         "tracker": {
