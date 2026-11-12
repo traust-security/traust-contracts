@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/findings-trend.schema.json",
+  "title": "Findings trend view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's findings-trend view: each repository's findings replayed bucket by bucket to as_of and summed over the scope (named products and teams, else every repository), each metric's direction, and the accepted-risk register standing at as_of. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": ["as_of", "repositories", "points", "directions", "accepted"],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The point in time the series is replayed to: the filter's, else when the view was built."
+    },
+    "repositories": {"$ref": "#/$defs/count", "description": "Repositories in scope."},
+    "points": {
+      "description": "One point per bucket in which any repository in scope had reported findings, oldest first, limited to the filter's window when one is given. Empty when nothing was reported.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/point"}
+    },
+    "directions": {
+      "description": "One direction per metric, in the metric order below, computed over the last bucket and up to three before it. A metric whose value is unknown (null) in any of those buckets has no direction: unknown is not zero. Empty when there are no points.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/direction"}
+    },
+    "accepted": {
+      "description": "The accepted-risk register at as_of: every finding in scope standing as risk accepted, critical first and unrated last, then highest CVSS score, with every unscored finding after every scored one (a score of 0 still ranks above an unscored finding).",
+      "type": "array",
+      "items": {"$ref": "#/$defs/accepted_risk"}
+    }
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "index": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Sum over the standing findings of each one's CVSS score, else its severity band's midpoint. Null (unknown) when any of them has neither."
+    },
+    "cvss_score": {
+      "type": ["string", "null"],
+      "pattern": "^(10(\\.0+)?|[0-9](\\.[0-9]+)?)$",
+      "not": {"type": "string", "pattern": "[^0-9.]"},
+      "description": "CVSS base score from 0 to 10 as an exact decimal string (for example \"9.8\"); the scale can vary by storage backend (\"7.5\" and \"7.5000000000\" are the same score), so compare as decimals. Null when the finding is unscored."
+    },
+    "point": {
+      "description": "One bucket, summed over the repositories that reported by its end. Open counts, accepted, hardening and the risk indexes stand at the bucket's end; new, resolved, regressions, false positives and decisions happened within it.",
+      "type": "object",
+      "required": [
+        "bucket",
+        "open_by_severity",
+        "new",
+        "resolved",
+        "accepted",
+        "hardening",
+        "false_positives",
+        "regressions",
+        "decisions",
+        "mttr_days",
+        "risk_index",
+        "accepted_risk_index",
+        "reported",
+        "dispositioned",
+        "fp_rate",
+        "coverage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bucket": {"type": "string", "format": "date-time", "description": "The bucket's start."},
+        "open_by_severity": {
+          "description": "Open findings by effective severity at the bucket's end. The five rated keys are always present; unrated appears only when at least one open finding has no severity.",
+          "type": "object",
+          "required": ["critical", "high", "medium", "low", "informational"],
+          "additionalProperties": false,
+          "properties": {
+            "critical": {"$ref": "#/$defs/count"},
+            "high": {"$ref": "#/$defs/count"},
+            "medium": {"$ref": "#/$defs/count"},
+            "low": {"$ref": "#/$defs/count"},
+            "informational": {"$ref": "#/$defs/count"},
+            "unrated": {"type": "integer", "minimum": 1}
+          }
+        },
+        "new": {"$ref": "#/$defs/count", "description": "Findings first seen within the bucket."},
+        "resolved": {"$ref": "#/$defs/count", "description": "Findings that became resolved within the bucket (remediation velocity)."},
+        "accepted": {"$ref": "#/$defs/count", "description": "Findings standing as risk accepted at the bucket's end."},
+        "hardening": {"$ref": "#/$defs/count", "description": "Findings standing as hardening at the bucket's end."},
+        "false_positives": {"$ref": "#/$defs/count", "description": "Findings that became false positives within the bucket."},
+        "regressions": {"$ref": "#/$defs/count", "description": "Regression decisions recorded within the bucket."},
+        "decisions": {"$ref": "#/$defs/count", "description": "Decisions recorded within the bucket."},
+        "mttr_days": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "Mean days from first seen to the resolving decision, over the findings resolved within the bucket and weighted by each repository's resolutions; null when none was resolved with a resolving decision."
+        },
+        "risk_index": {"$ref": "#/$defs/index", "description": "The open findings' risk index at the bucket's end."},
+        "accepted_risk_index": {"$ref": "#/$defs/index", "description": "The risk-accepted findings' risk index at the bucket's end."},
+        "reported": {"$ref": "#/$defs/count", "description": "Repositories in scope that had reported findings by the bucket's end."},
+        "dispositioned": {"$ref": "#/$defs/count", "description": "Of those, the repositories with at least one recorded decision by the bucket's end."},
+        "fp_rate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "false_positives as a percentage of decisions, to one decimal; 0 when no decision was recorded within the bucket."
+        },
+        "coverage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "dispositioned as a percentage of reported (ledger coverage), to one decimal; 0 when nothing was reported."
+        }
+      }
+    },
+    "direction": {
+      "description": "A metric's last bucket against the mean of up to three buckets before it. Within a 10% dead band, or when both are 0, it is flat; otherwise it is rising or falling, and worsening when it moves against the metric's good direction.",
+      "type": "object",
+      "required": ["metric", "last", "baseline", "change_pct", "rising", "worsening"],
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "type": "string",
+          "enum": [
+            "open",
+            "risk_index",
+            "new",
+            "velocity",
+            "mttr",
+            "fp_rate",
+            "regressions",
+            "accepted",
+            "accepted_risk_index",
+            "hardening",
+            "coverage"
+          ],
+          "description": "velocity is resolved per bucket; mttr counts an unknown MTTR as 0; coverage and velocity are good rising, every other metric is good falling."
+        },
+        "last": {"type": "number", "description": "The metric in the last bucket."},
+        "baseline": {
+          "type": ["number", "null"],
+          "description": "Mean of up to three buckets before the last, to two decimals; null when there is only one bucket."
+        },
+        "change_pct": {
+          "type": ["number", "null"],
+          "description": "Percentage change of last against baseline, to one decimal; null when there is no baseline or it is 0."
+        },
+        "rising": {"type": ["boolean", "null"], "description": "Null when flat or when there is no baseline."},
+        "worsening": {"type": "boolean", "description": "True only when rising is not null and the metric moves against its good direction."}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"baseline": {"type": "null"}}, "required": ["baseline"]},
+          "then": {"properties": {"change_pct": {"type": "null"}, "rising": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"rising": {"type": "null"}}, "required": ["rising"]},
+          "then": {"properties": {"worsening": {"const": false}}}
+        }
+      ]
+    },
+    "accepted_risk": {
+      "description": "A finding standing as risk accepted: unfixed and unmitigated, and who accepted it.",
+      "type": "object",
+      "required": [
+        "finding_id",
+        "repository_url",
+        "title",
+        "severity",
+        "cvss_score",
+        "accepted_at",
+        "accepted_by",
+        "rationale"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {"type": "string", "format": "uuid"},
+        "repository_url": {"type": "string", "description": "Raw registered URL, preserved as data."},
+        "title": {
+          "type": "string",
+          "description": "Raw untrusted finding title, preserved as data rather than authored Markdown or HTML."
+        },
+        "severity": {
+          "type": ["string", "null"],
+          "enum": ["critical", "high", "medium", "low", "informational", null],
+          "description": "Effective severity; null when the finding is unrated."
+        },
+        "cvss_score": {"$ref": "#/$defs/cvss_score"},
+        "accepted_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When the latest risk-acceptance decision up to as_of was recorded; null when none is found."
+        },
+        "accepted_by": {
+          "type": ["string", "null"],
+          "description": "The principal of that decision, raw; null when none is found."
+        },
+        "rationale": {
+          "type": ["string", "null"],
+          "maxLength": 160,
+          "description": "That decision's rationale, raw and truncated to 160 characters; null when none was given."
+        }
+      }
+    }
+  }
+}
