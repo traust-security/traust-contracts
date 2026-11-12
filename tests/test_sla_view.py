@@ -294,3 +294,25 @@ def test_vocabularies_match_their_registries() -> None:
     escalation = schema["$defs"]["escalation"]["properties"]
     assert escalation["severity"]["enum"] == [*severity, None]
     assert schema["$defs"]["severity_key"]["enum"] == scanner
+
+
+POLICY_SCHEMA = ROOT / "artifacts_schema/v1/sla-policy.schema.json"
+POLICY = {
+    "policy_name": "example-baseline",
+    "source": {"name": "Example security policy", "retrieved": "2026-01-01"},
+    "severity_mapping": {"critical": "critical"},
+    "clock_start": "first_event",
+    "profiles": {"baseline": {"default": True, "slas": {"critical": {"resolve_days": 7}}}},
+}
+
+
+@pytest.mark.parametrize(("retrieved", "valid"), [("2026-01-01", True), ("2026-02-30", False)])
+def test_the_policy_and_the_view_agree_on_the_source_date(
+    validator: Draft202012Validator, document: dict[str, Any], retrieved: str, valid: bool
+) -> None:
+    policy_schema = json.loads(POLICY_SCHEMA.read_text())
+    policy = Draft202012Validator(policy_schema, format_checker=FormatChecker())
+    source = {**POLICY["source"], "retrieved": retrieved}
+    document["source"]["retrieved"] = retrieved
+    assert policy.is_valid({**POLICY, "source": source}) is valid
+    assert validator.is_valid(document) is valid
