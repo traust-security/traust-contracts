@@ -343,12 +343,27 @@ more than `total`. `repositories` has one row per repository in scope, including
 no findings. A tally separates `open` (exposure, by severity) from hardening, resolved,
 risk-accepted and false-positive findings; `tracked` is everything but false positives.
 `top` lists the open critical and high findings. `cvss_score` is an exact decimal string from
-0 to 10 whose scale may vary by backend (compare as decimals), or null when unscored. `categories` counts findings per category label (null key =
+0 to 10 in its shortest fixed-point form (compare as decimals), or null when unscored. `categories` counts findings per category label (null key =
 unlabelled); its `open_by_severity` always carries the five rated keys and carries `unrated`
 only when counted. `attack_scenarios` is filled only for a product or team scope. Severity keys
 match the `scanner-severity` registry. JSON Schema checks structure and ranges, not count
 arithmetic. Core owns the typed `FindingsRollup` model, the scoping and disposition fold,
 validation and rendering; titles, URLs, labels and narrative steps are raw untrusted data.
+
+`views_schema/v1/findings-trend.schema.json` is the contract for Core's findings-trend view:
+the scope's findings replayed bucket by bucket to `as_of` and summed over its repositories,
+each metric's direction, and the accepted-risk register. Every serialized field is required,
+nullable ones included. A point's open counts, accepted, hardening and risk indexes stand at
+the bucket's end; new, resolved, regressions, false positives and decisions happened within
+it. A risk index is the CVSS sum (else severity-band midpoints) and is null, unknown, when any
+standing finding has neither; a metric unknown in the compared buckets has no direction,
+because unknown is not zero. `open_by_severity` carries the five rated keys and `unrated` only
+when counted. A direction with no baseline has no change and no rising/falling, and a flat one
+is never worsening. The register's severity is null for an unrated finding, which ranks last;
+a CVSS score of 0 still ranks above an unscored one, and `cvss_score` is an exact decimal
+string in its shortest fixed-point form. JSON Schema checks structure and ranges, not
+arithmetic across fields. Core owns the replay, policy and rendering; titles, URLs,
+principals and rationales are raw untrusted data.
 
 ## Run manifest
 

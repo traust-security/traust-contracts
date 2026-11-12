@@ -138,7 +138,7 @@
           "type": ["string", "null"],
           "pattern": "^(10(\\.0+)?|[0-9](\\.[0-9]+)?)$",
           "not": {"type": "string", "pattern": "[^0-9.]"},
-          "description": "CVSS base score from 0 to 10 as an exact decimal string (for example \"9.8\"); the scale can vary by storage backend (\"7.5\" and \"7.5000000000\" are the same score), so compare as decimals. Null when the finding is unscored."
+          "description": "CVSS base score from 0 to 10 as an exact decimal string. Core emits the shortest fixed-point form, the same from every storage backend (for example \"9.8\", \"10\", \"0\"); the pattern also admits trailing zeros, so compare as decimals. Null when the finding is unscored."
         },
         "execution_proven": {"type": "boolean"},
         "sla_due": {
