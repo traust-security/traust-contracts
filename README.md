@@ -445,7 +445,7 @@ and producer. Null sections are unmeasured; empty collections are measured empty
 results. Locations stay relative to the scanned ref. These artifacts add no
 database tables or columns.
 
-`db/v1/traust` is the one-owner data model (XWING-2363): readable, authored
+`db/v1/traust` is the one-owner data model: readable, authored
 SQLite/PostgreSQL SQL — each concept one owner, database-generated UUID v4
 identity (`gen_random_uuid()` / SQLite's `uuid()`), real constraints. Namespaces:
 `traust` (domain), `traust_ops` (operations), `traust_ledger` (ledger)

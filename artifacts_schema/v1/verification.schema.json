@@ -128,7 +128,7 @@
         "ref": {
           "type": "string",
           "minLength": 1,
-          "$comment": "Optional (harness >= 0.122.0, branch-awareness Phase 0): the ORIGINAL audit's metadata.ref, restated verbatim so ref provenance survives into verification roll-ups. Not the patched ref \u2014 that is patched_ref. Omit when the original report declares no ref."
+          "$comment": "Optional (harness >= 0.122.0): the ORIGINAL audit's metadata.ref, restated verbatim so ref provenance survives into verification roll-ups. Not the patched ref \u2014 that is patched_ref. Omit when the original report declares no ref."
         },
         "ref_kind": {
           "type": "string",
