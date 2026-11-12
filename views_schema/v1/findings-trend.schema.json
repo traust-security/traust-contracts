@@ -19,9 +19,22 @@
       "items": {"$ref": "#/$defs/point"}
     },
     "directions": {
-      "description": "One direction per metric, in the metric order below, computed over the last bucket and up to three before it. A metric whose value is unknown (null) in any of those buckets has no direction: unknown is not zero. Empty when there are no points.",
+      "description": "At most one direction per metric, in the metric vocabulary's order (Core orders them; JSON Schema checks presence and uniqueness, not order), computed over the last bucket and up to three before it. A metric whose value is unknown (null) in any of those buckets has no direction, because unknown is not zero, so only risk_index and accepted_risk_index can be absent when there are points. Empty when there are no points.",
       "type": "array",
-      "items": {"$ref": "#/$defs/direction"}
+      "items": {"$ref": "#/$defs/direction"},
+      "allOf": [
+        {"contains": {"$ref": "#/$defs/metric_is/open"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/risk_index"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/new"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/velocity"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/mttr"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/fp_rate"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/regressions"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/accepted"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/accepted_risk_index"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/hardening"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/metric_is/coverage"}, "minContains": 0, "maxContains": 1}
+      ]
     },
     "accepted": {
       "description": "The accepted-risk register at as_of: every finding in scope standing as risk accepted, critical first and unrated last, then highest CVSS score, with every unscored finding after every scored one (a score of 0 still ranks above an unscored finding).",
@@ -29,7 +42,43 @@
       "items": {"$ref": "#/$defs/accepted_risk"}
     }
   },
+  "allOf": [
+    {
+      "if": {"properties": {"points": {"minItems": 1}}, "required": ["points"]},
+      "then": {
+        "properties": {
+          "directions": {
+            "allOf": [
+              {"contains": {"$ref": "#/$defs/metric_is/open"}},
+              {"contains": {"$ref": "#/$defs/metric_is/new"}},
+              {"contains": {"$ref": "#/$defs/metric_is/velocity"}},
+              {"contains": {"$ref": "#/$defs/metric_is/mttr"}},
+              {"contains": {"$ref": "#/$defs/metric_is/fp_rate"}},
+              {"contains": {"$ref": "#/$defs/metric_is/regressions"}},
+              {"contains": {"$ref": "#/$defs/metric_is/accepted"}},
+              {"contains": {"$ref": "#/$defs/metric_is/hardening"}},
+              {"contains": {"$ref": "#/$defs/metric_is/coverage"}}
+            ]
+          }
+        }
+      },
+      "else": {"properties": {"directions": {"maxItems": 0}}}
+    }
+  ],
   "$defs": {
+    "metric_is": {
+      "open": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "open"}}},
+      "risk_index": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "risk_index"}}},
+      "new": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "new"}}},
+      "velocity": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "velocity"}}},
+      "mttr": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "mttr"}}},
+      "fp_rate": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "fp_rate"}}},
+      "regressions": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "regressions"}}},
+      "accepted": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "accepted"}}},
+      "accepted_risk_index": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "accepted_risk_index"}}},
+      "hardening": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "hardening"}}},
+      "coverage": {"type": "object", "required": ["metric"], "properties": {"metric": {"const": "coverage"}}}
+    },
     "count": {"type": "integer", "minimum": 0},
     "index": {
       "type": ["number", "null"],
@@ -132,9 +181,10 @@
           ],
           "description": "velocity is resolved per bucket; mttr counts an unknown MTTR as 0; coverage and velocity are good rising, every other metric is good falling."
         },
-        "last": {"type": "number", "description": "The metric in the last bucket."},
+        "last": {"type": "number", "minimum": 0, "description": "The metric in the last bucket; every metric is nonnegative."},
         "baseline": {
           "type": ["number", "null"],
+          "minimum": 0,
           "description": "Mean of up to three buckets before the last, to two decimals; null when there is only one bucket."
         },
         "change_pct": {
@@ -152,6 +202,10 @@
         {
           "if": {"properties": {"rising": {"type": "null"}}, "required": ["rising"]},
           "then": {"properties": {"worsening": {"const": false}}}
+        },
+        {
+          "if": {"$ref": "#/$defs/metric_is/coverage"},
+          "then": {"properties": {"last": {"maximum": 100}, "baseline": {"maximum": 100}}}
         }
       ]
     },

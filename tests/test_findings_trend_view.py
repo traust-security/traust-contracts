@@ -55,38 +55,26 @@ def _point(**overrides: Any) -> dict[str, Any]:
     return {**point, **overrides}
 
 
+def _direction(metric: str, **overrides: Any) -> dict[str, Any]:
+    flat = {"last": 1.0, "baseline": 1.0, "change_pct": 0.0, "rising": None, "worsening": False}
+    return {"metric": metric, **flat, **overrides}
+
+
+SPECIAL: dict[str, dict[str, Any]] = {
+    "open": {"last": 3.0, "baseline": 3.0},
+    "velocity": {"baseline": 0.0, "change_pct": None, "rising": True},
+    "coverage": {"last": 50.0, "baseline": None, "change_pct": None},
+}
+OPEN, VELOCITY, COVERAGE = (METRICS.index(m) for m in ("open", "velocity", "coverage"))
+
+
 @pytest.fixture
 def document() -> dict[str, Any]:
     return {
         "as_of": "2026-10-20T00:00:00Z",
         "repositories": 3,
         "points": [_point(), _point(bucket="2026-10-12T00:00:00Z", mttr_days=None)],
-        "directions": [
-            {
-                "metric": "open",
-                "last": 3.0,
-                "baseline": 3.0,
-                "change_pct": 0.0,
-                "rising": None,
-                "worsening": False,
-            },
-            {
-                "metric": "velocity",
-                "last": 1.0,
-                "baseline": 0.0,
-                "change_pct": None,
-                "rising": True,
-                "worsening": False,
-            },
-            {
-                "metric": "coverage",
-                "last": 50.0,
-                "baseline": None,
-                "change_pct": None,
-                "rising": None,
-                "worsening": False,
-            },
-        ],
+        "directions": [_direction(m, **SPECIAL.get(m, {})) for m in METRICS],
         "accepted": [
             {
                 "finding_id": "00000000-0000-4000-8000-000000000001",
@@ -231,11 +219,66 @@ def test_open_unrated_is_present_only_when_counted(
         validator.validate(document)
 
 
-@pytest.mark.parametrize("metric", METRICS)
-def test_every_core_metric_is_a_known_direction(
+def test_the_metric_vocabulary_is_cores_eleven_metrics_in_order() -> None:
+    direction = json.loads(SCHEMA.read_text())["$defs"]["direction"]
+    assert tuple(direction["properties"]["metric"]["enum"]) == METRICS
+
+
+@pytest.mark.parametrize("metric", ["risk_index", "accepted_risk_index"])
+def test_an_unknown_index_may_have_no_direction(
     validator: Draft202012Validator, document: dict[str, Any], metric: str
 ) -> None:
-    document["directions"][0]["metric"] = metric
+    document["directions"] = [d for d in document["directions"] if d["metric"] != metric]
+    validator.validate(document)
+
+
+@pytest.mark.parametrize("metric", [m for m in METRICS if not m.endswith("risk_index")])
+def test_every_always_known_metric_has_a_direction_when_there_are_points(
+    validator: Draft202012Validator, document: dict[str, Any], metric: str
+) -> None:
+    document["directions"] = [d for d in document["directions"] if d["metric"] != metric]
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize("metric", METRICS)
+def test_a_metric_has_at_most_one_direction(
+    validator: Draft202012Validator, document: dict[str, Any], metric: str
+) -> None:
+    document["directions"].append(_direction(metric))
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+def test_no_points_means_no_directions(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    document["points"] = []
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+    document["directions"] = []
+    validator.validate(document)
+
+
+@pytest.mark.parametrize("field", ["last", "baseline"])
+def test_direction_values_are_never_negative(
+    validator: Draft202012Validator, document: dict[str, Any], field: str
+) -> None:
+    document["directions"][OPEN][field] = -1
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize("field", ["last", "baseline"])
+def test_a_coverage_direction_stays_within_100(
+    validator: Draft202012Validator, document: dict[str, Any], field: str
+) -> None:
+    document["directions"][COVERAGE].update(baseline=50.0, change_pct=0.0)
+    document["directions"][COVERAGE][field] = 101
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+    document["directions"][OPEN][field] = 101  # only coverage is capped
+    document["directions"][COVERAGE][field] = 100
     validator.validate(document)
 
 
@@ -254,7 +297,7 @@ def test_unknown_metrics_are_rejected(
 def test_no_baseline_means_no_change_and_no_direction(
     validator: Draft202012Validator, document: dict[str, Any], fields: dict[str, Any]
 ) -> None:
-    document["directions"][2].update(fields)
+    document["directions"][COVERAGE].update(fields)
     with pytest.raises(ValidationError):
         validator.validate(document)
 
@@ -270,7 +313,7 @@ def test_a_flat_metric_is_never_worsening(
 def test_a_zero_baseline_has_no_change_but_still_a_direction(
     validator: Draft202012Validator, document: dict[str, Any]
 ) -> None:
-    document["directions"][1].update(rising=True, worsening=True)
+    document["directions"][VELOCITY].update(rising=True, worsening=True)
     validator.validate(document)
 
 
