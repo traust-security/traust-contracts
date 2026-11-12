@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/sla.schema.json",
+  "title": "SLA view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's sla view: owner-response SLA clocks over the scope's findings (named products and teams, else every repository; false positives and hardening excluded) as of as_of, one block per profile of the deployment's SLA policy. Profiles are different clocks over the same findings. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": ["policy_name", "source", "clock_start", "as_of", "profiles"],
+  "additionalProperties": false,
+  "properties": {
+    "policy_name": {"type": "string", "description": "The SLA policy's name, raw."},
+    "source": {"$ref": "#/$defs/source"},
+    "clock_start": {
+      "type": "string",
+      "enum": ["first_routed_or_filed", "first_event", "audit_date"],
+      "description": "The policy's clock-start rule, from the sla-clock-start registry."
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The point in time the clocks are read at: the filter's, else when the view was built."
+    },
+    "profiles": {
+      "description": "One block per policy profile: the default profile first, then by name.",
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/profile"}
+    }
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "severity_key": {"enum": ["critical", "high", "medium", "low", "informational", "unrated"]},
+    "source": {
+      "description": "Where the SLA policy came from.",
+      "type": "object",
+      "required": ["name", "url", "retrieved", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "description": "The source's name, raw."},
+        "url": {"type": ["string", "null"], "description": "The source's URL, raw; null when none is recorded."},
+        "retrieved": {"type": "string", "format": "date", "description": "When the source was retrieved."},
+        "note": {"type": ["string", "null"], "description": "A note on the source, raw; null when none."}
+      }
+    },
+    "counts": {
+      "description": "Every in-scope finding lands in exactly one count; unclocked and out-of-profile findings are shown, never dropped.",
+      "type": "object",
+      "required": [
+        "open_in_sla",
+        "open_overdue",
+        "open_no_sla",
+        "unclocked",
+        "accepted",
+        "resolved_met",
+        "resolved_breached",
+        "resolved_unclocked",
+        "out_of_profile_scope"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "open_in_sla": {"$ref": "#/$defs/count", "description": "Open, due on or after as_of."},
+        "open_overdue": {"$ref": "#/$defs/count", "description": "Open, due before as_of."},
+        "open_no_sla": {"$ref": "#/$defs/count", "description": "Open, in the profile's scope but with no deadline (tracked, never overdue)."},
+        "unclocked": {"$ref": "#/$defs/count", "description": "Open with no clock start (no report and no decision)."},
+        "accepted": {"$ref": "#/$defs/count", "description": "Risk accepted: no clock."},
+        "resolved_met": {"$ref": "#/$defs/count", "description": "Resolved on or before its deadline."},
+        "resolved_breached": {"$ref": "#/$defs/count", "description": "Resolved after its deadline."},
+        "resolved_unclocked": {"$ref": "#/$defs/count", "description": "Resolved with no clock start or no resolution time."},
+        "out_of_profile_scope": {"$ref": "#/$defs/count", "description": "Outside the profile's severity scope and below its CVSS floor."}
+      }
+    },
+    "profile": {
+      "type": "object",
+      "required": [
+        "profile",
+        "description",
+        "counts",
+        "resolved_compliance_pct",
+        "median_days_to_resolve",
+        "overdue_by_severity",
+        "teams",
+        "escalations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile": {"type": "string", "description": "The profile's name, raw."},
+        "description": {"type": ["string", "null"], "description": "The profile's description, raw; null when none."},
+        "counts": {"$ref": "#/$defs/counts"},
+        "resolved_compliance_pct": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "resolved_met as a percentage of resolved_met + resolved_breached, to one decimal; null when nothing resolved was clocked."
+        },
+        "median_days_to_resolve": {
+          "description": "Per severity (unrated for findings without one), the median whole days from clock start to resolution of the clocked resolved findings. Only severities with a resolution appear. A value can be negative when a finding was resolved before its clock started (for example, fixed before it was filed).",
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/severity_key"},
+          "additionalProperties": {"type": "integer"}
+        },
+        "overdue_by_severity": {
+          "description": "Open overdue findings per severity (unrated for findings without one); only severities with one appear.",
+          "type": "object",
+          "propertyNames": {"$ref": "#/$defs/severity_key"},
+          "additionalProperties": {"type": "integer", "minimum": 1}
+        },
+        "teams": {
+          "description": "One row per owner team with an overdue finding, most overdue first, then by team name. A finding with no owner counts under (unassigned).",
+          "type": "array",
+          "items": {"$ref": "#/$defs/team"}
+        },
+        "escalations": {
+          "description": "The escalation digest: overdue findings, critical first and unrated last, then most days overdue first; at most 100. Generated for human review, never sent.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {"$ref": "#/$defs/escalation"}
+        }
+      }
+    },
+    "team": {
+      "type": "object",
+      "required": ["team", "overdue", "critical", "worst_days"],
+      "additionalProperties": false,
+      "properties": {
+        "team": {"type": "string", "description": "The owner team's name, raw, or (unassigned)."},
+        "overdue": {"type": "integer", "minimum": 1, "description": "The team's open overdue findings."},
+        "critical": {"$ref": "#/$defs/count", "description": "Of those, the critical ones."},
+        "worst_days": {"$ref": "#/$defs/count", "description": "The most whole days any of them is overdue."}
+      }
+    },
+    "escalation": {
+      "type": "object",
+      "required": ["finding_id", "repository_url", "severity", "title", "teams", "due", "days_overdue", "clock_basis"],
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {"type": "string", "format": "uuid"},
+        "repository_url": {"type": "string", "description": "Raw registered URL, preserved as data."},
+        "severity": {
+          "type": ["string", "null"],
+          "enum": ["critical", "high", "medium", "low", "informational", null],
+          "description": "Effective severity; null when unrated (in scope through the profile's CVSS floor)."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Raw untrusted finding title, truncated to 120 characters and preserved as data rather than authored Markdown or HTML."
+        },
+        "teams": {
+          "description": "The repository's owner teams, raw, or (unassigned).",
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"}
+        },
+        "due": {"type": "string", "format": "date-time", "description": "When the SLA fell due (before as_of)."},
+        "days_overdue": {"$ref": "#/$defs/count", "description": "Whole days from due to as_of."},
+        "clock_basis": {
+          "type": "string",
+          "enum": ["filed", "first_event", "audit_date"],
+          "description": "What started the clock: the tracker filing, the first report or decision, or the first audit report."
+        }
+      }
+    }
+  }
+}
