@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/artifacts_schema/v1/insight-builds.schema.json",
+  "title": "Stored insight builds",
+  "description": "One stored build of traust-core's census insight views: the GLOBAL census (no product, team or category scope) as the dashboards cadence last folded it, keyed by view name. The dashboards lane's fast asset rebuilds it every 5-15 minutes and publishes it as an imported document; GET /v1/insights/{name} serves the newest build for an unscoped read (up to one cadence stale) and ?refresh folds on demand instead. The artifact row's creation is the build's publication moment (the database owns time; nothing duplicates it here); folded_after is the person-judgement watermark the fold read before it started, so a human decision recorded at or after it supersedes the build. Each view's model is the view's own document, validated by traust-core's view models on read (and by that view's views_schema/v1 contract where one exists); this envelope checks the wrapping shape only. The document carries no moment of its own, so an unchanged census republishes as the same digest and the same row. SCI's per-request authorization filters these views after core serves them; no permission data rides this document.",
+  "type": "object",
+  "required": [
+    "folded_after",
+    "views"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "folded_after": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "The newest person judgement's recording time when the fold began (null when no person had judged): a human decision recorded at or after this moment is absent from or unverifiable in the build, and the route folds instead of serving it.",
+      "$comment": "Null carries the semantics of the watermark, not a missing value; the artifact row's created_at is the publication moment."
+    },
+    "views": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "type": "object"
+      },
+      "description": "The census view models by view name (findings-rollup, coverage, remediation-index, findings-trend, ...). Every value is the model that view's build would return for an unscoped read."
+    }
+  }
+}

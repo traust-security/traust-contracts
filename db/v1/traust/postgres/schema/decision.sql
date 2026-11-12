@@ -63,6 +63,13 @@ CREATE INDEX IF NOT EXISTS idx_decision_assessment
     ON traust.decision (assessment_id)
     WHERE assessment_id IS NOT NULL;
 
+-- The stored census builds' freshness bound (performance-lane wave (d)): when a person last
+-- judged, by recording time (a backdated statement still flips the bound). The partial index
+-- keeps the per-serve read an index hit however sparse people are among the machines.
+CREATE INDEX IF NOT EXISTS idx_decision_person_recorded
+    ON traust.decision (created_at DESC)
+    WHERE actor LIKE 'human:%';
+
 DROP TRIGGER IF EXISTS decision_reject_mutation ON traust.decision;
 CREATE TRIGGER decision_reject_mutation
 BEFORE UPDATE OR DELETE ON traust.decision
