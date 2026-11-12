@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/remediation-index.schema.json",
+  "title": "Remediation index view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's remediation-index view: every remediation work item of the scope's repositories (named products and teams, else every repository) as it stands now, grouped per product, with where its fix lives and its status, and the rows counted by status. There is no as_of: the index reads work items as they stand. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": ["rows", "by_status"],
+  "additionalProperties": false,
+  "properties": {
+    "rows": {
+      "description": "One row per work item and product group: per named product in the filter's order (each product's repositories by URL), else a single group with product null (every repository in scope by URL); within a repository, oldest work item first. A repository several named products ship lists its work items under each.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/row"}
+    },
+    "by_status": {
+      "description": "Rows per status; only statuses with at least one row appear. Counts rows, so a work item listed under several products counts once per product.",
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/status"},
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    }
+  },
+  "$defs": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "candidate",
+        "forked",
+        "patched",
+        "checks_passed",
+        "checks_failed",
+        "revalidated_fixed",
+        "revalidated_still_vulnerable",
+        "pr_opened",
+        "merged",
+        "abandoned"
+      ],
+      "description": "Where the work item stands, from the remediation-status registry."
+    },
+    "row": {
+      "type": "object",
+      "required": [
+        "product",
+        "repository_url",
+        "work_item_id",
+        "status",
+        "findings",
+        "fork_url",
+        "fix_branch",
+        "tracker"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "product": {
+          "type": ["string", "null"],
+          "description": "The product's slug when the filter names products; null when it names none."
+        },
+        "repository_url": {"type": "string", "description": "Raw registered URL, preserved as data."},
+        "work_item_id": {"type": "string", "format": "uuid"},
+        "status": {"$ref": "#/$defs/status"},
+        "findings": {"type": "integer", "minimum": 0, "description": "Findings the work item covers."},
+        "fork_url": {
+          "type": ["string", "null"],
+          "pattern": "^https://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(/[A-Za-z0-9._-]+){2,}$",
+          "not": {"type": "string", "pattern": "^https://[^/]*\\.\\.|/\\.\\.?(/|$)|/-|\\s"},
+          "description": "Where the fix is pushed (a private mirror, or the repository itself), in Core's canonical HTTPS repository URL form: https://, a lowercase hostname, then at least an owner and a repository path segment; no credentials, port, query, fragment, trailing slash, whitespace, dot segments or segment-leading dash. Null until the work item is forked."
+        },
+        "fix_branch": {"type": ["string", "null"], "description": "The branch the fix is on, raw; null until reported."},
+        "tracker": {
+          "type": ["string", "null"],
+          "description": "The tracker ticket's URL or key, raw; null when none is linked."
+        }
+      }
+    }
+  }
+}
