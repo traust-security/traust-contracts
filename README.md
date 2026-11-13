@@ -450,6 +450,18 @@ registry by test. Every serialized field is required; lists are never null. Name
 mean every scope is a product's and the index is empty. Core owns the readiness projection,
 ranking and rendering; URLs, actions, primitives and file paths are raw untrusted data.
 
+`views_schema/v1/threat-register.schema.json` is the contract for Core's threat-register view:
+the scope's threats from each repository's latest completed threat model as of `as_of`,
+ranked by band then status, with class-closing xs/s quick wins over unmitigated critical and
+high threats, tenant boundaries weakest first and the open doc variances. Threats,
+mitigations and boundaries are Core's projections of the threat-model documents. Fields Core
+types (status, actor, bands, legacy likelihood and impact, isolation dimensions, interface
+complexity, variance kind) are tied to their registries by test; fields Core serves as the
+model states them (mitigation size and class closure, boundary kind, exposure and dimension
+results, cited technique ids) stay raw. Every serialized field is required; lists are never
+null. Core owns the ranking, the rating crosswalk and rendering; titles, URLs, claims and
+evidence anchors are raw untrusted data.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
