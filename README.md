@@ -125,6 +125,16 @@ ledger exists yet. Existing `*_upgrade` helpers are deprecated legacy territory;
 do not extend that pattern. Reaching existing databases requires the separately
 designed upgrade feature, not conditional scripts or historical backfills.
 
+## Stored census observations
+
+`insight-builds` requires a fresh `built_at` observation timestamp, a nullable
+pre-fold `folded_after` decision watermark and the view documents. Reobserving
+unchanged or returning views must publish a new document; serving age still uses
+the artifact row's database `created_at`, not either document timestamp.
+The additive `idx_decision_nonmachine_recorded` index covers actor-bearing
+statements outside the canonical `machine:` namespace, including legacy spellings.
+This is conservative cache invalidation, not identity verification or decision authority.
+
 ## Manifest SBOM coverage
 
 `manifest-coverage.schema.json` binds a checkout's unresolved manifests to native
@@ -402,6 +412,31 @@ Ownership classes use the `ownership` registry, tied by test. Every serialized f
 required. JSON Schema checks structure and ranges, not arithmetic across fields. Core owns the
 corpus registry, the population and the fold; product names, business units and URLs are raw
 untrusted data.
+
+`views_schema/v1/attack-coverage.schema.json` is the contract for Core's attack-coverage
+view: the scope's MITRE ATT&CK coverage as of `as_of` against the pinned ATT&CK release, with
+modeled evidence (techniques the latest threat models cite) and weakness-derived candidates
+(finding categories through the pack's category map) counted apart, never blended. Each
+technique has at least one piece of evidence and a score: exactly 2 when modeled, else 1; 3
+(observed) is refused until confirmed validation chains are recorded. Technique ids are ATT&CK
+technique or sub-technique ids; `dropped` counts the raw citations that are not live in the
+release, malformed references included.
+`navigator_layer` is an ATT&CK Navigator layer (format 4.5): this contract checks its
+envelope, MITRE's own schema governs the rest. Every serialized field is required. Core owns
+the catalog, the category map and rendering.
+
+`views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA
+clocks over the scope's findings (false positives and hardening excluded) as of `as_of`, one
+block per profile of the deployment's SLA policy, default first. Every serialized field is
+required, nullable ones included. Each profile's nine counts place every in-scope finding in
+exactly one bucket. Compliance is a 0–100 percentage or null when nothing resolved was
+clocked. `overdue_by_severity` and `median_days_to_resolve` carry only the severities seen;
+a median can be negative when a finding was resolved before its clock started. Team rows have
+at least one overdue finding. The escalation digest holds at most 100 overdue findings, with
+a null severity for an unrated one in scope through the CVSS floor and a title truncated to
+120 characters. `clock_start` uses the `sla-clock-start` registry, tied by test. JSON Schema
+checks structure and ranges, not arithmetic across fields. Core owns the policy resolution,
+the clock ladder and rendering; names, titles and URLs are raw untrusted data.
 
 ## Run manifest
 
