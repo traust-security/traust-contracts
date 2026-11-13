@@ -288,3 +288,55 @@ def test_an_unmatched_rule_prefix_is_empty_not_null(
     _set(document, OBJECTS["ir8547"] + ("matched_prefix",), None)
     with pytest.raises(ValidationError):
         validator.validate(document)
+
+
+def test_a_product_scope_refuses_a_global_index(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    assert document["products"]
+    document["scopes"][0]["product_id"] = "00000000-0000-4000-8000-000000000009"
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+def test_the_unscoped_scope_stands_alone(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    named = {**document["scopes"][0], "product_id": "00000000-0000-4000-8000-000000000009"}
+    document["scopes"].append(named)
+    document["products"] = []
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+def test_several_product_scopes_are_valid(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    scope = document["scopes"][0]
+    document["scopes"] = [
+        {**scope, "product_id": "00000000-0000-4000-8000-000000000009"},
+        {**scope, "product_id": "00000000-0000-4000-8000-00000000000a"},
+    ]
+    document["products"] = []
+    validator.validate(document)
+
+
+@pytest.mark.parametrize("collection", ["clock_items", "remediations"])
+def test_absent_report_collections_are_empty_not_null(
+    validator: Draft202012Validator, document: dict[str, Any], collection: str
+) -> None:
+    _set(document, OBJECTS["readiness"] + (collection,), [])
+    validator.validate(document)
+    _set(document, OBJECTS["readiness"] + (collection,), None)
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+def test_remediation_locations_are_empty_not_null(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    _set(document, OBJECTS["remediation"] + ("locations",), [])
+    validator.validate(document)
+    _set(document, OBJECTS["remediation"] + ("locations",), None)
+    with pytest.raises(ValidationError):
+        validator.validate(document)

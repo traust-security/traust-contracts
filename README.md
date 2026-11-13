@@ -433,7 +433,8 @@ decision sites with their facts, the crypto packages in its manifest SBOMs, and 
 without an SBOM. Readiness records and facts are Core's projections of the `pqc-readiness` and
 `pqc-facts` documents with every optional field present (null when absent), so they are
 defined here rather than referenced. Scores are 0–100; every PQC vocabulary is tied to its
-registry by test. Every serialized field is required. Core owns the readiness projection,
+registry by test. Every serialized field is required; lists are never null. Named products
+mean every scope is a product's and the index is empty. Core owns the readiness projection,
 ranking and rendering; URLs, actions, primitives and file paths are raw untrusted data.
 
 ## Run manifest
