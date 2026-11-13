@@ -434,7 +434,8 @@ the top 10 advisory rows of `exposure` (null for a product or team scope). Panel
 for are null; a PQC panel asked for at an `as_of` is explained in `pqc_unavailable`, never
 built. Credential leaks have their own row (any severity or unrated; the rollup's top
 findings are critical or high only). A validator resolves the references through a registry
-of the view schemas by `$id`. Every serialized field is required; lists are never null.
+of the view schemas by `$id`. Every serialized field is required; lists are never null
+except `exposure`, null for a product or team scope.
 Core owns the composition and rendering; titles, URLs, themes and flags are raw data.
 
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide

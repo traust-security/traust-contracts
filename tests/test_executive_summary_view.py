@@ -344,3 +344,14 @@ def test_the_components_are_referenced_never_copied() -> None:
         "exposure",
         "census",
     }
+
+
+@pytest.mark.parametrize(
+    "field", ["credential_leaks", "languages", ("isolation", "reviews"), ("iac", "targets")]
+)
+def test_only_exposure_of_the_lists_may_be_null(
+    validator: Draft202012Validator, document: dict[str, Any], field: Any
+) -> None:
+    _set(document, field if isinstance(field, tuple) else (field,), None)
+    with pytest.raises(ValidationError):
+        validator.validate(document)
