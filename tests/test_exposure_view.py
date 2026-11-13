@@ -32,6 +32,7 @@ def _rollup(key: str | None) -> dict[str, Any]:
 @pytest.fixture
 def document() -> dict[str, Any]:
     return {
+        "as_of": "2026-11-13T00:00:00Z",
         "by_advisory": [_rollup("GHSA-xxxx-xxxx-xxxx")],
         "by_product": [_rollup("example-product"), _rollup(None)],
         "by_classification": [_rollup("affected")],
@@ -43,11 +44,18 @@ def test_example_view_is_valid(validator: Draft202012Validator, document: dict[s
 
 
 def test_an_empty_view_is_valid(validator: Draft202012Validator) -> None:
-    validator.validate({"by_advisory": [], "by_product": [], "by_classification": []})
+    validator.validate(
+        {
+            "as_of": "2026-11-13T00:00:00Z",
+            "by_advisory": [],
+            "by_product": [],
+            "by_classification": [],
+        }
+    )
 
 
-@pytest.mark.parametrize("field", ["by_advisory", "by_product", "by_classification"])
-def test_every_list_is_required(
+@pytest.mark.parametrize("field", ["as_of", "by_advisory", "by_product", "by_classification"])
+def test_every_view_field_is_required(
     validator: Draft202012Validator, document: dict[str, Any], field: str
 ) -> None:
     del document[field]
@@ -83,6 +91,7 @@ def test_unknown_fields_are_rejected(
         ("by_classification", {"exploited": 1}),
         ("by_classification", {"affected": 0}),
         ("by_classification", None),
+        ("by_classification", {}),
     ],
 )
 def test_out_of_contract_values_are_rejected(
@@ -98,3 +107,51 @@ def test_verdicts_match_the_impact_classification_registry() -> None:
     values = json.loads((ROOT / "enums/v1/impact-classification.json").read_text())["values"]
     row = json.loads(SCHEMA.read_text())["$defs"]["rollup"]
     assert row["properties"]["by_classification"]["propertyNames"]["enum"] == values
+
+
+def test_as_of_is_a_timestamp(validator: Draft202012Validator, document: dict[str, Any]) -> None:
+    document["as_of"] = "2026-11-13"
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize(
+    ("dimension", "key"),
+    [
+        ("by_advisory", None),
+        ("by_advisory", ""),
+        ("by_classification", None),
+        ("by_classification", "exploited"),
+    ],
+)
+def test_advisory_and_verdict_rows_are_keyed_by_their_dimension(
+    validator: Draft202012Validator, document: dict[str, Any], dimension: str, key: Any
+) -> None:
+    document[dimension][0]["key"] = key
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+def test_only_product_rows_may_be_unkeyed(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    document["by_product"][0]["key"] = None
+    validator.validate(document)
+
+
+@pytest.mark.parametrize(
+    "verdict",
+    json.loads((ROOT / "enums/v1/impact-classification.json").read_text())["values"],
+)
+def test_every_verdict_keys_a_verdict_row(
+    validator: Draft202012Validator, document: dict[str, Any], verdict: str
+) -> None:
+    document["by_classification"][0]["key"] = verdict
+    validator.validate(document)
+
+
+def test_verdict_row_keys_match_the_impact_classification_registry() -> None:
+    values = json.loads((ROOT / "enums/v1/impact-classification.json").read_text())["values"]
+    [_, verdicts] = json.loads(SCHEMA.read_text())["allOf"]
+    key = verdicts["then"]["properties"]["by_classification"]["items"]["properties"]["key"]
+    assert key["enum"] == values
