@@ -390,6 +390,17 @@ the `remediation-status` registry, tied by test. `by_status` counts rows per sta
 a work item under several products counts once per product. Core owns the work-item fold and
 rendering; URLs, branches and tracker references are raw untrusted data.
 
+`views_schema/v1/attack-coverage.schema.json` is the contract for Core's attack-coverage
+view: the scope's MITRE ATT&CK coverage as of `as_of` against the pinned ATT&CK release, with
+modeled evidence (techniques the latest threat models cite) and weakness-derived candidates
+(finding categories through the pack's category map) counted apart, never blended. Each
+technique has at least one piece of evidence and a score: 2 when modeled, else 1 (3, observed,
+is reserved until confirmed validation chains are recorded). Technique ids are ATT&CK
+technique or sub-technique ids; `dropped` counts cited ids that are not live in the release.
+`navigator_layer` is an ATT&CK Navigator layer (format 4.5): this contract checks its
+envelope, MITRE's own schema governs the rest. Every serialized field is required. Core owns
+the catalog, the category map and rendering.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that

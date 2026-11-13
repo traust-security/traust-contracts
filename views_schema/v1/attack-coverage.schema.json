@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/attack-coverage.schema.json",
+  "title": "ATT&CK coverage view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's attack-coverage view: the scope's MITRE ATT&CK coverage as of as_of against the pinned ATT&CK release. Modeled evidence (techniques the latest threat models cite) and weakness-derived candidates (finding categories through the pack's category map) are kept apart, never blended; observed coverage (confirmed validation chains) is not yet recorded. Includes an ATT&CK Navigator layer. Not a persisted artifact or SQL projection. Every serialized field is present. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "as_of",
+    "attack_version",
+    "mapping_version",
+    "attribution",
+    "repositories",
+    "threat_models",
+    "threats_with_techniques",
+    "findings_mapped",
+    "techniques",
+    "dropped",
+    "navigator_layer"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The point in time the threat models and findings are read at: the filter's, else when the view was built."
+    },
+    "attack_version": {"type": "string", "minLength": 1, "description": "The pinned ATT&CK release (for example 19.1)."},
+    "mapping_version": {"type": "string", "minLength": 1, "description": "The category-to-technique mapping's version."},
+    "attribution": {"type": "string", "description": "MITRE's required attribution for ATT&CK content."},
+    "repositories": {"$ref": "#/$defs/count", "description": "Repositories in scope."},
+    "threat_models": {"$ref": "#/$defs/count", "description": "Latest threat models read."},
+    "threats_with_techniques": {"$ref": "#/$defs/count", "description": "Threats citing at least one live technique."},
+    "findings_mapped": {"$ref": "#/$defs/count", "description": "Findings whose category maps to at least one technique."},
+    "techniques": {
+      "description": "Every technique with evidence, highest score first, then by technique id.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/technique"}
+    },
+    "dropped": {
+      "description": "Technique ids threat models cite that are not live in the pinned release (revoked, deprecated or unknown), with how many threats cite each, most cited first. They count nowhere else.",
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    },
+    "navigator_layer": {
+      "description": "The coverage as an ATT&CK Navigator layer (layer format 4.5), MITRE's own format: the envelope is checked here, the layer's full schema is MITRE's. Scores follow the technique scores (1 weakness-derived candidate, 2 modeled, 3 observed).",
+      "type": "object",
+      "required": ["name", "versions", "domain", "techniques"],
+      "properties": {
+        "name": {"type": "string"},
+        "versions": {
+          "type": "object",
+          "required": ["attack", "navigator", "layer"],
+          "properties": {
+            "attack": {"type": "string"},
+            "navigator": {"type": "string"},
+            "layer": {"type": "string", "const": "4.5"}
+          }
+        },
+        "domain": {"type": "string", "const": "enterprise-attack"},
+        "techniques": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["techniqueID", "score"],
+            "properties": {
+              "techniqueID": {"$ref": "#/$defs/technique_id"},
+              "score": {"$ref": "#/$defs/score"},
+              "comment": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "technique_id": {
+      "type": "string",
+      "pattern": "^T[0-9]{4}(\\.[0-9]{3})?$",
+      "not": {"type": "string", "pattern": "\\s"},
+      "description": "An ATT&CK technique or sub-technique id (T1059, T1059.001)."
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3,
+      "description": "The strongest evidence class: 1 weakness-derived candidate, 2 modeled, 3 observed (reserved: not yet produced)."
+    },
+    "technique": {
+      "description": "One technique's evidence: threats that model it and findings whose category implies it, counted apart.",
+      "type": "object",
+      "required": ["technique_id", "name", "tactics", "modeled", "derived", "score"],
+      "additionalProperties": false,
+      "properties": {
+        "technique_id": {"$ref": "#/$defs/technique_id"},
+        "name": {"type": "string", "description": "The technique's name in the pinned release."},
+        "tactics": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string"},
+          "description": "The tactics (kill-chain phases) the technique belongs to in the pinned release."
+        },
+        "modeled": {"$ref": "#/$defs/count", "description": "Threats citing the technique."},
+        "derived": {"$ref": "#/$defs/count", "description": "Findings whose category implies the technique."},
+        "score": {"$ref": "#/$defs/score"}
+      },
+      "not": {"properties": {"modeled": {"const": 0}, "derived": {"const": 0}}, "required": ["modeled", "derived"]},
+      "allOf": [
+        {
+          "if": {"properties": {"modeled": {"minimum": 1}}, "required": ["modeled"]},
+          "then": {"properties": {"score": {"minimum": 2}}},
+          "else": {"properties": {"score": {"not": {"const": 2}}}}
+        }
+      ]
+    }
+  }
+}
