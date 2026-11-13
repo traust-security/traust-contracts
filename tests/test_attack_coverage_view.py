@@ -167,6 +167,8 @@ def test_a_technique_has_evidence(
         (0, 4, 2, False),
         (0, 4, 0, False),
         (0, 4, 4, False),
+        (1, 0, 3, False),
+        (0, 4, 3, False),
     ],
 )
 def test_a_modeled_technique_scores_two_and_a_derived_only_one_scores_one(
@@ -226,3 +228,19 @@ def test_the_layer_requires_its_envelope(
         del broken["navigator_layer"][field]
         with pytest.raises(ValidationError):
             validator.validate(broken)
+
+
+def test_the_navigator_layer_refuses_the_reserved_observed_score(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    document["navigator_layer"]["techniques"][0]["score"] = 3
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize("cited", ["T9999", "T1059.1", "lateral movement", ""])
+def test_a_citation_that_is_not_a_live_technique_is_reported_raw(
+    validator: Draft202012Validator, document: dict[str, Any], cited: str
+) -> None:
+    document["dropped"] = {cited: 2}
+    validator.validate(document)

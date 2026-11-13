@@ -394,9 +394,10 @@ rendering; URLs, branches and tracker references are raw untrusted data.
 view: the scope's MITRE ATT&CK coverage as of `as_of` against the pinned ATT&CK release, with
 modeled evidence (techniques the latest threat models cite) and weakness-derived candidates
 (finding categories through the pack's category map) counted apart, never blended. Each
-technique has at least one piece of evidence and a score: 2 when modeled, else 1 (3, observed,
-is reserved until confirmed validation chains are recorded). Technique ids are ATT&CK
-technique or sub-technique ids; `dropped` counts cited ids that are not live in the release.
+technique has at least one piece of evidence and a score: exactly 2 when modeled, else 1; 3
+(observed) is refused until confirmed validation chains are recorded. Technique ids are ATT&CK
+technique or sub-technique ids; `dropped` counts the raw citations that are not live in the
+release, malformed references included.
 `navigator_layer` is an ATT&CK Navigator layer (format 4.5): this contract checks its
 envelope, MITRE's own schema governs the rest. Every serialized field is required. Core owns
 the catalog, the category map and rendering.

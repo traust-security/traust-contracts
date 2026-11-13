@@ -37,12 +37,12 @@
       "items": {"$ref": "#/$defs/technique"}
     },
     "dropped": {
-      "description": "Technique ids threat models cite that are not live in the pinned release (revoked, deprecated or unknown), with how many threats cite each, most cited first. They count nowhere else.",
+      "description": "The citations threat models make that are not live in the pinned release, with how many threats cite each, most cited first. Keys are the raw cited strings: revoked or deprecated ids, unknown ids and malformed references alike, because reporting the citations that are not valid technique ids is this map's purpose. They count nowhere else.",
       "type": "object",
       "additionalProperties": {"type": "integer", "minimum": 1}
     },
     "navigator_layer": {
-      "description": "The coverage as an ATT&CK Navigator layer (layer format 4.5), MITRE's own format: the envelope is checked here, the layer's full schema is MITRE's. Scores follow the technique scores (1 weakness-derived candidate, 2 modeled, 3 observed).",
+      "description": "The coverage as an ATT&CK Navigator layer (layer format 4.5), MITRE's own format: the envelope is checked here, the layer's full schema is MITRE's. Scores follow the technique scores (1 weakness-derived candidate, 2 modeled); the legend also names 3 (observed), which no technique carries yet.",
       "type": "object",
       "required": ["name", "versions", "domain", "techniques"],
       "properties": {
@@ -82,9 +82,8 @@
     },
     "score": {
       "type": "integer",
-      "minimum": 1,
-      "maximum": 3,
-      "description": "The strongest evidence class: 1 weakness-derived candidate, 2 modeled, 3 observed (reserved: not yet produced)."
+      "enum": [1, 2],
+      "description": "The strongest evidence class: 1 weakness-derived candidate, 2 modeled. Observed coverage (3, a confirmed validation chain) is not recorded yet, so this contract refuses it; it is added when Core records that evidence."
     },
     "technique": {
       "description": "One technique's evidence: threats that model it and findings whose category implies it, counted apart.",
@@ -108,8 +107,8 @@
       "allOf": [
         {
           "if": {"properties": {"modeled": {"minimum": 1}}, "required": ["modeled"]},
-          "then": {"properties": {"score": {"minimum": 2}}},
-          "else": {"properties": {"score": {"not": {"const": 2}}}}
+          "then": {"properties": {"score": {"const": 2}}},
+          "else": {"properties": {"score": {"const": 1}}}
         }
       ]
     }
