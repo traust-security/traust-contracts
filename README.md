@@ -425,6 +425,17 @@ a null severity for an unrated one in scope through the CVSS floor and a title t
 checks structure and ranges, not arithmetic across fields. Core owns the policy resolution,
 the clock ladder and rendering; names, titles and URLs are raw untrusted data.
 
+`views_schema/v1/pqc-portfolio.schema.json` is the contract for Core's pqc-portfolio view:
+post-quantum readiness worklists as recorded now (no `as_of`), one scope per named product or
+a single scope with a null `product_id`, and a product index (worst first) when no product is
+named. A scope lists its assessed commits worst first with their readiness records, the crypto
+decision sites with their facts, the crypto packages in its manifest SBOMs, and the commits
+without an SBOM. Readiness records and facts are Core's projections of the `pqc-readiness` and
+`pqc-facts` documents with every optional field present (null when absent), so they are
+defined here rather than referenced. Scores are 0–100; every PQC vocabulary is tied to its
+registry by test. Every serialized field is required. Core owns the readiness projection,
+ranking and rendering; URLs, actions, primitives and file paths are raw untrusted data.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
