@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/executive-summary.schema.json",
+  "title": "Executive summary view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's executive-summary view: the leadership roll-up of the scope as of the findings rollup's as_of. It is composed from the component view contracts by reference, never by copying their shapes: the findings rollup, and when the filter asks for them the ATT&CK, PQC, isolation (threat register) and IaC (census layer) panels; fleet-wide, the top advisory rows of dependency exposure. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "rollup",
+    "credential_leaks",
+    "themes",
+    "hardening_themes",
+    "languages",
+    "privileges",
+    "exposure",
+    "attack",
+    "pqc",
+    "pqc_unavailable",
+    "isolation",
+    "iac"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "rollup": {
+      "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json",
+      "description": "The scope's findings rollup: the findings-rollup view's contract."
+    },
+    "credential_leaks": {
+      "description": "Open credential and secret findings, most severe first (unrated last), then by repository URL and title.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/credential_leak"}
+    },
+    "themes": {"$ref": "#/$defs/theme_counts", "description": "Open findings by risk theme, most first, then by theme."},
+    "hardening_themes": {"$ref": "#/$defs/theme_counts", "description": "Hardening findings by risk theme, most first, then by theme."},
+    "languages": {
+      "description": "Open findings of the repositories whose primary language this is, most open first, then by language.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/language"}
+    },
+    "privileges": {"$ref": "#/$defs/privileges"},
+    "exposure": {
+      "description": "Fleet-wide only: the top 10 advisory rows of the exposure view (most commits first), each the exposure contract's row keyed by an advisory id. Null for a product or team scope.",
+      "type": ["array", "null"],
+      "maxItems": 10,
+      "items": {"$ref": "https://example.com/traust-contracts/views_schema/v1/exposure.schema.json#/$defs/rollup"}
+    },
+    "attack": {
+      "description": "The ATT&CK panel, when the filter asks for it: the attack-coverage view's contract. Null otherwise.",
+      "oneOf": [
+        {"$ref": "https://example.com/traust-contracts/views_schema/v1/attack-coverage.schema.json"},
+        {"type": "null"}
+      ]
+    },
+    "pqc": {
+      "description": "The PQC panel, when the filter asks for it and names no as_of: the pqc-portfolio view's contract. Null otherwise.",
+      "oneOf": [
+        {"$ref": "https://example.com/traust-contracts/views_schema/v1/pqc-portfolio.schema.json"},
+        {"type": "null"}
+      ]
+    },
+    "pqc_unavailable": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "Why the PQC panel is empty when it was asked for at an as_of (Core reads current readiness only and never substitutes it); null otherwise."
+    },
+    "isolation": {
+      "description": "The isolation panel, when the filter asks for it; null otherwise.",
+      "oneOf": [{"$ref": "#/$defs/isolation"}, {"type": "null"}]
+    },
+    "iac": {
+      "description": "The declared-IaC panel, when the filter asks for it; null otherwise.",
+      "oneOf": [{"$ref": "#/$defs/iac"}, {"type": "null"}]
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "The PQC panel is either built or explained, never both.",
+      "if": {"properties": {"pqc": {"type": "object"}}, "required": ["pqc"]},
+      "then": {"properties": {"pqc_unavailable": {"type": "null"}}}
+    },
+    {
+      "$comment": "The exposure panel is the exposure view's advisory cut, keyed by advisory id.",
+      "if": {"properties": {"exposure": {"type": "array"}}, "required": ["exposure"]},
+      "then": {"properties": {"exposure": {"items": {"properties": {"key": {"type": "string", "minLength": 1}}}}}}
+    }
+  ],
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "uuid": {"type": "string", "format": "uuid"},
+    "severity_counts": {
+      "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/severity_counts"
+    },
+    "theme_counts": {
+      "description": "Risk theme (raw label) to the findings carrying it; only themes seen appear.",
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    },
+    "credential_leak": {
+      "description": "An open credential or secret finding. The rollup's top findings are critical or high only; a leak can be any severity, or unrated.",
+      "type": "object",
+      "required": ["finding_id", "repository_url", "title", "severity", "cvss_score", "execution_proven", "sla_due"],
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {"$ref": "#/$defs/uuid"},
+        "repository_url": {"type": "string"},
+        "title": {"type": "string", "description": "Raw untrusted finding title, preserved as data rather than authored Markdown or HTML."},
+        "severity": {
+          "type": ["string", "null"],
+          "enum": ["critical", "high", "medium", "low", "informational", null],
+          "description": "The severity registry's effective severity; null when unrated."
+        },
+        "cvss_score": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/top_finding/properties/cvss_score"
+        },
+        "execution_proven": {"type": "boolean"},
+        "sla_due": {"type": ["string", "null"], "format": "date-time", "description": "When the finding's SLA falls due; null when no SLA deadline applies."}
+      }
+    },
+    "language": {
+      "type": "object",
+      "required": ["language", "repositories", "open"],
+      "additionalProperties": false,
+      "properties": {
+        "language": {"type": "string", "minLength": 1, "description": "The primary language, raw; unknown when none was measured."},
+        "repositories": {"type": "integer", "minimum": 1},
+        "open": {"$ref": "#/$defs/severity_counts", "description": "Their open findings by severity."}
+      }
+    },
+    "privileges": {
+      "description": "Declared-privilege posture from the latest priv-profiles: posture, never finding counts.",
+      "type": "object",
+      "required": ["profiles", "privileged", "scc_requesting", "wildcard_repositories", "wildcard_rules", "flags"],
+      "additionalProperties": false,
+      "properties": {
+        "profiles": {"$ref": "#/$defs/count", "description": "Latest priv-profiles read."},
+        "privileged": {"$ref": "#/$defs/count", "description": "Of those, the ones declaring privileged workloads."},
+        "scc_requesting": {"$ref": "#/$defs/count", "description": "Of those, the ones requesting a security context constraint."},
+        "wildcard_repositories": {"$ref": "#/$defs/count", "description": "Of those, the ones with a wildcard RBAC rule."},
+        "wildcard_rules": {"$ref": "#/$defs/count", "description": "Wildcard RBAC rules across them."},
+        "flags": {
+          "description": "Privilege flag (raw) to the profiles' count of it, most first; only flags seen appear.",
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "isolation": {
+      "type": "object",
+      "required": ["reviews", "threat_register"],
+      "additionalProperties": false,
+      "properties": {
+        "reviews": {
+          "description": "Each repository's latest completed default-line isolation review, worst posture first, then most gaps, then by service and repository.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/isolation_review"}
+        },
+        "threat_register": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/threat-register.schema.json",
+          "description": "The scope's threat register: the threat-register view's contract."
+        }
+      }
+    },
+    "isolation_review": {
+      "type": "object",
+      "required": ["repository", "assessment_id", "service", "posture", "interfaces", "gaps", "dimensions"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {"type": "string", "description": "Raw registered URL."},
+        "assessment_id": {"$ref": "#/$defs/uuid"},
+        "service": {"type": "string"},
+        "posture": {
+          "type": "string",
+          "enum": ["strong", "adequate", "weak", "critical-gap"],
+          "description": "The isolation-posture registry's overall posture."
+        },
+        "interfaces": {"$ref": "#/$defs/count"},
+        "gaps": {"$ref": "#/$defs/count"},
+        "dimensions": {
+          "description": "Isolation check result (as the review states it) to how many interface dimensions have it; only results seen appear.",
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "iac": {
+      "type": "object",
+      "required": ["repositories", "assessments", "findings", "targets"],
+      "additionalProperties": false,
+      "properties": {
+        "repositories": {"$ref": "#/$defs/count", "description": "Repositories with a cloud-config audit."},
+        "assessments": {"$ref": "#/$defs/count", "description": "Their latest cloud-config audits."},
+        "findings": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/census.schema.json#/$defs/layer",
+          "description": "The census's cloud-config layer."
+        },
+        "targets": {
+          "description": "One row per audit, most unsuppressed findings first, then by repository.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/iac_target"}
+        }
+      }
+    },
+    "iac_target": {
+      "type": "object",
+      "required": ["repository", "assessment_id", "target", "unsuppressed", "suppressed", "needs_review", "ledgered", "severities"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {"type": "string", "description": "Raw registered URL."},
+        "assessment_id": {"$ref": "#/$defs/uuid"},
+        "target": {"type": "string", "description": "The audited target, raw."},
+        "unsuppressed": {"$ref": "#/$defs/count"},
+        "suppressed": {"$ref": "#/$defs/count"},
+        "needs_review": {"$ref": "#/$defs/count"},
+        "ledgered": {"$ref": "#/$defs/count", "description": "Reported findings with a recorded disposition."},
+        "severities": {"$ref": "#/$defs/severity_counts", "description": "The unsuppressed findings by severity."}
+      }
+    }
+  }
+}
