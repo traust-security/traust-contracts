@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/traust-contracts/views_schema/v1/pqc-portfolio.schema.json",
   "title": "PQC portfolio view",
-  "description": "Ephemeral derived Insight ViewModel from traust-core's pqc-portfolio view: post-quantum readiness worklists as recorded now (there is no as_of), one scope per named product (else one scope over every assessed commit), and, when no product is named, a product index worst first. Readiness records are Core's projection of the pqc-readiness reports, not the report documents. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's pqc-portfolio view: post-quantum readiness worklists as recorded now (there is no as_of), one scope per named product (else one scope over every assessed commit), and, when no product is named, a product index worst first. Readiness records are Core's projection of the pqc-readiness reports, not the report documents. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null (empty when the report has none). JSON Schema checks structure and ranges, not arithmetic across fields.",
   "type": "object",
   "required": ["scopes", "products"],
   "additionalProperties": false,
@@ -19,6 +19,18 @@
       "items": {"$ref": "#/$defs/product"}
     }
   },
+  "allOf": [
+    {
+      "$comment": "Named products: every scope is a product's, and there is no index.",
+      "if": {"properties": {"scopes": {"contains": {"properties": {"product_id": {"type": "string"}}, "required": ["product_id"]}}}, "required": ["scopes"]},
+      "then": {"properties": {"products": {"maxItems": 0}}}
+    },
+    {
+      "$comment": "No product named: the single scope covers every assessed commit.",
+      "if": {"properties": {"scopes": {"contains": {"properties": {"product_id": {"type": "null"}}, "required": ["product_id"]}}}, "required": ["scopes"]},
+      "then": {"properties": {"scopes": {"maxItems": 1}}}
+    }
+  ],
   "$defs": {
     "count": {"type": "integer", "minimum": 0},
     "uuid": {"type": "string", "format": "uuid"},
@@ -130,8 +142,8 @@
           "enum": ["blocked-by-provider-version", "no-penalty", "fips-validation-gap", "pqc-blocked-by-fips-mode", null],
           "description": "The pqc-fips-interaction registry's verdict; null when the report records none."
         },
-        "clock_items": {"type": "array", "items": {"$ref": "#/$defs/clock_item"}},
-        "remediations": {"type": "array", "items": {"$ref": "#/$defs/remediation"}}
+        "clock_items": {"type": "array", "items": {"$ref": "#/$defs/clock_item"}, "description": "Empty when the report has none (never null)."},
+        "remediations": {"type": "array", "items": {"$ref": "#/$defs/remediation"}, "description": "Empty when the report has none (never null)."}
       }
     },
     "clock_item": {
@@ -169,7 +181,7 @@
         "action": {"type": "string", "description": "What to change, raw."},
         "target": {"type": ["string", "null"], "description": "What to move to, raw; null when none."},
         "details": {"type": ["string", "null"]},
-        "locations": {"type": "array", "items": {"type": "string"}, "description": "file:line anchors, raw."},
+        "locations": {"type": "array", "items": {"type": "string"}, "description": "file:line anchors, raw; empty when the report records none (never null)."},
         "blocked_on": {"type": ["string", "null"], "description": "What the item waits on, raw; null when nothing."},
         "remediation_effort": {"$ref": "#/$defs/effort"},
         "blocked_external": {"type": ["boolean", "null"]},
