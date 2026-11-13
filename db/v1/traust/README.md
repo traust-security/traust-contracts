@@ -1,6 +1,6 @@
 # Storage v1 — the one-owner data model (`traust` namespace)
 
-SQL is the data model (XWING-2363). Each concept has one owner, database-generated
+SQL is the data model. Each concept has one owner, database-generated
 identity (UUID v4 — `gen_random_uuid()` on Postgres, `uuid()` on SQLite from
 `ext/misc/uuid.c` or a driver-registered function), and real constraints; the
 same services run solo (SQLite) and at scale (PostgreSQL). Artifact bytes live
@@ -72,7 +72,7 @@ Landed in `views/` (both dialects), load-ordered by `VIEW_ORDER`:
 ### Retired: the disposition views
 
 `decision_at`, `current_decision`, `current_resolution`, `finding_status` and
-`finding_clock` were retired on 2026-10-28. A finding's state is a policy
+`finding_clock` were retired. A finding's state is a policy
 (evidence-ranked precedence, two-person sign-off, restatements, per-line
 resolution with a comparison's baseline line), so it has one owner: traust-core's
 `Disposition.fold`, read through the findings service (`get`, `list`,

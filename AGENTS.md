@@ -2,7 +2,7 @@
 
 Python 3.11+ contract library (`traust_contracts`). Schemas, enums and DDL; traust-core is its consumer.
 
-Identity vectors are **not** here: the finding-fingerprint suite was retired on 2026-08-18 (only the harness computes identity, so no second-language port needs a shared oracle). Regression fixtures for the recipe live beside the implementation in the ledger package.
+Identity vectors are **not** here: only the harness computes identity, so no second-language port needs a shared oracle. Regression fixtures for the recipe live beside the implementation in the ledger package.
 
 - **Before done:** `make lint-fix` then `make test` — CI enforces both; do not skip
 - **Data-model changes:** every schema/enum/DDL addition must pass the six
