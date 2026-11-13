@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/pqc-portfolio.schema.json",
+  "title": "PQC portfolio view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's pqc-portfolio view: post-quantum readiness worklists as recorded now (there is no as_of), one scope per named product (else one scope over every assessed commit), and, when no product is named, a product index worst first. Readiness records are Core's projection of the pqc-readiness reports, not the report documents. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": ["scopes", "products"],
+  "additionalProperties": false,
+  "properties": {
+    "scopes": {
+      "description": "One scope per product the filter names, in the filter's order; one scope with product_id null when none is named.",
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/scope"}
+    },
+    "products": {
+      "description": "Every product shipping an assessed commit, most not-ready repositories first, then lowest worst score (products with no scored repository last). Empty when the filter names products.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/product"}
+    }
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "uuid": {"type": "string", "format": "uuid"},
+    "score": {"type": "number", "minimum": 0, "maximum": 100},
+    "year": {"type": ["integer", "null"], "description": "A NIST IR 8547 clock year; null when none applies."},
+    "effort": {
+      "type": ["string", "null"],
+      "enum": ["trivial", "moderate", "significant", "blocked-external", "xs", "s", "m", "l", "xl", null],
+      "description": "The remediation-effort registry's size; null when unsized."
+    },
+    "scope": {
+      "type": "object",
+      "required": ["product_id", "repositories", "sites", "packages", "without_sbom"],
+      "additionalProperties": false,
+      "properties": {
+        "product_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}], "description": "The scoped product; null for every assessed commit."},
+        "repositories": {
+          "description": "The scope's assessed commits, worst first (lowest overall score), then by repository URL.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/repository"}
+        },
+        "sites": {
+          "description": "Crypto decision sites (group pins and toolchains) by kind, then repository URL, then fact id.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/site_row"}
+        },
+        "packages": {
+          "description": "Crypto packages in the scope's manifest SBOMs, most repositories first, then by name.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/package"}
+        },
+        "without_sbom": {"$ref": "#/$defs/count", "description": "Assessed commits with no manifest SBOM recorded, so absent from packages."}
+      }
+    },
+    "product": {
+      "type": "object",
+      "required": ["product", "repositories", "not_ready", "hndl_priority", "clock_2030", "worst_url", "worst_overall"],
+      "additionalProperties": false,
+      "properties": {
+        "product": {"type": "string", "description": "The product's slug."},
+        "repositories": {"type": "integer", "minimum": 1, "description": "Its assessed commits."},
+        "not_ready": {"$ref": "#/$defs/count", "description": "Of those, the not-ready ones."},
+        "hndl_priority": {"$ref": "#/$defs/count", "description": "Of those, the ones flagged harvest-now-decrypt-later priority."},
+        "clock_2030": {"$ref": "#/$defs/count", "description": "Clock items deprecated in 2030 across its commits."},
+        "worst_url": {"type": ["string", "null"], "description": "The repository URL of its lowest-scored commit (not-applicable ones excluded); null when none is scored."},
+        "worst_overall": {"oneOf": [{"$ref": "#/$defs/score"}, {"type": "null"}], "description": "That commit's overall score; null when none is scored."}
+      }
+    },
+    "repository": {
+      "type": "object",
+      "required": ["repository_url", "readiness"],
+      "additionalProperties": false,
+      "properties": {
+        "repository_url": {"type": "string", "description": "Raw registered URL, preserved as data."},
+        "readiness": {"$ref": "#/$defs/readiness"}
+      }
+    },
+    "readiness": {
+      "description": "A commit's recorded readiness: the report's scorecard and its remediations.",
+      "type": "object",
+      "required": [
+        "assessment_id",
+        "repository_ref_id",
+        "assessed_at",
+        "bucket",
+        "overall",
+        "has_2030_clock_items",
+        "hndl_priority",
+        "runtime_verification_required",
+        "dominant",
+        "who_sets_tls",
+        "pqca",
+        "fips_interaction",
+        "clock_items",
+        "remediations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {"$ref": "#/$defs/uuid"},
+        "repository_ref_id": {"$ref": "#/$defs/uuid"},
+        "assessed_at": {"type": "string", "format": "date-time"},
+        "bucket": {
+          "type": ["string", "null"],
+          "enum": ["ready", "partial", "not-ready", "blocked-external", "not-applicable", null],
+          "description": "The pqc-readiness-bucket registry's roll-up; null when the report predates buckets."
+        },
+        "overall": {"$ref": "#/$defs/score", "description": "The report's overall score (0-100)."},
+        "has_2030_clock_items": {"type": "boolean"},
+        "hndl_priority": {"type": "boolean"},
+        "runtime_verification_required": {"type": "boolean"},
+        "dominant": {
+          "type": "string",
+          "enum": [
+            "inherited-platform",
+            "inherited-constrained",
+            "delegated-dependency",
+            "native-first-party",
+            "vendored",
+            "externalized",
+            "not-assessable-from-source",
+            "none"
+          ],
+          "description": "The pqc-dominant-provenance registry's dominant provenance."
+        },
+        "who_sets_tls": {"type": ["string", "null"], "description": "Who sets the TLS configuration, raw; null when not recorded."},
+        "pqca": {"oneOf": [{"$ref": "#/$defs/score"}, {"type": "null"}], "description": "The PQC-agility domain score (0-100); null when not recorded."},
+        "fips_interaction": {
+          "type": ["string", "null"],
+          "enum": ["blocked-by-provider-version", "no-penalty", "fips-validation-gap", "pqc-blocked-by-fips-mode", null],
+          "description": "The pqc-fips-interaction registry's verdict; null when the report records none."
+        },
+        "clock_items": {"type": "array", "items": {"$ref": "#/$defs/clock_item"}},
+        "remediations": {"type": "array", "items": {"$ref": "#/$defs/remediation"}}
+      }
+    },
+    "clock_item": {
+      "type": "object",
+      "required": ["primitive", "deprecated_after", "disallowed_after", "remediation_effort", "blocked_external"],
+      "additionalProperties": false,
+      "properties": {
+        "primitive": {"type": "string", "description": "The quantum-vulnerable primitive, raw."},
+        "deprecated_after": {"$ref": "#/$defs/year"},
+        "disallowed_after": {"$ref": "#/$defs/year"},
+        "remediation_effort": {"$ref": "#/$defs/effort"},
+        "blocked_external": {"type": ["boolean", "null"], "description": "Whether something outside the repository blocks it; null when unknown."}
+      }
+    },
+    "remediation": {
+      "type": "object",
+      "required": [
+        "id",
+        "category",
+        "action",
+        "target",
+        "details",
+        "locations",
+        "blocked_on",
+        "remediation_effort",
+        "blocked_external",
+        "blast_radius",
+        "deadline",
+        "recipe"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "description": "The remediation's id in its report, raw."},
+        "category": {"type": "string", "enum": ["fix-now", "upgrade", "waiting-on-upstream", "deadline"], "description": "The pqc-remediation-category registry's category."},
+        "action": {"type": "string", "description": "What to change, raw."},
+        "target": {"type": ["string", "null"], "description": "What to move to, raw; null when none."},
+        "details": {"type": ["string", "null"]},
+        "locations": {"type": "array", "items": {"type": "string"}, "description": "file:line anchors, raw."},
+        "blocked_on": {"type": ["string", "null"], "description": "What the item waits on, raw; null when nothing."},
+        "remediation_effort": {"$ref": "#/$defs/effort"},
+        "blocked_external": {"type": ["boolean", "null"]},
+        "blast_radius": {
+          "type": ["string", "null"],
+          "enum": ["fleet", "product", "service", "component", null],
+          "description": "The pqc-blast-radius registry's scope; null when not recorded."
+        },
+        "deadline": {"$ref": "#/$defs/year"},
+        "recipe": {"type": ["string", "null"], "description": "The matching remediation playbook, raw; null when none."}
+      }
+    },
+    "site_row": {
+      "type": "object",
+      "required": ["repository_url", "site"],
+      "additionalProperties": false,
+      "properties": {
+        "repository_url": {"type": "string"},
+        "site": {
+          "type": "object",
+          "required": ["repository_ref_id", "kind", "fact"],
+          "additionalProperties": false,
+          "properties": {
+            "repository_ref_id": {"$ref": "#/$defs/uuid"},
+            "kind": {"type": "string", "enum": ["group-pin", "toolchain"]},
+            "fact": {"$ref": "#/$defs/fact"}
+          }
+        }
+      }
+    },
+    "fact": {
+      "description": "A recorded PQC fact, as Core serves it: the pqc-facts fact with every optional field present (null when absent).",
+      "type": "object",
+      "required": [
+        "fact_id",
+        "rule_id",
+        "file",
+        "line",
+        "detail",
+        "match",
+        "provider",
+        "pqc_capable",
+        "fips_mode",
+        "capability_hint",
+        "finding_id",
+        "severity",
+        "risk",
+        "confidence",
+        "ir8547",
+        "provenance_hint",
+        "path_class"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "fact_id": {"type": "string", "pattern": "^F[0-9]{4,}$"},
+        "rule_id": {"type": "string", "minLength": 1},
+        "file": {"type": "string"},
+        "line": {"type": ["integer", "null"]},
+        "detail": {"type": "string"},
+        "match": {"type": ["string", "null"]},
+        "provider": {"type": ["string", "null"]},
+        "pqc_capable": {"type": ["boolean", "null"]},
+        "fips_mode": {"type": ["boolean", "null"]},
+        "capability_hint": {"type": ["string", "null"]},
+        "finding_id": {"type": ["string", "null"]},
+        "severity": {"type": ["string", "null"]},
+        "risk": {"type": ["string", "null"]},
+        "confidence": {"type": ["number", "null"]},
+        "ir8547": {"$ref": "#/$defs/ir8547"},
+        "provenance_hint": {"type": "string"},
+        "path_class": {"type": "string", "enum": ["first_party", "vendor", "test_docs"], "description": "The pqc-path-class registry's class."}
+      }
+    },
+    "ir8547": {
+      "description": "The rule's NIST IR 8547 mapping.",
+      "type": "object",
+      "required": ["qclass", "usage", "clock", "matched_prefix", "qclass_resolved"],
+      "additionalProperties": false,
+      "properties": {
+        "qclass": {"type": "string"},
+        "usage": {"type": "string"},
+        "clock": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["status_now", "deprecated_after", "disallowed_after"],
+              "additionalProperties": false,
+              "properties": {
+                "status_now": {"type": ["string", "null"]},
+                "deprecated_after": {"$ref": "#/$defs/year"},
+                "disallowed_after": {"$ref": "#/$defs/year"}
+              }
+            },
+            {"type": "null"}
+          ]
+        },
+        "matched_prefix": {"type": "string"},
+        "qclass_resolved": {"type": ["string", "null"]}
+      }
+    },
+    "package": {
+      "type": "object",
+      "required": ["package", "provider", "repositories"],
+      "additionalProperties": false,
+      "properties": {
+        "package": {"type": "string", "description": "The package, else its provider, raw."},
+        "provider": {"type": ["string", "null"], "description": "The crypto provider, raw; null when unrecorded."},
+        "repositories": {"type": "integer", "minimum": 1, "description": "Repositories pulling it in."}
+      }
+    }
+  }
+}
