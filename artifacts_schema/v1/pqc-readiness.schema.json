@@ -220,7 +220,7 @@
         "blocked-external",
         "not-applicable"
       ],
-      "$comment": "v1.3: deterministic roll-up of scores + clock items + provenance; thresholds in tables/pqc-readiness-decision-tree.json"
+      "$comment": "v1.3 (plan 4.6): deterministic roll-up of scores + clock items + provenance; thresholds in tables/pqc-readiness-decision-tree.json (calibration knob 5)"
     },
     "fips_interaction": {
       "type": "object",

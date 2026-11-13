@@ -52,7 +52,7 @@
               "deployment-iac",
               "explicit"
             ],
-            "description": "repo-graph: membership = the product node's ships edges plus include minus exclude (organizational assertion). deployment-iac: membership = the repos a declared deployment inventory cites as deployed for the service, every row carrying its IaC source (deployment EVIDENCE \u2014 prefer when available). explicit: include[] only."
+            "description": "repo-graph: membership = the product node's ships edges plus include minus exclude (organizational assertion). deployment-iac: membership = the repos a declared deployment inventory cites as deployed for the service, every row carrying its IaC source (deployment EVIDENCE \u2014 prefer when available; adopted 2026-07-30). explicit: include[] only."
           },
           "product": {
             "type": "string",

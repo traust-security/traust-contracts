@@ -147,7 +147,7 @@
         "ref": {
           "type": "string",
           "minLength": 1,
-          "$comment": "Optional (harness >= 0.122.0): the branch or tag name as checked out for this audit (e.g. 'release-4.19', 'main', 'v1.2.3'). Explicit ref provenance \u2014 when present, preferred over report-slug parsing; the legacy slug-suffix parsing remains the fallback for older corpus data. Never required; all existing reports stay valid."
+          "$comment": "Optional (harness >= 0.122.0, branch-awareness Phase 0): the branch or tag name as checked out for this audit (e.g. 'release-4.19', 'main', 'v1.2.3'). Explicit ref provenance \u2014 when present, preferred over report-slug parsing; the legacy slug-suffix parsing remains the fallback for older corpus data. Never required; all existing reports stay valid."
         },
         "ref_kind": {
           "type": "string",
