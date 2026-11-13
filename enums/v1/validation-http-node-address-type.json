@@ -1,0 +1,7 @@
+{
+  "name": "validation_http_node_address_type",
+  "source_schema": "validation-authorization.schema.json#/$defs/http_node_grant/properties/address_types/items",
+  "description": "Kubernetes node address types eligible for HTTP discovery.",
+  "values": ["InternalIP", "ExternalIP"],
+  "used_in_schemas": ["validation-authorization.schema.json"]
+}
