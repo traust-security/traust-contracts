@@ -387,6 +387,10 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "all_repositories": {
+                "type": "boolean",
+                "description": "The scope covers every registered repository, not only repository_ids: the platform's own ServiceAccount, whose recording (and approval) authority is the estate it runs. A deployment grants this to no one but the ServiceAccount it trusts with the whole portfolio."
               }
             },
             "required": [
