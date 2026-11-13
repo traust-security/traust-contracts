@@ -271,3 +271,20 @@ def test_vocabularies_match_their_registries(registry: str, path: tuple[str, ...
     defs = json.loads(SCHEMA.read_text())["$defs"]
     node = defs[path[0]] if len(path) == 1 else defs[path[0]]["properties"][path[1]]
     assert [v for v in node["enum"] if v is not None] == values
+
+
+def test_a_historical_bare_remediation_id_is_preserved(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    _set(document, OBJECTS["remediation"] + ("id",), "REM-001")
+    validator.validate(document)
+
+
+def test_an_unmatched_rule_prefix_is_empty_not_null(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    _set(document, OBJECTS["ir8547"] + ("matched_prefix",), "")
+    validator.validate(document)
+    _set(document, OBJECTS["ir8547"] + ("matched_prefix",), None)
+    with pytest.raises(ValidationError):
+        validator.validate(document)

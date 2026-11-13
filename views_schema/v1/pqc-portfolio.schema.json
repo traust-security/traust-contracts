@@ -99,7 +99,7 @@
       "properties": {
         "assessment_id": {"$ref": "#/$defs/uuid"},
         "repository_ref_id": {"$ref": "#/$defs/uuid"},
-        "assessed_at": {"type": "string", "format": "date-time"},
+        "assessed_at": {"type": "string", "format": "date-time", "description": "When the readiness assessment was recorded (its assessment's timezone-aware occurred_at), not the report's metadata string."},
         "bucket": {
           "type": ["string", "null"],
           "enum": ["ready", "partial", "not-ready", "blocked-external", "not-applicable", null],
@@ -164,7 +164,7 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "id": {"type": "string", "description": "The remediation's id in its report, raw."},
+        "id": {"type": "string", "description": "The remediation's id in its report, raw. Historical reports are read unnarrowed, so an id can predate the canonical prefixed form (a bare REM-001)."},
         "category": {"type": "string", "enum": ["fix-now", "upgrade", "waiting-on-upstream", "deadline"], "description": "The pqc-remediation-category registry's category."},
         "action": {"type": "string", "description": "What to change, raw."},
         "target": {"type": ["string", "null"], "description": "What to move to, raw; null when none."},
@@ -266,7 +266,7 @@
             {"type": "null"}
           ]
         },
-        "matched_prefix": {"type": "string"},
+        "matched_prefix": {"type": "string", "description": "The rule-map prefix that classified the fact; empty when none matched (never null)."},
         "qclass_resolved": {"type": ["string", "null"]}
       }
     },
