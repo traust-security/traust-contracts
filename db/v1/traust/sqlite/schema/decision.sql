@@ -63,12 +63,10 @@ CREATE INDEX IF NOT EXISTS idx_decision_assessment
     ON decision (assessment_id)
     WHERE assessment_id IS NOT NULL;
 
--- The stored census builds' freshness bound (performance-lane wave (d)): when a person last
--- judged, by recording time (a backdated statement still flips the bound). The partial index
--- keeps the per-serve read an index hit however sparse people are among the machines.
-CREATE INDEX IF NOT EXISTS idx_decision_person_recorded
+-- Freshness invalidation includes legacy actors without changing their decision authority.
+CREATE INDEX IF NOT EXISTS idx_decision_nonmachine_recorded
     ON decision (created_at DESC)
-    WHERE actor LIKE 'human:%';
+    WHERE actor IS NOT NULL AND substr(actor, 1, 8) <> 'machine:';
 
 CREATE TRIGGER IF NOT EXISTS decision_reject_update
 BEFORE UPDATE ON decision BEGIN

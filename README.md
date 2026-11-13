@@ -125,6 +125,16 @@ ledger exists yet. Existing `*_upgrade` helpers are deprecated legacy territory;
 do not extend that pattern. Reaching existing databases requires the separately
 designed upgrade feature, not conditional scripts or historical backfills.
 
+## Stored census observations
+
+`insight-builds` requires a fresh `built_at` observation timestamp, a nullable
+pre-fold `folded_after` decision watermark and the view documents. Reobserving
+unchanged or returning views must publish a new document; serving age still uses
+the artifact row's database `created_at`, not either document timestamp.
+The additive `idx_decision_nonmachine_recorded` index covers actor-bearing
+statements outside the canonical `machine:` namespace, including legacy spellings.
+This is conservative cache invalidation, not identity verification or decision authority.
+
 ## Manifest SBOM coverage
 
 `manifest-coverage.schema.json` binds a checkout's unresolved manifests to native

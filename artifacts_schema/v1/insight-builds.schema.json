@@ -2,18 +2,24 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/traust-contracts/artifacts_schema/v1/insight-builds.schema.json",
   "title": "Stored insight builds",
-  "description": "One stored build of traust-core's census insight views: the GLOBAL census (no product, team or category scope) as the dashboards cadence last folded it, keyed by view name. The dashboards lane's fast asset rebuilds it every 5-15 minutes and publishes it as an imported document; GET /v1/insights/{name} serves the newest build for an unscoped read (up to one cadence stale) and ?refresh folds on demand instead. The artifact row's creation is the build's publication moment (the database owns time; nothing duplicates it here); folded_after is the person-judgement watermark the fold read before it started, so a human decision recorded at or after it supersedes the build. Each view's model is the view's own document, validated by traust-core's view models on read (and by that view's views_schema/v1 contract where one exists); this envelope checks the wrapping shape only. The document carries no moment of its own, so an unchanged census republishes as the same digest and the same row. SCI's per-request authorization filters these views after core serves them; no permission data rides this document.",
+  "description": "One GLOBAL census observation, with no product, team or permission scope. The producer stamps built_at on each completed cadence build so unchanged views and watermark do not reuse an older publication. The artifact row's created_at remains the authoritative publication time and serving-age bound. folded_after is a separate pre-fold decision watermark, not the observation or publication time. Core validates each view and owns freshness checks; callers apply their authorization after serving.",
   "type": "object",
   "required": [
+    "built_at",
     "folded_after",
     "views"
   ],
   "additionalProperties": false,
   "properties": {
+    "built_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this cadence observation completed. The producer supplies a fresh value on each build, including unchanged or returning view content. Not the database publication time or the decision watermark."
+    },
     "folded_after": {
       "type": ["string", "null"],
       "format": "date-time",
-      "description": "The newest person judgement's recording time when the fold began (null when no person had judged): a human decision recorded at or after this moment is absent from or unverifiable in the build, and the route folds instead of serving it.",
+      "description": "The newest qualifying actor statement's database recording time sampled before folding; null when none existed. Qualifying statements have an actor other than the canonical machine: namespace, conservatively including legacy or unknown actor spellings without granting them human authority.",
       "$comment": "Null carries the semantics of the watermark, not a missing value; the artifact row's created_at is the publication moment."
     },
     "views": {
