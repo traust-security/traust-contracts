@@ -412,6 +412,19 @@ release, malformed references included.
 envelope, MITRE's own schema governs the rest. Every serialized field is required. Core owns
 the catalog, the category map and rendering.
 
+`views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA
+clocks over the scope's findings (false positives and hardening excluded) as of `as_of`, one
+block per profile of the deployment's SLA policy, default first. Every serialized field is
+required, nullable ones included. Each profile's nine counts place every in-scope finding in
+exactly one bucket. Compliance is a 0–100 percentage or null when nothing resolved was
+clocked. `overdue_by_severity` and `median_days_to_resolve` carry only the severities seen;
+a median can be negative when a finding was resolved before its clock started. Team rows have
+at least one overdue finding. The escalation digest holds at most 100 overdue findings, with
+a null severity for an unrated one in scope through the CVSS floor and a title truncated to
+120 characters. `clock_start` uses the `sla-clock-start` registry, tied by test. JSON Schema
+checks structure and ranges, not arithmetic across fields. Core owns the policy resolution,
+the clock ladder and rendering; names, titles and URLs are raw untrusted data.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
