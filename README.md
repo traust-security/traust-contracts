@@ -425,6 +425,13 @@ release, malformed references included.
 envelope, MITRE's own schema governs the rest. Every serialized field is required. Core owns
 the catalog, the category map and rendering.
 
+`views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
+dependency exposure from the latest complete impact analysis of each commit for each advisory
+as of `as_of`, as three lists of the same row (by advisory, by product, by verdict). A row
+counts each commit and advisory pair once at its worst verdict; its verdict counts use the
+`impact-classification` registry, tied by test. Core refuses a product or team scope. Every
+serialized field is required. Core owns the verdict ranking and rendering; keys are raw data.
+
 `views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA
 clocks over the scope's findings (false positives and hardening excluded) as of `as_of`, one
 block per profile of the deployment's SLA policy, default first. Every serialized field is
