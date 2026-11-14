@@ -425,6 +425,19 @@ release, malformed references included.
 envelope, MITRE's own schema governs the rest. Every serialized field is required. Core owns
 the catalog, the category map and rendering.
 
+`views_schema/v1/executive-summary.schema.json` is the contract for Core's executive-summary
+view, the leadership roll-up. It composes the component view contracts by `$ref`, never by
+copying a shape: the findings rollup (`findings-rollup`), and when the filter asks for them
+the ATT&CK panel (`attack-coverage`), the PQC panel (`pqc-portfolio`), the isolation panel's
+threat register (`threat-register`) and the IaC panel's census layer (`census`); fleet-wide,
+the top 10 advisory rows of `exposure` (null for a product or team scope). Panels not asked
+for are null; a PQC panel asked for at an `as_of` is explained in `pqc_unavailable`, never
+built. Credential leaks have their own row (any severity or unrated; the rollup's top
+findings are critical or high only). A validator resolves the references through a registry
+of the view schemas by `$id`. Every serialized field is required; lists are never null
+except `exposure`, null for a product or team scope.
+Core owns the composition and rendering; titles, URLs, themes and flags are raw data.
+
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
 commit and advisory (its latest complete run, else its latest partial run, else, before
