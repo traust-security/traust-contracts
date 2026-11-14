@@ -63,6 +63,11 @@ CREATE INDEX IF NOT EXISTS idx_decision_assessment
     ON traust.decision (assessment_id)
     WHERE assessment_id IS NOT NULL;
 
+-- Freshness invalidation includes legacy actors without changing their decision authority.
+CREATE INDEX IF NOT EXISTS idx_decision_nonmachine_recorded
+    ON traust.decision (created_at DESC)
+    WHERE actor IS NOT NULL AND substr(actor, 1, 8) <> 'machine:';
+
 DROP TRIGGER IF EXISTS decision_reject_mutation ON traust.decision;
 CREATE TRIGGER decision_reject_mutation
 BEFORE UPDATE OR DELETE ON traust.decision
