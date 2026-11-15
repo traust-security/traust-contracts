@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/dependency-reach.schema.json",
+  "title": "Dependency reach view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's dependency-reach view: what the scope's latest default-branch manifest SBOMs hold, per ecosystem and by how many repositories share each package. It reads the latest manifests, so Core refuses an as_of. Not a persisted artifact or SQL projection. Every serialized field is present; lists are never null. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "repositories",
+    "unmeasured",
+    "ecosystems",
+    "shared"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "repositories": {
+      "$ref": "#/$defs/count",
+      "description": "Repositories in scope."
+    },
+    "unmeasured": {
+      "$ref": "#/$defs/count",
+      "description": "Of those, the ones with no manifest SBOM at their default-branch commit: not measured, not dependency-free."
+    },
+    "ecosystems": {
+      "description": "One row per ecosystem the manifests hold, most repositories first, then by ecosystem.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/ecosystem"
+      }
+    },
+    "shared": {
+      "description": "The 25 most shared packages, most repositories first, then by ecosystem and name.",
+      "type": "array",
+      "maxItems": 25,
+      "items": {
+        "$ref": "#/$defs/package"
+      }
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ecosystem": {
+      "type": "object",
+      "required": [
+        "ecosystem",
+        "repositories",
+        "packages"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ecosystem": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The package ecosystem as stored (non-empty; intake classifies it with the ecosystem registry)."
+        },
+        "repositories": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Repositories whose manifests hold at least one of its packages."
+        },
+        "packages": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Distinct packages of the ecosystem across the manifests."
+        }
+      }
+    },
+    "package": {
+      "description": "A package and its blast radius: the repositories whose manifests hold it.",
+      "type": "object",
+      "required": [
+        "ecosystem",
+        "name",
+        "repositories"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ecosystem": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The package ecosystem as stored (non-empty; intake classifies it with the ecosystem registry)."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The package name as stored, raw (non-empty)."
+        },
+        "repositories": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}
