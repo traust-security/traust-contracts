@@ -56,7 +56,7 @@ EXAMPLE = {
         "progress_tracker": "/srv/pt",
         "mirror_cache": "/srv/mirrors",
     },
-    "feeds": {"osv_access": "air-gapped"},
+    "feeds": {"osv_access": "air-gapped", "api_keys": {"nvd": "NVD_API_KEY"}},
     "execution": {"sandbox": "podman"},
     "remediation": {
         "fork_org": "my-org-security-mirrors",
@@ -173,6 +173,9 @@ def test_logging_outputs_are_nonempty_known_and_unique(outputs: list[str]) -> No
         {"database": {"password_env": "1BAD"}},
         {"feeds": {"osv_access": "disabled"}},
         {"feeds": {"endpoints": {}}},
+        {"feeds": {"api_keys": {"nvd": "not-an-env-name!"}}},  # a variable's name, not a key
+        {"feeds": {"api_keys": {"NVD": "NVD_API_KEY"}}},  # a registry source name
+        {"feeds": {"api_keys": {"nvd": 5}}},
         {"execution": {"sandbox": "docker"}},
         {"budgets": [{"lane": "x", "monthly_usd": "1", "enforcement": "withhold"}]},
         {"budgets": [{"lane": "x", "monthly_usd": "1"}]},
@@ -194,6 +197,9 @@ def test_logging_outputs_are_nonempty_known_and_unique(outputs: list[str]) -> No
         "env-name-leading-digit",
         "osv-access",
         "feeds-endpoints-are-shipped",
+        "api-key-not-env-name",
+        "api-key-source-not-a-registry-name",
+        "api-key-not-string",
         "sandbox",
         "budget-enforcement",
         "budget-missing-enforcement",
