@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/insecure-patterns.schema.json",
+  "title": "Insecure patterns view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's insecure-patterns view: the scope's findings as of as_of (false positives dropped) grouped by primary CWE within each corpus ownership class, ranked by distinct repositories, then occurrences. An occurrence is one (repository, path) pair; a repository several ownership classes ship counts in each. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "as_of",
+    "cuts"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "The filter's point in time; null reads the current recorded state."
+    },
+    "cuts": {
+      "description": "One cut per ownership class that has a pattern or a finding without a CWE, in the ownership registry's order, then the repositories no registered product ships (ownership null).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cut"
+      }
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "cut": {
+      "description": "One ownership class's patterns, ranked on their own, never folded together.",
+      "type": "object",
+      "required": [
+        "ownership",
+        "without_cwe",
+        "patterns"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ownership": {
+          "oneOf": [
+            {
+              "$ref": "https://example.com/traust-contracts/views_schema/v1/census.schema.json#/$defs/ownership"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The corpus ownership class; null for repositories no registered product ships."
+        },
+        "without_cwe": {
+          "$ref": "#/$defs/count",
+          "description": "Occurrences whose finding carries no CWE, so fit no pattern."
+        },
+        "patterns": {
+          "description": "Patterns by most repositories, then most occurrences, then CWE.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pattern"
+          }
+        }
+      },
+      "not": {
+        "properties": {
+          "without_cwe": {
+            "const": 0
+          },
+          "patterns": {
+            "maxItems": 0
+          }
+        },
+        "required": [
+          "without_cwe",
+          "patterns"
+        ]
+      }
+    },
+    "pattern": {
+      "description": "The findings sharing a primary CWE.",
+      "type": "object",
+      "required": [
+        "cwe",
+        "asvs",
+        "repositories",
+        "occurrences",
+        "severities",
+        "examples"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "cwe": {
+          "type": "string",
+          "description": "The primary CWE id as recorded, raw."
+        },
+        "asvs": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The first ASVS label among the pattern's occurrences (by repository URL, then path), raw; null when none carries one."
+        },
+        "repositories": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Distinct repositories."
+        },
+        "occurrences": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Distinct (repository, path) pairs; a re-report counts once, at its highest severity."
+        },
+        "severities": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/severity_counts",
+          "description": "The occurrences by effective severity."
+        },
+        "examples": {
+          "description": "Up to six occurrences, by repository URL, then path.",
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/example"
+          }
+        }
+      }
+    },
+    "example": {
+      "type": "object",
+      "required": [
+        "repository_url",
+        "path",
+        "line_start",
+        "line_end",
+        "symbol"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repository_url": {
+          "type": "string",
+          "description": "Raw registered URL."
+        },
+        "path": {
+          "type": "string",
+          "description": "The occurrence's first location path, raw; empty when the finding has no location."
+        },
+        "line_start": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "line_end": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Raw; null when not recorded."
+        }
+      }
+    }
+  }
+}
