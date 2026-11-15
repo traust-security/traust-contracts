@@ -22,7 +22,42 @@ unknown times. Both directions use the same indexes. These additive,
 idempotent bootstrap indexes do not change rows or provide indexed arbitrary
 substring search or every selectable sort.
 
-For an existing database, explicitly apply the three `CREATE INDEX IF NOT EXISTS`
-statements (`idx_ops_run_order_created`, `idx_ops_run_order_started`,
-`idx_ops_run_order_unstarted`) from its dialect's `schema/run_order.sql`.
-Reapplying those statements is safe; bootstrap is not an automatic upgrade runner.
+For an existing SQLite database, explicitly apply only the three additive
+`CREATE INDEX IF NOT EXISTS` statements from `sqlite/schema/run_order.sql`
+during an application write-maintenance window.
+
+For a live PostgreSQL database, use the following statements individually,
+outside any transaction, rather than reapplying bootstrap DDL. Ordinary
+`CREATE INDEX` blocks order writers for the duration of its build.
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ops_run_order_created
+    ON traust_ops.run_order (created_at, id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ops_run_order_started
+    ON traust_ops.run_order (started_at, id)
+    WHERE started_at IS NOT NULL;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ops_run_order_unstarted
+    ON traust_ops.run_order (id)
+    WHERE started_at IS NULL;
+```
+
+Verify all three indexes before enabling indexed history reads:
+
+```sql
+SELECT indexrelid::regclass, indisvalid, indisready
+FROM pg_index
+WHERE indrelid = 'traust_ops.run_order'::regclass
+  AND indexrelid::regclass::text IN (
+      'traust_ops.idx_ops_run_order_created',
+      'traust_ops.idx_ops_run_order_started',
+      'traust_ops.idx_ops_run_order_unstarted');
+```
+
+All three must be present, valid and ready. An interrupted concurrent build
+can leave an invalid index, and `IF NOT EXISTS` does not repair it. After
+confirming that an affected named index is invalid and no build remains
+active, drop only that invalid index with `DROP INDEX CONCURRENTLY`, outside
+a transaction, then rerun its create statement and verify again. Do not
+drop a valid index or assume an existing name proves a successful build.
+If concurrent creation cannot be used, schedule an explicit order-write
+maintenance window instead. Bootstrap is not an automatic upgrade runner.
