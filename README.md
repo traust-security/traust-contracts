@@ -458,6 +458,15 @@ a finding without a CWE, and a pattern carries at most six examples. CWE ids, AS
 paths and symbols are raw data, as Core records them. Every serialized field is required;
 lists are never null.
 
+`views_schema/v1/privileges.schema.json` is the contract for Core's privileges view: each
+repository's latest operator priv-profile as of `as_of`, one row of declared-privilege
+posture (never finding counts), ranked by tier-2 surplus, wildcard rules, then privileged
+workloads. Counts the artifact bounds are non-negative; a flag counts at least one matching
+rule; container posture is listed with its containers or not at all. The profile's own
+`no_scc_request_recorded` flag is kept, so "asked for no SCC" never reads as "could not
+tell". Install modes are the names the profile marks supported. SCC request names,
+namespaces and the tier-2 marker and surplus counts are raw, as the profile states them. Every serialized field is required; lists are never null.
+
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
 commit and advisory (its latest complete run, else its latest partial run, else, before
