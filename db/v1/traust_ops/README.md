@@ -21,3 +21,8 @@ started-time segments: `(started_at, id)` for known times, then `id` for
 unknown times. Both directions use the same indexes. These additive,
 idempotent bootstrap indexes do not change rows or provide indexed arbitrary
 substring search or every selectable sort.
+
+For an existing database, explicitly apply the three `CREATE INDEX IF NOT EXISTS`
+statements (`idx_ops_run_order_created`, `idx_ops_run_order_started`,
+`idx_ops_run_order_unstarted`) from its dialect's `schema/run_order.sql`.
+Reapplying those statements is safe; bootstrap is not an automatic upgrade runner.
