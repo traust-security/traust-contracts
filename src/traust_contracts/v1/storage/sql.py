@@ -28,6 +28,7 @@ __all__ = [
     "bootstrap_statements",
     "default_named_at_upgrade",
     "manifest_sbom_binding_upgrade",
+    "repository_disposition_upgrade",
 ]
 
 CONTRACT_VERSION = "v1"
@@ -125,3 +126,14 @@ def default_named_at_upgrade(dialect: Dialect) -> list[str]:
     is named again.
     """
     return _additive_upgrade(dialect, "default_named_at")
+
+
+def repository_disposition_upgrade(dialect: Dialect) -> list[str]:
+    """Load the explicit additive upgrade for a database missing the disposition columns.
+
+    Callers must inspect repository first and apply these statements only when
+    disposition is absent (foundry plan repo-unreachable). Existing rows keep
+    disposition NULL - active - and their streak starts at 0; nothing is
+    dispositioned by the upgrade itself.
+    """
+    return _additive_upgrade(dialect, "repository_disposition")
