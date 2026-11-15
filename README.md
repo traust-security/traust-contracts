@@ -444,8 +444,8 @@ by its newest recorded compliance assessment, as two lists of the same row. A ro
 is kept per framework, never blended, and each framework's counts are the compliance
 assessment's own coverage block (referenced, not copied), summed over the group. Framework
 rows are keyed by their framework and cover only it; frameworks use the
-`compliance-framework` registry, tied by test. The view reads current declarations and
-assessments (the filter's `as_of` is not applied); Core refuses a product or team scope.
+`compliance-framework` registry, tied by test. The view reads posture as it stands, so Core
+refuses an `as_of`, and a product or team scope.
 Every serialized field is required. Boundary names are raw data.
 
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
