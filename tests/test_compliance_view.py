@@ -100,7 +100,6 @@ def test_unknown_fields_are_rejected(
     [
         (("by_scope", 0, "pairs"), 0),
         (("by_scope", 0, "assessed"), -1),
-        (("by_scope", 0, "key"), ""),
         (("by_scope", 0, "coverage"), {}),
         (("by_scope", 0, "coverage"), {"iso-27001": _coverage()}),
         (("by_scope", 0, "coverage", "pci-dss-v4", "satisfied"), -1),
@@ -109,6 +108,8 @@ def test_unknown_fields_are_rejected(
             ("by_framework", 0, "coverage"),
             {"nist-800-53-rev5": _coverage(), "pci-dss-v4": _coverage()},
         ),
+        (("by_framework", 0, "coverage"), {"pci-dss-v4": _coverage()}),
+        (("by_framework", 0, "key"), ""),
     ],
 )
 def test_out_of_contract_values_are_rejected(
@@ -137,6 +138,7 @@ def test_frameworks_match_the_compliance_framework_registry() -> None:
     assert schema["$defs"]["framework"]["enum"] == values
     rows = schema["allOf"][0]["then"]["properties"]["by_framework"]["items"]
     assert rows["properties"]["key"]["enum"] == values
+    assert [b["if"]["properties"]["key"]["const"] for b in rows["allOf"]] == values
 
 
 def test_the_coverage_counts_are_the_assessments_own_block() -> None:
@@ -144,3 +146,27 @@ def test_the_coverage_counts_are_the_assessments_own_block() -> None:
     assert ref.endswith(
         "artifacts_schema/v1/compliance-assessment.schema.json#/properties/coverage/additionalProperties"
     )
+
+
+def test_a_declared_boundary_may_be_named_with_the_empty_string(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    document["by_scope"][0]["key"] = ""
+    validator.validate(document)
+
+
+@pytest.mark.parametrize(
+    "framework", json.loads((ROOT / "enums/v1/compliance-framework.json").read_text())["values"]
+)
+def test_each_framework_row_covers_its_own_framework(
+    validator: Draft202012Validator, document: dict[str, Any], framework: str
+) -> None:
+    row = document["by_framework"][0]
+    row["key"], row["coverage"] = framework, {framework: _coverage()}
+    validator.validate(document)
+    others = [
+        f for f in json.loads(SCHEMA.read_text())["$defs"]["framework"]["enum"] if f != framework
+    ]
+    row["coverage"] = {others[0]: _coverage()}
+    with pytest.raises(ValidationError):
+        validator.validate(document)

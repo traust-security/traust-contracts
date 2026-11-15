@@ -443,7 +443,8 @@ per framework and per boundary over every declared (boundary, framework) pair, e
 by its newest recorded compliance assessment, as two lists of the same row. A row's coverage
 is kept per framework, never blended, and each framework's counts are the compliance
 assessment's own coverage block (referenced, not copied), summed over the group. Framework
-rows are keyed by their framework and cover only it; frameworks use the
+rows are keyed by their framework and cover exactly it (a boundary key may be empty, as a
+declaration may name one so); frameworks use the
 `compliance-framework` registry, tied by test. The view reads posture as it stands, so Core
 refuses an `as_of`, and a product or team scope.
 Every serialized field is required. Boundary names are raw data.
