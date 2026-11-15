@@ -568,6 +568,48 @@ def test_run_order_fork_scheduled_upgrade_stamps_nothing_it_did_not_see(db: Db) 
     assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (legacy,))[0][0]
 
 
+def _feed_document(db: Db, digest: str) -> str:
+    return db.insert("artifact", digest=digest, kind="feed-document", uri="file:///feeds/f.json")
+
+
+def test_feed_snapshot_identifier_keys_one_document_per_feed(db: Db) -> None:
+    table = db.t("ops.feed_snapshot")
+    first, later, whole = (_feed_document(db, d * 64) for d in "abc")
+    cve = {"feed": "nvd", "identifier": "CVE-1", "retrieved_at": NOW}
+    db.insert("ops.feed_snapshot", artifact_id=first, **cve)
+    db.insert("ops.feed_snapshot", artifact_id=later, **cve)  # a refetch is a new row
+    db.insert("ops.feed_snapshot", artifact_id=whole, feed="kev", retrieved_at=NOW)  # whole feed
+    query = f"SELECT artifact_id FROM {table} WHERE feed = ? AND identifier = ?"
+    assert {str(r[0]) for r in db.run(query, ("nvd", "CVE-1"))} == {first, later}
+    assert db.run(f"SELECT identifier FROM {table} WHERE feed = ?", ("kev",))[0][0] is None
+    db.rejects("ops.feed_snapshot", artifact_id=whole, feed="nvd", identifier="", retrieved_at=NOW)
+
+
+def test_feed_snapshot_identifier_upgrade_infers_nothing(db: Db) -> None:
+    table = db.t("ops.feed_snapshot")
+    index = "idx_ops_feed_snapshot_feed_identifier_retrieved"
+    qualified = index if db.engine == "sqlite" else f"traust_ops.{index}"
+    db.run(f"DROP INDEX {qualified}")
+    db.run(f"ALTER TABLE {table} DROP COLUMN identifier")  # the shape before
+    legacy = db.insert(
+        "ops.feed_snapshot", artifact_id=_feed_document(db, "a" * 64), feed="kev", retrieved_at=NOW
+    )
+    for statement in ops_sql.feed_snapshot_identifier_upgrade(db.engine):
+        db.run(statement)
+    assert db.run(f"SELECT identifier FROM {table} WHERE id = ?", (legacy,))[0][0] is None
+    keyed = db.insert(
+        "ops.feed_snapshot",
+        artifact_id=_feed_document(db, "b" * 64),
+        feed="nvd",
+        identifier="CVE-1",
+        retrieved_at=NOW,
+    )
+    for path in ops_sql.bootstrap_files(db.engine):  # bootstrap stays safe afterwards
+        for statement in bootstrap_statements(db.engine, path):
+            db.run(statement)
+    assert db.run(f"SELECT identifier FROM {table} WHERE id = ?", (keyed,))[0][0] == "CVE-1"
+
+
 def test_finding_identity_and_advisory_pairing(db: Db) -> None:
     rid = repo(db)
     finding(db, rid)

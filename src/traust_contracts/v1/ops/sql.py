@@ -24,6 +24,7 @@ __all__ = [
     "VIEW_ORDER",
     "bootstrap_files",
     "bootstrap_statements",
+    "feed_snapshot_identifier_upgrade",
     "run_order_fork_scheduled_upgrade",
 ]
 
@@ -62,4 +63,15 @@ def run_order_fork_scheduled_upgrade(dialect: Dialect) -> list[str]:
     an open one). Existing orders carry no stamp: none is inferred.
     """
     path = ops_dir() / dialect / "upgrades" / "run_order_fork_scheduled.sql"
+    return list(bootstrap_statements(dialect, path))
+
+
+def feed_snapshot_identifier_upgrade(dialect: Dialect) -> list[str]:
+    """Load the explicit additive upgrade for a database missing feed_snapshot.identifier.
+
+    Callers must inspect feed_snapshot first and apply these statements only when
+    the column is absent. It applies whole (one transaction on SQLite; apply it outside
+    an open one). Existing snapshots are whole-feed copies: their identifier stays null.
+    """
+    path = ops_dir() / dialect / "upgrades" / "feed_snapshot_identifier.sql"
     return list(bootstrap_statements(dialect, path))

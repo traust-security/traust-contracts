@@ -167,6 +167,16 @@ vouches only with both `fork_url` and `fork_branch` set. Older orders carry no
 stamp and are checked against the current policy. Existing databases apply
 `ops.sql.run_order_fork_scheduled_upgrade(dialect)` when the column is absent.
 
+## Per-document feed snapshots
+
+`feed_snapshot.identifier` is the key a per-document feed was fetched by: one
+CVE's NVD record, one advisory's document. It is null for a whole-feed snapshot
+(OSV, EPSS, KEV, a scanner DB). Each fetch is a new append-only row, so the
+latest document per `(feed, identifier)` is what a feed said most recently, and
+older rows record what it said before. Scores and other facts are derived from
+the stored document when read, not stored beside it. Existing databases apply
+`ops.sql.feed_snapshot_identifier_upgrade(dialect)` when the column is absent.
+
 ## Artifact recording order
 
 `artifact.run_order_id` names the order whose run recorded the document, so a run
