@@ -467,6 +467,15 @@ rule; container posture is listed with its containers or not at all. The profile
 tell". Install modes are the names the profile marks supported. SCC request names,
 namespaces and the tier-2 marker and surplus counts are raw, as the profile states them. Every serialized field is required; lists are never null.
 
+`views_schema/v1/dependency-reach.schema.json` is the contract for Core's dependency-reach
+view: what the scope's latest default-branch manifest SBOMs hold, per ecosystem, with the 25
+most shared packages and how many repositories have no manifest SBOM (not measured, not
+dependency-free). It reads the latest manifests, so Core refuses an `as_of`. Ecosystems and
+package names are non-empty, as the store keeps them; the ecosystem registry is applied at
+intake, not re-checked here. One row per ecosystem and per (ecosystem, name) package is
+Core's grouping (JSON Schema cannot check a field unique across rows; Core's tests pin it).
+Every serialized field is required; lists are never null.
+
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
 commit and advisory (its latest complete run, else its latest partial run, else, before
