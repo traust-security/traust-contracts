@@ -568,6 +568,19 @@ def test_run_order_fork_scheduled_upgrade_stamps_nothing_it_did_not_see(db: Db) 
     assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (legacy,))[0][0]
 
 
+def test_order_history_bootstrap_is_additive_and_repeatable(db: Db) -> None:
+    order = {"asset": "repo_state", "state": "queued", "priority": 1, "requested_by": "h"}
+    db.insert("ops.run_order", **order)
+    db.insert("ops.run_order", started_at=NOW, **order)
+    table = db.t("ops.run_order")
+    before = db.run(f"SELECT * FROM {table} ORDER BY id")
+    for _ in range(2):
+        for path in ops_sql.bootstrap_files(db.engine):
+            for statement in bootstrap_statements(db.engine, path):
+                db.run(statement)
+    assert db.run(f"SELECT * FROM {table} ORDER BY id") == before
+
+
 def test_finding_identity_and_advisory_pairing(db: Db) -> None:
     rid = repo(db)
     finding(db, rid)

@@ -15,3 +15,9 @@ Loads through `traust_contracts.v1.ops.sql`:
 **Status:** tables landed (`run_batch`, `run_order`, `spend_event`,
 `feed_snapshot`, `assessment_input`); `run_order.sql` closes the cross-
 namespace cycle by adding `assessment.run_order_id`'s FK on Postgres.
+
+Global order-history reads use `(created_at, id)` or two nulls-last
+started-time segments: `(started_at, id)` for known times, then `id` for
+unknown times. Both directions use the same indexes. These additive,
+idempotent bootstrap indexes do not change rows or provide indexed arbitrary
+substring search or every selectable sort.
