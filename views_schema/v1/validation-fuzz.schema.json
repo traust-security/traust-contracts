@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/validation-fuzz.schema.json",
+  "title": "Validation and fuzz campaign view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's validation-fuzz view: each target's latest recorded fuzz run as of as_of, its crashers ranked by CVSS then proposed severity, the surfaces it left unfuzzed, and each repository's validated findings by latest verdict. Fuzz fields are the fuzz-report artifact's own (Core parses each report against its schema), referenced rather than copied. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "as_of",
+    "targets",
+    "crashers",
+    "gaps",
+    "validation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "The filter's point in time; null reads the latest runs and verdicts."
+    },
+    "targets": {
+      "description": "One row per target's latest run, most crashers first, then repository URL and target.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/target"
+      }
+    },
+    "crashers": {
+      "description": "Every crasher of those runs, highest CVSS first (unscored after scored), then proposed severity, repository URL and crasher id.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/crasher"
+      }
+    },
+    "gaps": {
+      "description": "Every surface those runs left unfuzzed, by reason, then repository URL and surface.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/gap"
+      }
+    },
+    "validation": {
+      "description": "One row per repository with a validated finding (key: its URL), most confirmed first, then most findings, then URL.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/validation"
+      }
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "target": {
+      "description": "One target's latest fuzz run.",
+      "type": "object",
+      "required": [
+        "repository",
+        "target",
+        "language",
+        "assessment_id",
+        "occurred_at",
+        "engines",
+        "outcomes",
+        "execs",
+        "crashers",
+        "lines_covered",
+        "lines_total",
+        "gaps"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Raw registered URL."
+        },
+        "target": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/name",
+          "description": "The campaign's target id."
+        },
+        "language": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/target/properties/language"
+        },
+        "assessment_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the run was recorded."
+        },
+        "engines": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/engine"
+          },
+          "description": "The engines its harnesses ran, sorted."
+        },
+        "outcomes": {
+          "description": "Harness outcome to how many harnesses had it; only outcomes seen appear.",
+          "type": "object",
+          "propertyNames": {
+            "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/outcome"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "execs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Executions summed over the harnesses that reported them; null when none did."
+        },
+        "crashers": {
+          "$ref": "#/$defs/count",
+          "description": "Crashers the run recorded."
+        },
+        "lines_covered": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Lines the final corpus covered; null when coverage was not measured."
+        },
+        "lines_total": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Lines in scope for coverage; null with lines_covered."
+        },
+        "gaps": {
+          "$ref": "#/$defs/count",
+          "description": "Surfaces the run left unfuzzed."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "Coverage is measured (both counts) or not (neither): the report's coverage object or null.",
+          "if": {
+            "properties": {
+              "lines_covered": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "lines_covered"
+            ]
+          },
+          "then": {
+            "properties": {
+              "lines_total": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "lines_total": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "crasher": {
+      "description": "A crasher a target's latest run recorded, as the producer proposed it.",
+      "type": "object",
+      "required": [
+        "repository",
+        "target",
+        "harness",
+        "crasher",
+        "title",
+        "crash_class",
+        "severity",
+        "cvss",
+        "cwes",
+        "reproducer_sha256",
+        "confirms_finding_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Raw registered URL."
+        },
+        "target": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/name"
+        },
+        "harness": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/name",
+          "description": "The harness that found it."
+        },
+        "crasher": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/name",
+          "description": "The crasher's id in its report."
+        },
+        "title": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/crasher/properties/title"
+        },
+        "crash_class": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/crash_class"
+        },
+        "severity": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/report.schema.json#/$defs/severity_level",
+          "description": "The producer's proposed severity; triage owns the severity."
+        },
+        "cvss": {
+          "oneOf": [
+            {
+              "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/report.schema.json#/$defs/finding/properties/cvss/properties/score"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The proposed CVSS base score; null when unscored."
+        },
+        "cwes": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/crasher/properties/cwes"
+        },
+        "reproducer_sha256": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/reproducer/properties/sha256"
+        },
+        "confirms_finding_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "description": "The recorded finding the crasher confirms; null when intake mints a new one."
+        }
+      }
+    },
+    "gap": {
+      "description": "A surface a target's latest run left unfuzzed, and why.",
+      "type": "object",
+      "required": [
+        "repository",
+        "target",
+        "surface",
+        "reason",
+        "harness",
+        "note"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Raw registered URL."
+        },
+        "target": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/name"
+        },
+        "surface": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/gap/properties/surface"
+        },
+        "reason": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/gap_reason"
+        },
+        "harness": {
+          "oneOf": [
+            {
+              "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/name"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The harness concerned; null when none is named."
+        },
+        "note": {
+          "oneOf": [
+            {
+              "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/gap/properties/note"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Raw; null when none."
+        }
+      }
+    },
+    "validation": {
+      "description": "One repository's validated findings, each counted once at its latest verdict.",
+      "type": "object",
+      "required": [
+        "key",
+        "findings",
+        "by_verdict"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "The repository's raw registered URL."
+        },
+        "findings": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "by_verdict": {
+          "description": "Latest verdict to its findings; only verdicts seen appear.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "enum": [
+              "confirmed",
+              "refuted",
+              "inconclusive",
+              "blocked_by_scope",
+              "not_attempted"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}

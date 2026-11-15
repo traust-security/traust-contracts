@@ -476,6 +476,15 @@ intake, not re-checked here. One row per ecosystem and per (ecosystem, name) pac
 Core's grouping (JSON Schema cannot check a field unique across rows; Core's tests pin it).
 Every serialized field is required; lists are never null.
 
+`views_schema/v1/validation-fuzz.schema.json` is the contract for Core's validation-fuzz view:
+each target's latest recorded fuzz run as of `as_of`, its crashers ranked by CVSS then
+proposed severity, the surfaces it left unfuzzed, and each repository's validated findings
+by latest verdict. Fuzz fields (target and harness names, engines, outcomes, crash classes,
+gap reasons, CWEs, reproducer digests, the proposed severity and CVSS score) reference the
+fuzz-report and report artifacts' own definitions rather than copy them: Core parses each
+report against its schema. Verdicts use the `validation-verdict` registry, tied by test.
+Every serialized field is required; lists are never null.
+
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
 commit and advisory (its latest complete run, else its latest partial run, else, before
