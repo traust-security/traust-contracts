@@ -58,7 +58,7 @@ only, never estate data:
 
 The config home holds two files: `traust.yaml` (`config/v1/traust.schema.json`:
 everything an adopter sets: database, artifacts, identity, ledger key paths,
-budgets, forge hosts and tokens, `locations`, `feeds.osv_access`,
+budgets, forge hosts and tokens, `locations`, `feeds.osv_access`, `feeds.api_keys`,
 `execution.sandbox`, logging outputs, `remediation`, `campaign`, `overrides`; secrets only by the
 name of an environment variable) and `model-registry.yaml`. An absent
 `traust.yaml` keeps traust-core's zero-config defaults. traust-core's `Config`

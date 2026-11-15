@@ -509,6 +509,19 @@
             "air-gapped"
           ],
           "description": "api (default) queries the OSV API; air-gapped reads an adopter-provided osv-scanner and offline database instead."
+        },
+        "api_keys": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "description": "A feed source in the feeds registry that declares the header its key travels in (nvd)."
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+            "description": "The name of an environment variable; the value never goes in this file."
+          },
+          "description": "Feed source -> the environment variable holding its API key (nvd: NVD_API_KEY). Optional: a source not named here goes keyless at its lower rate limit; a named variable that is unset is a configuration error."
         }
       }
     },
