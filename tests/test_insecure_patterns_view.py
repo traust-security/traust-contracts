@@ -123,6 +123,9 @@ def test_unknown_fields_are_rejected_at_every_object_boundary(
         (OBJECTS["pattern"] + ("examples",), [_pattern()["examples"][0]] * 7),
         (OBJECTS["example"] + ("line_start",), "42"),
         (OBJECTS["cut"] + ("patterns",), None),
+        (OBJECTS["pattern"] + ("cwe",), ""),
+        (OBJECTS["example"] + ("line_start",), 0),
+        (OBJECTS["example"] + ("line_end",), None),
     ],
 )
 def test_out_of_contract_values_are_rejected(
@@ -145,10 +148,7 @@ def test_an_empty_cut_is_never_listed(
     ("path", "value"),
     [
         (OBJECTS["pattern"] + ("asvs",), None),
-        (OBJECTS["pattern"] + ("cwe",), ""),
         (OBJECTS["example"] + ("path",), ""),
-        (OBJECTS["example"] + ("line_start",), None),
-        (OBJECTS["example"] + ("line_end",), None),
         (OBJECTS["example"] + ("symbol",), None),
         (OBJECTS["pattern"] + ("examples",), []),
     ],
@@ -166,3 +166,38 @@ def test_ownership_is_the_census_registry_definition() -> None:
     values = json.loads((ROOT / "enums/v1/ownership.json").read_text())["values"]
     census = json.loads((VIEWS / "census.schema.json").read_text())["$defs"]["ownership"]
     assert census["enum"] == values
+
+
+def test_an_example_without_lines_has_neither_endpoint(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    example = _object(document, "example")
+    example["line_start"] = example["line_end"] = None
+    validator.validate(document)
+    example["line_end"] = 3
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+def test_a_single_line_example_is_valid(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    example = _object(document, "example")
+    example["line_start"] = example["line_end"] = 7
+    validator.validate(document)
+
+
+@pytest.mark.parametrize("ownership", ["owned", None])
+def test_each_ownership_class_has_at_most_one_cut(
+    validator: Draft202012Validator, document: dict[str, Any], ownership: str | None
+) -> None:
+    document["cuts"].append({"ownership": ownership, "without_cwe": 1, "patterns": []})
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+def test_the_cut_limits_reuse_the_census_class_definitions() -> None:
+    limits = json.loads(SCHEMA.read_text())["properties"]["cuts"]["allOf"]
+    classes = json.loads((ROOT / "enums/v1/ownership.json").read_text())["values"]
+    assert [b["contains"]["$ref"].rsplit("/", 1)[1] for b in limits] == [*classes, "none"]
+    assert all(b["maxContains"] == 1 for b in limits)

@@ -19,11 +19,48 @@
       "description": "The filter's point in time; null reads the current recorded state."
     },
     "cuts": {
-      "description": "One cut per ownership class that has a pattern or a finding without a CWE, in the ownership registry's order, then the repositories no registered product ships (ownership null).",
+      "description": "One cut per ownership class that has a pattern or a finding without a CWE, in the ownership registry's order, then the repositories no registered product ships (ownership null). At most one cut per class, and one null cut.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/cut"
-      }
+      },
+      "allOf": [
+        {
+          "contains": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/census.schema.json#/$defs/ownership_is/owned"
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/census.schema.json#/$defs/ownership_is/upstream"
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/census.schema.json#/$defs/ownership_is/external-bu"
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/census.schema.json#/$defs/ownership_is/harness-qa"
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/census.schema.json#/$defs/ownership_is/none"
+          },
+          "minContains": 0,
+          "maxContains": 1
+        }
+      ]
     }
   },
   "$defs": {
@@ -94,7 +131,8 @@
       "properties": {
         "cwe": {
           "type": "string",
-          "description": "The primary CWE id as recorded, raw."
+          "minLength": 1,
+          "description": "The primary CWE id as recorded, raw; the store refuses an empty identifier."
         },
         "asvs": {
           "type": [
@@ -150,13 +188,17 @@
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "minimum": 1,
+          "description": "The first line (1-based); null with line_end when the location has no lines."
         },
         "line_end": {
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "minimum": 1,
+          "description": "The last line; null with line_start. That it is never before line_start is the location table's rule (JSON Schema does not compare two fields)."
         },
         "symbol": {
           "type": [
@@ -165,7 +207,36 @@
           ],
           "description": "Raw; null when not recorded."
         }
-      }
+      },
+      "allOf": [
+        {
+          "$comment": "Both line endpoints are null, or both are set (the location table's rule).",
+          "if": {
+            "properties": {
+              "line_start": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "line_start"
+            ]
+          },
+          "then": {
+            "properties": {
+              "line_end": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "line_end": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }
