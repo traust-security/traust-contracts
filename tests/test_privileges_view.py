@@ -28,6 +28,7 @@ def _row() -> dict[str, Any]:
         "rbac_rules": 14,
         "wildcard_rules": 2,
         "scc_requests": ["privileged", "privileged"],
+        "no_scc_request_recorded": False,
         "flags": {"secrets_access": 3, "wildcard_verbs": 1},
         "containers": 3,
         "privileged_containers": 1,
@@ -95,6 +96,7 @@ def test_unknown_fields_are_rejected(
         ("distinct_cluster_triples", None),
         ("scc_requests", None),
         ("namespaces", [1]),
+        ("no_scc_request_recorded", "yes"),
     ],
 )
 def test_out_of_contract_values_are_rejected(
@@ -135,6 +137,8 @@ def test_container_posture_is_listed_with_its_containers(
         ("surplus", -2),
         ("flags", {}),
         ("scc_requests", []),
+        ("no_scc_request_recorded", None),
+        ("no_scc_request_recorded", True),
     ],
 )
 def test_nulls_and_raw_values_core_serves_are_accepted(

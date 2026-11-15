@@ -42,6 +42,7 @@
         "rbac_rules",
         "wildcard_rules",
         "scc_requests",
+        "no_scc_request_recorded",
         "flags",
         "containers",
         "privileged_containers",
@@ -93,7 +94,14 @@
           "items": {
             "type": "string"
           },
-          "description": "Security context constraints the operator requests, raw, as the profile lists them."
+          "description": "Security context constraints the operator requests, raw names as the profile lists them (a name may repeat)."
+        },
+        "no_scc_request_recorded": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "The profile's own flag: true when no SCC request was found, which is not the same as asking for none (an empty scc_requests list does not say which); null when the profile does not state it."
         },
         "flags": {
           "description": "High-privilege rule pattern (raw) to how many rules match it; a pattern is present only when it matched.",
@@ -139,7 +147,7 @@
           "items": {
             "type": "string"
           },
-          "description": "The OperatorGroup install modes the CSV supports, raw."
+          "description": "The names of the OperatorGroup install modes the profile marks supported (the artifact's install_modes object, its true entries), names raw."
         },
         "kubebuilder_markers": {
           "type": [
