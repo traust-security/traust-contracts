@@ -449,6 +449,15 @@ declaration may name one so); frameworks use the
 refuses an `as_of`, and a product or team scope.
 Every serialized field is required. Boundary names are raw data.
 
+`views_schema/v1/insecure-patterns.schema.json` is the contract for Core's insecure-patterns
+view: the scope's findings as of `as_of` (false positives dropped) grouped by primary CWE
+within each corpus ownership class, ranked by distinct repositories, then occurrences (one
+occurrence per repository and path). Ownership is the census's definition and severity
+counts the findings rollup's, both referenced; a cut is listed only when it has a pattern or
+a finding without a CWE, and a pattern carries at most six examples. CWE ids, ASVS labels,
+paths and symbols are raw data, as Core records them. Every serialized field is required;
+lists are never null.
+
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
 commit and advisory (its latest complete run, else its latest partial run, else, before
