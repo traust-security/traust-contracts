@@ -190,7 +190,7 @@
             "null"
           ],
           "minimum": 1,
-          "description": "The first line (1-based); null with line_end when the location has no lines."
+          "description": "The first line (1-based), raw; null when not given."
         },
         "line_end": {
           "type": [
@@ -198,7 +198,7 @@
             "null"
           ],
           "minimum": 1,
-          "description": "The last line; null with line_start. That it is never before line_start is the location table's rule (JSON Schema does not compare two fields)."
+          "description": "The last line (1-based), raw; null when not given. A recorded location gives both lines or neither, but a finding claim's location may give either alone; when both are given, line_end is never before line_start (the claim's and the location table's rule; JSON Schema does not compare two fields)."
         },
         "symbol": {
           "type": [
@@ -207,36 +207,7 @@
           ],
           "description": "Raw; null when not recorded."
         }
-      },
-      "allOf": [
-        {
-          "$comment": "Both line endpoints are null, or both are set (the location table's rule).",
-          "if": {
-            "properties": {
-              "line_start": {
-                "type": "null"
-              }
-            },
-            "required": [
-              "line_start"
-            ]
-          },
-          "then": {
-            "properties": {
-              "line_end": {
-                "type": "null"
-              }
-            }
-          },
-          "else": {
-            "properties": {
-              "line_end": {
-                "type": "integer"
-              }
-            }
-          }
-        }
-      ]
+      }
     }
   }
 }

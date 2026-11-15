@@ -125,7 +125,6 @@ def test_unknown_fields_are_rejected_at_every_object_boundary(
         (OBJECTS["cut"] + ("patterns",), None),
         (OBJECTS["pattern"] + ("cwe",), ""),
         (OBJECTS["example"] + ("line_start",), 0),
-        (OBJECTS["example"] + ("line_end",), None),
     ],
 )
 def test_out_of_contract_values_are_rejected(
@@ -168,15 +167,14 @@ def test_ownership_is_the_census_registry_definition() -> None:
     assert census["enum"] == values
 
 
-def test_an_example_without_lines_has_neither_endpoint(
-    validator: Draft202012Validator, document: dict[str, Any]
+@pytest.mark.parametrize(("start", "end"), [(None, None), (None, 3), (3, None)])
+def test_a_claim_location_may_give_either_line_alone(
+    validator: Draft202012Validator, document: dict[str, Any], start: int | None, end: int | None
 ) -> None:
+    # a finding claim's location may give one line without the other, and Core serves it as is
     example = _object(document, "example")
-    example["line_start"] = example["line_end"] = None
+    example["line_start"], example["line_end"] = start, end
     validator.validate(document)
-    example["line_end"] = 3
-    with pytest.raises(ValidationError):
-        validator.validate(document)
 
 
 def test_a_single_line_example_is_valid(
