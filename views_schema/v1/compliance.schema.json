@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/compliance.schema.json",
+  "title": "Compliance posture view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's compliance view: compliance posture per framework and per boundary over every declared (boundary, framework) pair, each assessed by its newest recorded compliance assessment. It reads the current declarations and assessments; the filter's as_of is not applied. Coverage is kept per framework, never blended into one number. Fleet-wide only: Core refuses a product or team scope. Not a persisted artifact or SQL projection. Every serialized field is present. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "by_framework",
+    "by_scope"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "by_framework": {
+      "description": "One row per declared framework, by framework id.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rollup"
+      }
+    },
+    "by_scope": {
+      "description": "One row per declared boundary, by boundary name.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rollup"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "A framework row is keyed by its framework and covers only it.",
+      "if": {
+        "required": [
+          "by_framework"
+        ]
+      },
+      "then": {
+        "properties": {
+          "by_framework": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "nist-800-53-rev5",
+                    "fedramp-high",
+                    "fedramp-moderate",
+                    "pci-dss-v4",
+                    "soc2-tsc",
+                    "gdpr-technical"
+                  ]
+                },
+                "coverage": {
+                  "maxProperties": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "framework": {
+      "type": "string",
+      "enum": [
+        "nist-800-53-rev5",
+        "fedramp-high",
+        "fedramp-moderate",
+        "pci-dss-v4",
+        "soc2-tsc",
+        "gdpr-technical"
+      ],
+      "description": "The compliance-framework registry's framework."
+    },
+    "rollup": {
+      "description": "One group's declared (boundary, framework) pairs, how many are assessed, and the summed coverage of their newest assessments, per framework.",
+      "type": "object",
+      "required": [
+        "key",
+        "pairs",
+        "assessed",
+        "coverage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The framework id (by_framework) or the boundary name, raw (by_scope)."
+        },
+        "pairs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Declared (boundary, framework) pairs in the group."
+        },
+        "assessed": {
+          "$ref": "#/$defs/count",
+          "description": "Of those, the pairs with a recorded assessment."
+        },
+        "coverage": {
+          "description": "Each declared framework's summed coverage counts; a pair with no assessment adds zeros.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/framework"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/coverage"
+          }
+        }
+      }
+    },
+    "coverage": {
+      "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/compliance-assessment.schema.json#/properties/coverage/additionalProperties",
+      "description": "A framework's coverage counts: the compliance assessment's own coverage block, summed over the group's pairs (a pair with no assessment adds zeros)."
+    }
+  }
+}
