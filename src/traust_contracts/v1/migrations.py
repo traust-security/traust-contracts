@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import logging
 import re
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -49,6 +51,8 @@ _TRANSACTION = {"BEGIN", "BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"}
 
 _STAMP_TABLE: dict[str, str] = {"postgres": "traust.db_upgrade", "sqlite": "db_upgrade"}
 _BEGIN: dict[str, str] = {"postgres": "BEGIN", "sqlite": "BEGIN IMMEDIATE"}
+
+log = logging.getLogger(__name__)
 _EXISTS: dict[str, str] = {
     "postgres": (
         "SELECT 1 FROM information_schema.tables "
@@ -160,11 +164,38 @@ def run_upgrades(
     else the shipped channel; the stamp table is always the shipped one.
     """
     if dry_run:
-        return pending_upgrades(dialect, applied_upgrades(conn, dialect), root=root)
+        planned = pending_upgrades(dialect, applied_upgrades(conn, dialect), root=root)
+        log.info(
+            "db channel dry run dialect=%s planned=%d names=%s",
+            dialect,
+            len(planned),
+            [upgrade.name for upgrade in planned],
+            extra={
+                "operation": "db.upgrade.dry_run",
+                "outcome": "planned",
+                "count": len(planned),
+            },
+        )
+        return planned
     for statement in stamp_table_statements(dialect):
         conn.execute(statement)
     pending = pending_upgrades(dialect, applied_upgrades(conn, dialect), root=root)
+    if not pending:
+        log.debug(
+            "db channel up to date dialect=%s",
+            dialect,
+            extra={"operation": "db.upgrade", "outcome": "up_to_date"},
+        )
+        return pending
+    log.info(
+        "db channel applying dialect=%s pending=%d names=%s",
+        dialect,
+        len(pending),
+        [upgrade.name for upgrade in pending],
+        extra={"operation": "db.upgrade", "outcome": "applying", "count": len(pending)},
+    )
     for upgrade in pending:
+        started = time.perf_counter()
         try:
             conn.execute(_BEGIN[dialect])
             for statement in upgrade.statements:
@@ -178,10 +209,44 @@ def run_upgrades(
             with contextlib.suppress(Exception):
                 conn.execute("ROLLBACK")
             if applied_upgrades(conn, dialect).get(upgrade.name) == upgrade.sha256:
+                log.info(
+                    "db upgrade raced away dialect=%s name=%s - a concurrent open applied it first",
+                    dialect,
+                    upgrade.name,
+                    extra={"operation": "db.upgrade", "outcome": "raced"},
+                )
                 continue  # a concurrent open applied it first
+            log.error(
+                "db upgrade failed dialect=%s name=%s sha256=%s error_type=%s error=%s",
+                dialect,
+                upgrade.name,
+                upgrade.sha256,
+                type(error).__name__,
+                error,
+                extra={
+                    "operation": "db.upgrade",
+                    "outcome": "failed",
+                    "error_type": type(error).__name__,
+                },
+            )
             raise MigrationError(
                 f"upgrade {upgrade.name} failed to apply and no concurrent open stamped it: "
                 "the script is wrong, or the shape is already there without a stamp - "
                 "applied by hand - so recreate the database or fix forward with a new script"
             ) from error
+        duration_ms = (time.perf_counter() - started) * 1000
+        log.info(
+            "db upgrade applied dialect=%s name=%s sha256=%s statements=%d duration_ms=%.1f",
+            dialect,
+            upgrade.name,
+            upgrade.sha256,
+            len(upgrade.statements),
+            duration_ms,
+            extra={
+                "operation": "db.upgrade",
+                "outcome": "applied",
+                "count": len(upgrade.statements),
+                "duration_ms": duration_ms,
+            },
+        )
     return pending

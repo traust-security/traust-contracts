@@ -8,6 +8,7 @@ without touching the database; and an applied upgrade never loses a row.
 from __future__ import annotations
 
 import hashlib
+import logging
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -139,6 +140,24 @@ def test_an_upgrade_adds_its_column_and_preserves_every_row(channel: Path) -> No
     ]
     assert all(at for _, _, at in stamps)
     assert migrations.run_upgrades(conn, "sqlite", root=channel) == []  # once, ever
+
+
+def test_the_channel_logs_what_debugging_needs(
+    channel: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    conn = _sqlite()
+    with caplog.at_level(logging.DEBUG, logger="traust_contracts.v1.migrations"):
+        migrations.run_upgrades(conn, "sqlite", root=channel)
+        migrations.run_upgrades(conn, "sqlite", root=channel)  # second open: up to date
+
+    text = " ".join(record.message for record in caplog.records)
+    assert "db channel applying dialect=sqlite pending=1 names=['0001_add_note']" in text
+    applied = [r for r in caplog.records if getattr(r, "outcome", None) == "applied"]
+    assert len(applied) == 1
+    assert "name=0001_add_note" in applied[0].getMessage()
+    assert "sha256=" in applied[0].getMessage()  # the stamp trail, queryable in logs
+    assert "duration_ms=" in applied[0].getMessage()
+    assert "db channel up to date dialect=sqlite" in text  # quiet at INFO on a no-op open
 
 
 def test_a_dry_run_plans_without_touching_the_database(channel: Path) -> None:
