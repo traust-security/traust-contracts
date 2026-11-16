@@ -53,26 +53,70 @@ def channel(tmp_path: Path) -> Path:
 def test_a_fresh_bootstrap_applies_the_shipped_channel_whole() -> None:
     conn = _sqlite()
     applied = migrations.run_upgrades(conn, "sqlite")
-    assert [u.name for u in applied] == ["0001_repository_disposition"]
+    assert [u.name for u in applied] == [
+        "0001_repository_disposition",
+        "0002_query_statistics",
+        "0003_finding_state_columns",
+    ]
     assert migrations.run_upgrades(conn, "sqlite") == []
     stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
-    assert [name for name, _ in stamps] == ["0001_repository_disposition"]
+    assert [name for name, _ in stamps] == [
+        "0001_repository_disposition",
+        "0002_query_statistics",
+        "0003_finding_state_columns",
+    ]
     columns = [row[1] for row in conn.execute("PRAGMA table_info(repository)").fetchall()]
     assert {"disposition", "gone_streak"} <= set(columns)
 
 
-def test_the_shipped_first_script_preserves_every_row() -> None:
+def test_the_shipped_state_script_adds_the_projection_columns() -> None:
     conn = _sqlite()
-    for url in ("https://example.com/r1", "https://example.com/r2"):
-        conn.execute("INSERT INTO repository (url, public) VALUES (?, 1)", (url,))
-    before = conn.execute("SELECT * FROM repository").fetchall()
-
     migrations.run_upgrades(conn, "sqlite")
 
-    after = conn.execute("SELECT * FROM repository").fetchall()
-    assert [row[:7] for row in after] == before  # every baseline column, every row
-    assert all(row[7] is None for row in after)  # disposition: existing rows stay active
-    assert all(row[11] == 0 for row in after)  # gone_streak starts at 0
+    # the decision row carries the folded state, set at insert, never updated
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(decision)").fetchall()]
+    assert {
+        "folded_state",
+        "folded_severity",
+        "folded_decided",
+        "folded_proven",
+        "folded_unverified",
+        "folded_policy_version",
+    } <= set(columns)
+
+    conn.execute("INSERT INTO repository (url, public) VALUES (?, 1)", ("https://example.com/r1",))
+    repo = conn.execute("SELECT id FROM repository").fetchall()[0][0]
+    conn.execute(
+        "INSERT INTO finding (repository_id, fingerprint_algo, fingerprint, title)"
+        " VALUES (?, 'sha256', 'a1', 't')",
+        (repo,),
+    )
+    finding = conn.execute("SELECT id, first_seen FROM finding").fetchall()
+    assert finding[0][1] is None  # first_seen starts NULL: the backfill fills it
+
+    # the state vocabulary is checked; the columns are optional (NULL until stamped)
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO decision (finding_id, statement_key, occurred_at, actor, folded_state)"
+            " VALUES (?, 'k', '2026-01-01T00:00:00Z', 'human:a', 'closed')",
+            (finding[0][0],),
+        )
+    conn.execute(
+        "INSERT INTO decision (finding_id, statement_key, occurred_at, actor, folded_state,"
+        " folded_decided, folded_proven, folded_unverified, folded_policy_version)"
+        " VALUES (?, 'k', '2026-01-01T00:00:00Z', 'human:a', 'open', 1, 0, 1, 'v1')",
+        (finding[0][0],),
+    )
+
+    # the latest-decision-per-finding index the one-query read rides
+    indexes = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'decision'"
+    ).fetchall()
+    assert "idx_decision_finding_occurred" in {row[0] for row in indexes}
+    ops_indexes = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'ops_run_order'"
+    ).fetchall()
+    assert "idx_ops_run_order_asset_state" in {row[0] for row in ops_indexes}
 
 
 def test_stamp_channel_brings_a_pre_channel_store_on_at_the_head() -> None:
@@ -529,14 +573,21 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
             for statement in module.bootstrap_statements("postgres", path):
                 conn.execute(statement)
 
-    shipped = migrations.upgrade_files("postgres")
     try:
         applied = migrations.run_upgrades(conn, "postgres")  # fresh: the shipped channel
-        assert [u.name for u in applied] == ["0001_repository_disposition"]
+        assert [u.name for u in applied] == [
+            "0001_repository_disposition",
+            "0002_query_statistics",
+            "0003_finding_state_columns",
+        ]
         stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
-        assert stamps == [("0001_repository_disposition", _sha256(shipped[0]))]
+        assert [name for name, _ in stamps] == [
+            "0001_repository_disposition",
+            "0002_query_statistics",
+            "0003_finding_state_columns",
+        ]
 
-        channel = _write_channel(tmp_path, "0002_add_note.sql", NOTE)
+        channel = _write_channel(tmp_path, "0004_add_note.sql", NOTE)
         for dialect in ("postgres", "sqlite"):  # the fixture channel carries the shipped scripts
             for path in migrations.upgrade_files(dialect):
                 target = channel / dialect / "upgrades" / path.name
@@ -546,14 +597,14 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
         before = conn.execute("SELECT * FROM traust.repository").fetchall()
 
         applied = migrations.run_upgrades(conn, "postgres", root=channel)
-        assert [u.name for u in applied] == ["0002_add_note"]
+        assert [u.name for u in applied] == ["0004_add_note"]
 
         after = conn.execute("SELECT * FROM traust.repository").fetchall()
         assert [row[:-1] for row in after] == before
         assert all(row[-1] is None for row in after)
-        script = channel / "postgres" / "upgrades" / "0002_add_note.sql"
+        script = channel / "postgres" / "upgrades" / "0004_add_note.sql"
         stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
-        assert ("0002_add_note", _sha256(script)) in stamps
+        assert ("0004_add_note", _sha256(script)) in stamps
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
     finally:

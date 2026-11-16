@@ -70,6 +70,14 @@
         "title": {
           "type": "string",
           "description": "Raw untrusted finding title."
+        },
+        "first_seen": {
+          "description": "The earliest occurrence time (min over the finding's reports): the First Seen column, stored once instead of aggregated per read. Null until backfilled.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
         }
       }
     },

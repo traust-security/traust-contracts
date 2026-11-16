@@ -1,0 +1,1 @@
+-- PostgreSQL-only: pg_stat_statements has no SQLite counterpart; pairs the channel.
