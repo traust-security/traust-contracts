@@ -121,6 +121,16 @@ def test_a_script_carries_no_transaction_statements(tmp_path: Path) -> None:
     assert [u.name for u in migrations.pending_upgrades("sqlite", {}, root=root)] == [
         "0001_trigger"
     ]
+    # house style: the trigger's BEGIN on its own line is still mid-statement
+    root = _write_channel(
+        tmp_path / "d",
+        "0001_trigger.sql",
+        "CREATE TRIGGER t AFTER UPDATE ON {table}\nFOR EACH ROW\nBEGIN\n"
+        "  UPDATE {table} SET note = 'x';\nEND;\n",
+    )
+    assert [u.name for u in migrations.pending_upgrades("sqlite", {}, root=root)] == [
+        "0001_trigger"
+    ]
 
 
 def test_pending_refuses_drift_in_both_directions(channel: Path) -> None:
@@ -206,6 +216,12 @@ def test_destructive_sql_without_a_declared_reason_is_refused(tmp_path: Path) ->
     )
     with pytest.raises(migrations.MigrationError, match="destructive SQL"):
         migrations.pending_upgrades("sqlite", {}, root=root)
+    # a block comment is not a hiding place
+    root = _write_channel(
+        tmp_path / "c", "0001_hidden.sql", "SELECT 1; /* later */ DROP TABLE {table};"
+    )
+    with pytest.raises(migrations.MigrationError, match="destructive SQL"):
+        migrations.pending_upgrades("sqlite", {}, root=root)
 
 
 def test_a_guard_clause_is_not_destructive_sql(tmp_path: Path) -> None:
@@ -252,7 +268,7 @@ def test_a_raced_apply_loses_to_the_stamp_and_moves_on(
 
     monkeypatch.setattr(migrations, "applied_upgrades", stale_snapshot)
     raced = migrations.run_upgrades(conn, "sqlite", root=channel)
-    assert [u.name for u in raced] == ["0001_add_note"]  # reported, not re-applied
+    assert raced == []  # nothing ran here: the other open applied and stamped it
     assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 1
 
 

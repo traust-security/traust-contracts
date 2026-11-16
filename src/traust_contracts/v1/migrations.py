@@ -51,11 +51,13 @@ __all__ = [
 _NAME = re.compile(r"\A([0-9]{4})_([a-z][a-z0-9_]*)\Z")
 # Statement-initial transaction statements, anywhere in a file - postgres loads a
 # whole file as one statement, so a per-statement check only saw the first token.
+# A statement start is the file start or a semicolon, never a bare line start: a
+# trigger body's BEGIN on its own line is mid-statement.
 _TRANSACTION = re.compile(
-    r"(?im)(?:^|;)\s*(?:BEGIN(?:\s+IMMEDIATE)?|START\s+TRANSACTION|COMMIT|ROLLBACK)\b"
+    r"(?im)(?:\A|;)\s*(?:BEGIN(?:\s+IMMEDIATE)?|START\s+TRANSACTION|COMMIT|ROLLBACK)\b"
 )
 # Statement-initial DROP/TRUNCATE/DELETE, or a DROP COLUMN anywhere.
-_DESTRUCTIVE = re.compile(r"(?im)(?:^|;)\s*(?:DROP|TRUNCATE|DELETE)\b|\bDROP\s+COLUMN\b")
+_DESTRUCTIVE = re.compile(r"(?im)(?:\A|;)\s*(?:DROP|TRUNCATE|DELETE)\b|\bDROP\s+COLUMN\b")
 _DESTRUCTIVE_MARKER = "-- destructive:"
 
 _STAMP_TABLE: dict[str, str] = {"postgres": "traust.db_upgrade", "sqlite": "db_upgrade"}
@@ -86,8 +88,11 @@ class Upgrade:
 
 
 def _code(sql: str) -> str:
-    """Authored SQL with ``--`` comment lines removed, for keyword scans."""
-    return "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("--"))
+    """Authored SQL with ``--`` lines and ``/* … */`` blocks removed, for scans."""
+    without_blocks = re.sub(r"/\*.*?\*/", "", sql, flags=re.S)
+    return "\n".join(
+        line for line in without_blocks.splitlines() if not line.lstrip().startswith("--")
+    )
 
 
 def _destructive_reason(sql: str) -> str | None:
@@ -211,8 +216,13 @@ def run_upgrades(
             },
         )
         return planned
-    for statement in stamp_table_statements(dialect):
-        conn.execute(statement)
+    if not conn.execute(_EXISTS[dialect]).fetchall():
+        try:
+            for statement in stamp_table_statements(dialect):
+                conn.execute(statement)
+        except Exception:
+            if not conn.execute(_EXISTS[dialect]).fetchall():  # a concurrent open won the create
+                raise
     pending = pending_upgrades(dialect, applied_upgrades(conn, dialect), root=root)
     if not pending:
         log.debug(
@@ -228,6 +238,7 @@ def run_upgrades(
         [upgrade.name for upgrade in pending],
         extra={"operation": "db.upgrade", "outcome": "applying", "count": len(pending)},
     )
+    ran: list[Upgrade] = []
     for upgrade in pending:
         if upgrade.destructive:
             log.warning(
@@ -292,4 +303,5 @@ def run_upgrades(
                 "duration_ms": duration_ms,
             },
         )
-    return pending
+        ran.append(upgrade)
+    return ran
