@@ -7,7 +7,10 @@
     "usd": {
       "type": "string",
       "pattern": "^[0-9]+(\\.[0-9]+)?(E[+-][0-9]+)?$",
-      "description": "A non-negative US-dollar amount as a Python decimal string (exponent form allowed: `1E-9`)."
+      "description": "A non-negative US-dollar amount as a Python decimal string (exponent form allowed: `1E-9`). No whitespace: a pattern's $ would otherwise accept a trailing newline.",
+      "not": {
+        "pattern": "\\s"
+      }
     },
     "rollup": {
       "description": "Spend summed over one group. Its key is the group's value, null for spend without that dimension (no lane, no skill).",

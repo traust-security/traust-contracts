@@ -525,8 +525,10 @@ spent and ran over an explicit window, derived from spend events and run orders.
 into what run orders claim and what none claims, and rolls up by month (a `YYYY-MM` key), model
 (a non-empty key), lane (a non-empty key, or null for spend without one) and skill (a raw key),
 from `spend-records`; throughput counts each registered asset's finished run orders per bucket,
-every finished `run-order-state` outcome present and zero-filled, tied by test. Core needs the
-window and does not order its bounds. Every serialized field is required; lists are never null.
+every finished `run-order-state` outcome present and zero-filled (an idle asset has a point per
+bucket, all zero), tied by test; asset names are never empty. Core needs the window and does
+not order its bounds, so a series is empty only over an empty window. Decimal strings and month
+keys carry no whitespace. Every serialized field is required; lists are never null.
 Keys and asset names are raw recorded text.
 
 `views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA

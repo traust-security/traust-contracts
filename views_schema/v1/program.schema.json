@@ -118,7 +118,10 @@
           "$ref": "#/$defs/point"
         }
       },
-      "description": "Per registered asset (by name, sorted), its finished run orders in every bucket of the window, oldest first."
+      "description": "Per registered asset (by name, sorted; never empty), its finished run orders in every bucket of the window, oldest first, zero-filled: an idle asset has a point per bucket with every count 0. A series is empty only when the window is (Core does not order its bounds).",
+      "propertyNames": {
+        "minLength": 1
+      }
     }
   },
   "allOf": [
@@ -136,7 +139,10 @@
               "properties": {
                 "key": {
                   "type": "string",
-                  "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
+                  "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+                  "not": {
+                    "pattern": "\\s"
+                  }
                 }
               }
             }

@@ -52,7 +52,7 @@ def document() -> dict[str, Any]:
         "by_skill": [_rollup("vuln-scan"), _rollup("")],
         "throughput": {
             "repo_state": [_point("2026-10-01T00:00:00Z", succeeded=4, failed=1)],
-            "vuln_scan": [],
+            "vuln_scan": [_point("2026-10-01T00:00:00Z")],
         },
     }
 
@@ -167,6 +167,10 @@ def test_unknown_fields_are_rejected(
         (("throughput", "repo_state", 0, "finished", "failed"), -1),
         (("throughput", "repo_state", 0, "finished", "queued"), 0),
         (("throughput", "repo_state"), None),
+        (("throughput", ""), []),
+        (("by_month", 0, "key"), "2026-10\n"),
+        (("by_model", 0, "cost_usd"), "1\n"),
+        (("spend", "attributed_usd"), " 1"),
     ],
 )
 def test_out_of_contract_values_are_rejected(
@@ -179,6 +183,24 @@ def test_out_of_contract_values_are_rejected(
     target[path[-1]] = invalid
     with pytest.raises(ValidationError):
         validator.validate(broken)
+
+
+def test_an_idle_asset_has_zero_filled_points(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    point = document["throughput"]["vuln_scan"][0]
+    assert set(point["finished"].values()) == {0}
+    validator.validate(document)
+
+
+def test_a_series_is_empty_only_over_an_empty_window(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    """JSON Schema cannot compare the bounds, so an empty series stays valid: Core emits one only
+    when the window holds no bucket (start not before end, which it does not refuse)."""
+    empty = {"start": "2026-11-01T00:00:00Z", "end": "2026-11-01T00:00:00Z"}
+    document |= {"window": dict(empty), "throughput": {"repo_state": [], "vuln_scan": []}}
+    validator.validate(document)
 
 
 def test_skill_keys_stay_raw(validator: Draft202012Validator, document: dict[str, Any]) -> None:
