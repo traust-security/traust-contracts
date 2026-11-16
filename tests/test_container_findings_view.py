@@ -135,6 +135,7 @@ def document() -> dict[str, Any]:
                     "sla_due": None,
                     "first_reported_at": AT,
                     "last_reported_at": AT,
+                    "description": "The base image's openssl carries CVE-2026-0001.",
                     "locations": [
                         {
                             "id": "00000000-0000-4000-8000-000000000006",

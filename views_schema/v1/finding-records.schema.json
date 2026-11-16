@@ -389,6 +389,7 @@
         "sla_due",
         "first_reported_at",
         "last_reported_at",
+        "description",
         "locations",
         "cwes",
         "labels"
@@ -453,6 +454,13 @@
             "null"
           ],
           "format": "date-time"
+        },
+        "description": {
+          "description": "The accepted claim's description, as Core's view fold serves it; null when no claim was accepted.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "locations": {
           "type": "array",
