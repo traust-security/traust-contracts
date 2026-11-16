@@ -49,14 +49,12 @@ __all__ = [
 ]
 
 _NAME = re.compile(r"\A([0-9]{4})_([a-z][a-z0-9_]*)\Z")
-# Statement-initial transaction statements anywhere in a file (postgres loads
-# whole files as one statement, so a per-statement check only ever saw the
-# first). BEGIN inside a trigger body is never statement-initial, so it passes.
+# Statement-initial transaction statements, anywhere in a file - postgres loads a
+# whole file as one statement, so a per-statement check only saw the first token.
 _TRANSACTION = re.compile(
     r"(?im)(?:^|;)\s*(?:BEGIN(?:\s+IMMEDIATE)?|START\s+TRANSACTION|COMMIT|ROLLBACK)\b"
 )
-# Statement-initial DROP/TRUNCATE/DELETE, or a DROP COLUMN anywhere: the
-# destructive shapes a casually generated script must declare to run.
+# Statement-initial DROP/TRUNCATE/DELETE, or a DROP COLUMN anywhere.
 _DESTRUCTIVE = re.compile(r"(?im)(?:^|;)\s*(?:DROP|TRUNCATE|DELETE)\b|\bDROP\s+COLUMN\b")
 _DESTRUCTIVE_MARKER = "-- destructive:"
 
@@ -84,7 +82,7 @@ class Upgrade:
     name: str
     sha256: str
     statements: tuple[str, ...]
-    destructive: str | None = None  # the declared reason, when the script is destructive
+    destructive: str | None = None
 
 
 def _code(sql: str) -> str:

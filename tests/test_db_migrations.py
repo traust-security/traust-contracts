@@ -54,7 +54,7 @@ def test_a_fresh_bootstrap_applies_the_shipped_channel_whole() -> None:
     conn = _sqlite()
     applied = migrations.run_upgrades(conn, "sqlite")
     assert [u.name for u in applied] == ["0001_repository_disposition"]
-    assert migrations.run_upgrades(conn, "sqlite") == []  # idempotent
+    assert migrations.run_upgrades(conn, "sqlite") == []
     stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
     assert [name for name, _ in stamps] == ["0001_repository_disposition"]
     columns = [row[1] for row in conn.execute("PRAGMA table_info(repository)").fetchall()]
@@ -107,8 +107,7 @@ def test_a_script_carries_no_transaction_statements(tmp_path: Path) -> None:
     )
     with pytest.raises(migrations.MigrationError, match="owns those"):
         migrations.pending_upgrades("sqlite", {}, root=root)
-    # mid-file, behind a first semicolon - postgres loads whole files as one
-    # statement, so a per-statement check never saw it
+    # mid-file: postgres loads a whole file as one statement
     root = _write_channel(tmp_path / "b", "0001_mid.sql", "SELECT 1;\nCOMMIT;\nSELECT 2;\n")
     with pytest.raises(migrations.MigrationError, match="owns those"):
         migrations.pending_upgrades("postgres", {}, root=root)
@@ -154,7 +153,7 @@ def test_an_upgrade_adds_its_column_and_preserves_every_row(channel: Path) -> No
         ("0001_add_note", _sha256(channel / "sqlite" / "upgrades" / "0001_add_note.sql"))
     ]
     assert all(at for _, _, at in stamps)
-    assert migrations.run_upgrades(conn, "sqlite", root=channel) == []  # once, ever
+    assert migrations.run_upgrades(conn, "sqlite", root=channel) == []
 
 
 def test_the_channel_logs_what_debugging_needs(
@@ -163,14 +162,14 @@ def test_the_channel_logs_what_debugging_needs(
     conn = _sqlite()
     with caplog.at_level(logging.DEBUG, logger="traust_contracts.v1.migrations"):
         migrations.run_upgrades(conn, "sqlite", root=channel)
-        migrations.run_upgrades(conn, "sqlite", root=channel)  # second open: up to date
+        migrations.run_upgrades(conn, "sqlite", root=channel)
 
     text = " ".join(record.message for record in caplog.records)
     assert "db channel applying dialect=sqlite pending=1 names=['0001_add_note']" in text
     applied = [r for r in caplog.records if getattr(r, "outcome", None) == "applied"]
     assert len(applied) == 1
     assert "name=0001_add_note" in applied[0].getMessage()
-    assert "sha256=" in applied[0].getMessage()  # the stamp trail, queryable in logs
+    assert "sha256=" in applied[0].getMessage()
     assert "duration_ms=" in applied[0].getMessage()
     assert "db channel up to date dialect=sqlite" in text  # quiet at INFO on a no-op open
 
@@ -194,8 +193,8 @@ def test_a_shape_that_arrived_by_hand_fails_as_a_channel_error(channel: Path) ->
     with pytest.raises(migrations.MigrationError, match="without a stamp") as raised:
         migrations.run_upgrades(conn, "sqlite", root=channel)
 
-    assert isinstance(raised.value.__cause__, sqlite3.OperationalError)  # the driver word kept
-    assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 0  # nothing stamped
+    assert isinstance(raised.value.__cause__, sqlite3.OperationalError)
+    assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 0
 
 
 def test_destructive_sql_without_a_declared_reason_is_refused(tmp_path: Path) -> None:
@@ -235,7 +234,7 @@ def test_a_declared_destructive_upgrade_applies_and_warns(
     assert len(warned) == 1
     assert "reason=repository superseded by repository_v2" in warned[0].getMessage()
     stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
-    assert [name for name, _ in stamps] == ["0001_supersede"]  # stamped like any other
+    assert [name for name, _ in stamps] == ["0001_supersede"]
 
 
 def test_a_raced_apply_loses_to_the_stamp_and_moves_on(
