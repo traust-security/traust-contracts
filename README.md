@@ -501,6 +501,14 @@ never closes a finding. Each row is a finding view, its occurrences in the famil
 decisions, all from `finding-records`; the total is the findings rollup's tally. Every
 serialized field is required; lists are never null.
 
+`views_schema/v1/pqc.schema.json` is the contract for Core's pqc view: the latest PQC readiness
+of each commit, per named product (else one scope over every commit), rolled up by readiness
+bucket and by dominant provenance. Bucket rows are keyed by a `pqc-readiness-bucket` value or
+`unbucketed`, provenance rows by a `pqc-dominant-provenance` value, and remediation counts by
+`pqc-remediation-category`, each tied by test; a mean overall score is 0-100. It reads
+readiness as it stands, so Core refuses an `as_of`, and a team scope. Every serialized field
+is required; lists are never null.
+
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
 commit and advisory (its latest complete run, else its latest partial run, else, before
