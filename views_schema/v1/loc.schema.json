@@ -89,21 +89,70 @@
   },
   "allOf": [
     {
-      "$comment": "An estimate needs the divisor it was computed with.",
+      "$comment": "An estimate exactly when a divisor was supplied and at least one repository was measured.",
       "if": {
         "properties": {
-          "first_party_estimate": {
+          "first_party_divisor": {
             "type": "string"
+          },
+          "repositories": {
+            "contains": {
+              "properties": {
+                "unmeasured": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "unmeasured"
+              ]
+            }
           }
         },
         "required": [
-          "first_party_estimate"
+          "first_party_divisor",
+          "repositories"
         ]
       },
       "then": {
         "properties": {
-          "first_party_divisor": {
+          "first_party_estimate": {
             "type": "string"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "first_party_estimate": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Deltas need a comparison: without one, no repository carries any.",
+      "if": {
+        "properties": {
+          "comparison": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "comparison"
+        ]
+      },
+      "then": {
+        "properties": {
+          "repositories": {
+            "items": {
+              "properties": {
+                "code_delta": {
+                  "type": "null"
+                },
+                "total_delta": {
+                  "type": "null"
+                }
+              }
+            }
           }
         }
       }

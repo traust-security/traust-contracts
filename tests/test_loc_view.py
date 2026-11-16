@@ -234,6 +234,29 @@ def test_an_estimate_needs_its_divisor(
         validator.validate(document | {"first_party_divisor": None})
 
 
+def test_a_divisor_over_a_measured_scope_gives_an_estimate(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    with pytest.raises(ValidationError):
+        validator.validate(document | {"first_party_estimate": None})
+
+
+def test_nothing_measured_gives_no_estimate(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    unmeasured = document | {"repositories": [_unmeasured()], "code": 0, "total": 0}
+    validator.validate(unmeasured | {"first_party_estimate": None})
+    with pytest.raises(ValidationError):
+        validator.validate(unmeasured)
+
+
+def test_deltas_need_a_comparison(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    with pytest.raises(ValidationError):
+        validator.validate(document | {"comparison": None})
+
+
 @pytest.mark.parametrize(
     ("row", "change"),
     [

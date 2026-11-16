@@ -521,8 +521,9 @@ view), by language and by repository, largest first; `code` excludes documentati
 then it has its commit and counts, a primary language exactly when languages were measured,
 and both deltas or neither; an unmeasured one has none of them. Language counts reference the
 `code-facts` artifact's `language` definition. An optional comparison with an earlier moment
-and an optional first-party estimate (measured code over an explicitly supplied divisor, an
-estimate, never a measurement) are null when not asked for. Decimals are Python decimal
+is null when not asked for, and then no repository carries a delta. A first-party estimate
+(measured code over an explicitly supplied divisor, an estimate, never a measurement) is
+present exactly when a divisor was supplied and at least one repository was measured. Decimals are Python decimal
 strings, exponent form included. Every serialized field is required; lists are never null.
 URLs and reasons are raw untrusted data.
 
