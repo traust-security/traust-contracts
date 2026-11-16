@@ -14,6 +14,7 @@ Each namespace of the model owns its own top-level directory and loader:
 | [storage/v1](.) (this directory) | `traust` — domain | 1–3: inventory, dependencies, assessments & findings |
 | [db/v1/traust_ops](../traust_ops/) | `traust_ops` — operations | 4: runs, spend, feed snapshots |
 | [db/v1/traust_ledger](../traust_ledger/) | `traust_ledger` — ledger | 5: append-only layers and events |
+| [db/v1/migrations](../migrations/) | upgrade channel — runner-owned stamp table and the upgrade scripts | — |
 
 | Database | Driver | Shape |
 |---|---|---|
@@ -70,6 +71,47 @@ table rebuild (SQLite) with the data-model owners. Existing violating rows must
 be assessed first; do not silently change classifications or rewrite append-only
 decisions to make an upgrade pass. This bootstrap correction does not bump the
 database revision or perform a migration.
+
+## Upgrades
+
+The current schema files are the baseline: a change to an existing database's
+shape lands as a script `migrations/<dialect>/upgrades/NNNN_slug.sql`
+applied by the runner `traust_contracts.v1.migrations` on open — not as a
+bootstrap edit readers can miss, and not as hand-applied ALTERs. The baseline
+plus the channel is the current shape: fresh bootstraps run the whole channel,
+existing databases the scripts they lack (`0001_repository_disposition.sql`
+is the first).
+
+The channel's rules:
+
+- **Named and ordered.** `NNNN_slug.sql`, four-digit, gapless from `0001`,
+  dialect-paired: the same names in `postgres/` and `sqlite/`.
+- **Data-preserving; superseding and backfill allowed.** A script never loses
+  data: it may backfill what a prior script added (`INSERT … SELECT`,
+  `UPDATE … SET` of a channel-introduced column), and may supersede a shape
+  only by carrying its rows forward and asserting count parity in-transaction
+  before its stamp. A `DROP` of a superseded object lands in the same script
+  as the successor holding its data.
+- **Destructive SQL is declared, never casual.** `DROP`, `TRUNCATE`, `DELETE`
+  (and `DROP COLUMN`) require a `-- destructive: <reason>` line - the runner
+  refuses to load the script without one and warns with the reason when it
+  applies. This is the tripwire against casually generated scripts, not a
+  seal against a determined author: review is.
+- **Guards lift only inside the transaction that restores them.** A script
+  may drop an append-only or mutation-rejecting trigger to transform a table
+  and must recreate it in the same script - transactional DDL means no other
+  session ever sees the guard absent.
+- **In-transaction only.** Scripts run inside one transaction with their
+  stamp, so `CREATE INDEX CONCURRENTLY` (which postgres forbids there) is
+  out of scope; use a plain `CREATE INDEX`.
+- **Whole, once, transaction-free.** A script carries no `BEGIN`/`COMMIT` of
+  its own; the runner applies each script whole with its stamp in one
+  transaction, and a dry run plans without touching the database.
+- **Immutable once shipped.** The stamp table `db_upgrade` records each
+  applied script's sha256 — the only record of what ran. A script whose hash
+  no longer matches its stamp is refused; fix forward with a new script.
+- **Version 0 is recreated.** A database with no stamp table predates the
+  runner and is recreated, not migrated.
 
 ## Views
 

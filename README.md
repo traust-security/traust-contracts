@@ -118,12 +118,15 @@ full authored-finding requirements unchanged.
 
 ## Database bootstrap boundary
 
-`bootstrap_files()` / `bootstrap_statements()` define the static starting DDL.
-New schema changes are additive bootstrap statements only: they do not upgrade
-an already-bootstrapped database. No versioned migration runner or applied-state
-ledger exists yet. Existing `*_upgrade` helpers are deprecated legacy territory;
-do not extend that pattern. Reaching existing databases requires the separately
-designed upgrade feature, not conditional scripts or historical backfills.
+`bootstrap_files()` / `bootstrap_statements()` define the static starting DDL
+(the baseline). Reaching a database bootstrapped before a shape change is the
+upgrade channel's job: `db/v1/migrations/<dialect>/upgrades/NNNN_slug.sql`,
+applied whole and hash-stamped by the runner `traust_contracts.v1.migrations`
+on open. A shape change lands there — never as a bootstrap edit existing
+databases never see, and never as a hand-applied ALTER. The per-namespace
+`upgrades/` folders and `*_upgrade()` helpers are deleted; do not recreate
+them. The channel's contract — naming, ordering, additivity, immutability —
+is [db/v1/traust/README.md](db/v1/traust/README.md), Upgrades.
 
 ## Stored census observations
 
@@ -151,12 +154,6 @@ are rejected before decoding can discard an identical or conflicting declaration
 An empty object is a complete read only for the matching scan. Missing coverage is
 unknown, not complete; mismatched bindings are rejected.
 
-Existing databases need the explicit additive
-`storage.sql.manifest_sbom_binding_upgrade(dialect)` before using this contract.
-Inspect the reference table first and apply it only when the new column is absent.
-The authored SQL preserves existing rows and leaves their scan pointers null;
-no timestamps, historical assessments or deduplicated SBOM artifacts are used to
-invent bindings. Core exposes the upgrade through its contracts facade.
 
 ## Scheduled fork facts
 
@@ -164,8 +161,7 @@ invent bindings. Core exposes the upgrade through its contracts facade.
 fork facts, after its fork-policy and branch checks: the order's own proof that
 they were checked, so a later policy change never unvouches them. A stamp
 vouches only with both `fork_url` and `fork_branch` set. Older orders carry no
-stamp and are checked against the current policy. Existing databases apply
-`ops.sql.run_order_fork_scheduled_upgrade(dialect)` when the column is absent.
+stamp and are checked against the current policy.
 
 ## Artifact recording order
 
@@ -173,8 +169,7 @@ stamp and are checked against the current policy. Existing databases apply
 can tell its own report from an earlier one on the same assessment; null means it
 was recorded outside an order or imported. An insert guard requires the order to
 own the artifact's assessment: the work item it runs, or an assessment it
-produced. Existing databases apply `storage.sql.artifact_run_order_upgrade(dialect)`
-when the column is absent; existing artifacts name no order.
+produced. Existing artifacts name no order.
 
 ## Spend declaration attribution
 
@@ -211,9 +206,8 @@ does not invent historical absence or require fabricated human presence evidence
 `repository_ref.default_named_at` records when the row was last named the default
 head (an import or an observation). A line is immutable once recorded, so the
 row's creation time cannot order competing namings: a re-import of a previously
-recorded head must still win over an earlier observation. Existing databases
-apply `storage.sql.default_named_at_upgrade(dialect)` when the column is absent;
-already-flagged rows keep an unknown naming time until the line is named again.
+recorded head must still win over an earlier observation. A line already flagged
+before it was named keeps an unknown naming time until the line is named again.
 
 ## Algorithm-free finding identity
 
