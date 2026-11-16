@@ -5,6 +5,7 @@
   "description": "Machine-readable denial vocabulary for the platform API: why a policy gate (preflight, submit) refused an action, so consumers fail fast and route on the reason without parsing prose. Carried by the typed errors in-process and by the problem+json envelope's code and issues[].code over HTTP.",
   "values": [
     "subject_unknown",
+    "subject_unreachable",
     "role_denied",
     "ordering_violated",
     "budget_exhausted",
@@ -14,6 +15,7 @@
   ],
   "definitions": {
     "subject_unknown": "The subject does not exist or is not onboarded.",
+    "subject_unreachable": "The subject repository is dispositioned repo_unreachable: no work is planned for it until a person re-verifies it.",
     "role_denied": "The caller's role may not run this stage.",
     "ordering_violated": "A prior stage's record does not exist for this subject.",
     "budget_exhausted": "The spend budget for this subject and stage is exhausted.",

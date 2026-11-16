@@ -6,12 +6,30 @@
 -- public, upstream_id and archived are kept current by forge observation;
 -- archived null = not observed yet. Per-observation measurements are an
 -- assessment of kind repo-state (artifact: repo-state.schema.json).
+--
+-- The unreachable disposition (foundry plan repo-unreachable): disposition
+-- NULL = active, the only value so far is 'repo_unreachable' - the repository
+-- left the planner's universe after two consecutive gone-class observation
+-- failures and returns only through a person's verify. reason names the class
+-- (gone: the forge's 404/410; empty: answered but no commits; unreachable:
+-- the transport's positive word the endpoint is not there), evidence carries
+-- the last error, and gone_streak counts the consecutive gone-class failures
+-- (reset to 0 by any successful observation; the transient classes never
+-- count).
 CREATE TABLE IF NOT EXISTS repository (
     id TEXT NOT NULL DEFAULT (uuid()),
     upstream_id TEXT REFERENCES repository(id) ON DELETE RESTRICT,
     url TEXT NOT NULL CHECK (url <> ''),
     public BOOLEAN NOT NULL CHECK (public IN (0, 1)),
     archived BOOLEAN CHECK (archived IN (0, 1)),
+    disposition TEXT CHECK (disposition IS NULL OR disposition = 'repo_unreachable'),
+    disposition_reason TEXT CHECK (
+        disposition_reason IS NULL
+        OR disposition_reason IN ('gone', 'empty', 'unreachable')
+    ),
+    disposition_evidence TEXT,
+    disposition_at TEXT,
+    gone_streak INTEGER NOT NULL DEFAULT 0 CHECK (gone_streak >= 0),
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
     PRIMARY KEY (id),
