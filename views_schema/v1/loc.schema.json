@@ -1,0 +1,436 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/loc.schema.json",
+  "title": "Lines of code view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's loc view: the lines of code the scope's repositories hold at their observed default-branch commit as of `as_of`, by language and by repository, largest first, with an optional comparison to an earlier moment and an optional first-party estimate from an explicitly supplied divisor. `code` excludes documentation languages; `total` includes them. Per-repository language counts are the code-facts artifact's language counts, referenced by $id. Decimals are Python decimal strings (exponent form allowed: `1E+2`). Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null.",
+  "type": "object",
+  "required": [
+    "code",
+    "as_of",
+    "comparison",
+    "first_party_divisor",
+    "first_party_estimate",
+    "total",
+    "reported",
+    "dispositioned",
+    "languages",
+    "repositories"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "$ref": "#/$defs/count",
+      "description": "Measured code lines, documentation languages excluded."
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The moment measured: the filter's, else the clock's."
+    },
+    "comparison": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/comparison"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The baseline at the earlier moment asked for; null when none was."
+    },
+    "first_party_divisor": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/positive_decimal"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The explicitly supplied divisor; null when none was."
+    },
+    "first_party_estimate": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/decimal"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Measured code over the divisor: an estimate, not a measurement; null without a divisor or with nothing measured."
+    },
+    "total": {
+      "$ref": "#/$defs/count",
+      "description": "Measured lines, documentation languages included."
+    },
+    "reported": {
+      "$ref": "#/$defs/count",
+      "description": "Repositories with findings reported, for the population block."
+    },
+    "dispositioned": {
+      "$ref": "#/$defs/count",
+      "description": "Of those, the ones with a decision recorded."
+    },
+    "languages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/language_total"
+      },
+      "description": "One row per language measured in the scope, most code lines first, then name."
+    },
+    "repositories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/repository"
+      },
+      "description": "One row per repository in scope: measured ones most code lines first, then unmeasured ones, then URL."
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "An estimate exactly when a divisor was supplied and at least one repository was measured.",
+      "if": {
+        "properties": {
+          "first_party_divisor": {
+            "type": "string"
+          },
+          "repositories": {
+            "contains": {
+              "properties": {
+                "unmeasured": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "unmeasured"
+              ]
+            }
+          }
+        },
+        "required": [
+          "first_party_divisor",
+          "repositories"
+        ]
+      },
+      "then": {
+        "properties": {
+          "first_party_estimate": {
+            "type": "string"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "first_party_estimate": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Deltas need a comparison: without one, no repository carries any.",
+      "if": {
+        "properties": {
+          "comparison": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "comparison"
+        ]
+      },
+      "then": {
+        "properties": {
+          "repositories": {
+            "items": {
+              "properties": {
+                "code_delta": {
+                  "type": "null"
+                },
+                "total_delta": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "decimal": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?(E[+-][0-9]+)?$",
+      "description": "A non-negative Python decimal string."
+    },
+    "positive_decimal": {
+      "$ref": "#/$defs/decimal",
+      "not": {
+        "pattern": "^[0.]+(E[+-][0-9]+)?$"
+      },
+      "description": "A decimal string greater than zero."
+    },
+    "comparison": {
+      "description": "The scope measured at the earlier moment, and the change across repositories measured at both.",
+      "type": "object",
+      "required": [
+        "as_of",
+        "code",
+        "total",
+        "measured_repositories",
+        "comparable_repositories",
+        "code_delta",
+        "total_delta"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "as_of": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The earlier moment; it precedes the view's as_of."
+        },
+        "code": {
+          "$ref": "#/$defs/count"
+        },
+        "total": {
+          "$ref": "#/$defs/count"
+        },
+        "measured_repositories": {
+          "$ref": "#/$defs/count"
+        },
+        "comparable_repositories": {
+          "$ref": "#/$defs/count",
+          "description": "Repositories measured at both moments: the only ones the deltas cover."
+        },
+        "code_delta": {
+          "type": "integer"
+        },
+        "total_delta": {
+          "type": "integer"
+        }
+      }
+    },
+    "language_total": {
+      "type": "object",
+      "required": [
+        "name",
+        "code",
+        "repositories",
+        "documentation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "$ref": "#/$defs/count"
+        },
+        "repositories": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Measured repositories holding the language."
+        },
+        "documentation": {
+          "type": "boolean",
+          "description": "A documentation language: counted in total, not in code."
+        }
+      }
+    },
+    "repository": {
+      "description": "A repository's measured lines at its default-branch commit; `unmeasured` says why not.",
+      "type": "object",
+      "required": [
+        "repository_id",
+        "repository_url",
+        "repository_ref_id",
+        "code_delta",
+        "total_delta",
+        "code",
+        "total",
+        "primary",
+        "languages",
+        "unmeasured"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repository_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "repository_url": {
+          "type": "string",
+          "description": "The raw recorded URL."
+        },
+        "repository_ref_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "description": "The default-branch commit measured; null when no head was observed."
+        },
+        "code_delta": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Code-line change since the comparison; null when not measured at both moments."
+        },
+        "total_delta": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "code": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "total": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "primary": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "The language with the most lines; null when none was measured."
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/code-facts.schema.json#/$defs/language"
+          },
+          "description": "Measured languages, most lines first, then name."
+        },
+        "unmeasured": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "Why the repository was not measured; null when it was."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "Measured exactly when no reason is given: a measured repository has its commit and counts; an unmeasured one has no counts, deltas, primary or languages.",
+          "if": {
+            "properties": {
+              "unmeasured": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "unmeasured"
+            ]
+          },
+          "then": {
+            "properties": {
+              "repository_ref_id": {
+                "type": "string"
+              },
+              "code": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "code": {
+                "type": "null"
+              },
+              "total": {
+                "type": "null"
+              },
+              "code_delta": {
+                "type": "null"
+              },
+              "total_delta": {
+                "type": "null"
+              },
+              "primary": {
+                "type": "null"
+              },
+              "languages": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "$comment": "A primary language exactly when languages were measured.",
+          "if": {
+            "properties": {
+              "languages": {
+                "maxItems": 0
+              }
+            },
+            "required": [
+              "languages"
+            ]
+          },
+          "then": {
+            "properties": {
+              "primary": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "primary": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "$comment": "Both deltas or neither.",
+          "if": {
+            "properties": {
+              "code_delta": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "code_delta"
+            ]
+          },
+          "then": {
+            "properties": {
+              "total_delta": {
+                "type": "integer"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "total_delta": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

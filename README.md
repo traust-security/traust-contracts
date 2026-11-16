@@ -503,6 +503,17 @@ bucket and by dominant provenance. Bucket rows are keyed by a `pqc-readiness-buc
 readiness as it stands, so Core refuses an `as_of`, and a team scope. Every serialized field
 is required; lists are never null.
 
+`views_schema/v1/pqc-vendors.schema.json` is the contract for Core's pqc-vendors view: the
+latest recorded `pqc-vendor-claims`, worst status first, each claim with the count of
+repositories whose latest default-branch manifest SBOM holds its packages (null exactly when the
+claim names no package), the fleet's repository and unmeasured counts, and the sorted URLs of
+repositories whose newest readiness is blocked-external. Claims are Core's projection of the
+artifact with every optional field present (null when absent); each field references the
+artifact's own definition, so the vocabularies cannot drift. It reads the latest claims and
+manifests, so Core refuses an `as_of`, and a product or team scope. Every serialized field is
+required; lists are never null, and `vendors` never empty (the artifact holds at least one
+claim). Names, claims and URLs are raw untrusted data.
+
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
 commit and advisory (its latest complete run, else its latest partial run, else, before
@@ -530,6 +541,19 @@ bucket, all zero), tied by test; asset names are never empty. Core needs the win
 not order its bounds, so a series is empty only over an empty window. Decimal strings and month
 keys carry no whitespace. Every serialized field is required; lists are never null.
 Keys and asset names are raw recorded text.
+
+`views_schema/v1/loc.schema.json` is the contract for Core's loc view: the lines of code the
+scope's repositories hold at their observed default-branch commit as of `as_of` (carried in the
+view), by language and by repository, largest first; `code` excludes documentation languages,
+`total` includes them. A repository is measured exactly when it gives no `unmeasured` reason:
+then it has its commit and counts, a primary language exactly when languages were measured,
+and both deltas or neither; an unmeasured one has none of them. Language counts reference the
+`code-facts` artifact's `language` definition. An optional comparison with an earlier moment
+is null when not asked for, and then no repository carries a delta. A first-party estimate
+(measured code over an explicitly supplied divisor, an estimate, never a measurement) is
+present exactly when a divisor was supplied and at least one repository was measured. Decimals are Python decimal
+strings, exponent form included. Every serialized field is required; lists are never null.
+URLs and reasons are raw untrusted data.
 
 `views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA
 clocks over the scope's findings (false positives and hardening excluded) as of `as_of`, one
