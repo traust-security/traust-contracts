@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/container-findings.schema.json",
+  "title": "Container findings view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's container-findings view: one image repository's container report family's cumulative findings as of as_of, asked for by a container assessment and its report stem. A finding stays listed while any report in the family carried it: absence never closes a finding. The finding records are the shared finding-records definitions, referenced. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "as_of",
+    "repository_id",
+    "repository_url",
+    "report_stem",
+    "image_repository",
+    "reports",
+    "findings",
+    "total"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "The filter's point in time; null reads the current recorded state."
+    },
+    "repository_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "repository_url": {
+      "type": "string",
+      "description": "Raw registered URL."
+    },
+    "report_stem": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*-container-audit$",
+      "not": {
+        "type": "string",
+        "pattern": "\\s"
+      },
+      "description": "The family's report stem, <image>-container-audit."
+    },
+    "image_repository": {
+      "type": "string",
+      "description": "The image repository the family's reports share, raw."
+    },
+    "reports": {
+      "description": "The family's container reports up to as_of, oldest first.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/report"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    },
+    "total": {
+      "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/tally",
+      "description": "The listed findings tallied, as the findings rollup tallies."
+    }
+  },
+  "$defs": {
+    "report": {
+      "type": "object",
+      "required": [
+        "assessment_id",
+        "repository_ref_id",
+        "occurred_at",
+        "image",
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "repository_ref_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "image": {
+          "type": "string",
+          "description": "The report's image, raw."
+        },
+        "title": {
+          "type": "string",
+          "description": "Raw untrusted report title."
+        }
+      }
+    },
+    "finding": {
+      "description": "A finding the family reported: as Core serves it at its latest occurrence, every occurrence in the family, and its decisions up to as_of.",
+      "type": "object",
+      "required": [
+        "view",
+        "occurrences",
+        "history"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "view": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/finding-records.schema.json#/$defs/finding_view"
+        },
+        "occurrences": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/finding-records.schema.json#/$defs/occurrence"
+          }
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/finding-records.schema.json#/$defs/decision"
+          }
+        }
+      }
+    }
+  }
+}
