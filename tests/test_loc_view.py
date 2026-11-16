@@ -199,6 +199,8 @@ def test_unknown_fields_are_rejected(
         (("as_of",), None),
         (("as_of",), "yesterday"),
         (("first_party_estimate",), "-3"),
+        (("first_party_estimate",), "12\n"),
+        (("first_party_divisor",), " 3"),
         (("comparison", "as_of"), "2026-10-15"),
         (("comparison", "measured_repositories"), -1),
         (("comparison", "code_delta"), None),
