@@ -503,6 +503,17 @@ bucket and by dominant provenance. Bucket rows are keyed by a `pqc-readiness-buc
 readiness as it stands, so Core refuses an `as_of`, and a team scope. Every serialized field
 is required; lists are never null.
 
+`views_schema/v1/pqc-vendors.schema.json` is the contract for Core's pqc-vendors view: the
+latest recorded `pqc-vendor-claims`, worst status first, each claim with the count of
+repositories whose latest default-branch manifest SBOM holds its packages (null exactly when the
+claim names no package), the fleet's repository and unmeasured counts, and the sorted URLs of
+repositories whose newest readiness is blocked-external. Claims are Core's projection of the
+artifact with every optional field present (null when absent); each field references the
+artifact's own definition, so the vocabularies cannot drift. It reads the latest claims and
+manifests, so Core refuses an `as_of`, and a product or team scope. Every serialized field is
+required; lists are never null, and `vendors` never empty (the artifact holds at least one
+claim). Names, claims and URLs are raw untrusted data.
+
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
 commit and advisory (its latest complete run, else its latest partial run, else, before
