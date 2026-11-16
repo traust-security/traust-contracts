@@ -64,12 +64,21 @@ def test_example_view_is_valid(validator: Draft202012Validator, document: dict[s
     validator.validate(document)
 
 
-def test_an_empty_roadmap_is_valid(
+def test_an_empty_fleet_is_valid(validator: Draft202012Validator, document: dict[str, Any]) -> None:
+    rows = [
+        {**row, "repositories": None if row["repositories"] is None else 0}
+        for row in document["vendors"]
+    ]
+    validator.validate(
+        document | {"vendors": rows, "repositories": 0, "unmeasured": 0, "blocked_external": []}
+    )
+
+
+def test_a_roadmap_holds_every_recorded_claim_so_it_is_never_empty(
     validator: Draft202012Validator, document: dict[str, Any]
 ) -> None:
-    validator.validate(
-        document | {"vendors": [], "repositories": 0, "unmeasured": 0, "blocked_external": []}
-    )
+    with pytest.raises(ValidationError):
+        validator.validate(document | {"vendors": []})
 
 
 def test_optional_claim_fields_may_be_present(

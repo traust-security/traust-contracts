@@ -511,7 +511,8 @@ repositories whose newest readiness is blocked-external. Claims are Core's proje
 artifact with every optional field present (null when absent); each field references the
 artifact's own definition, so the vocabularies cannot drift. It reads the latest claims and
 manifests, so Core refuses an `as_of`, and a product or team scope. Every serialized field is
-required; lists are never null. Names, claims and URLs are raw untrusted data.
+required; lists are never null, and `vendors` never empty (the artifact holds at least one
+claim). Names, claims and URLs are raw untrusted data.
 
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each

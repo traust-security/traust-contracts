@@ -27,8 +27,9 @@
       "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/properties/updated"
     },
     "vendors": {
-      "description": "One row per vendor claim, worst status first (none, in_progress, partial, available), then most repositories, then id.",
+      "description": "One row per vendor claim, worst status first (none, in_progress, partial, available), then most repositories, then id. Never empty: one row per claim of the recorded artifact, which holds at least one.",
       "type": "array",
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/row"
       }
