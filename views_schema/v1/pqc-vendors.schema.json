@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/pqc-vendors.schema.json",
+  "title": "PQC vendor roadmap view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's pqc-vendors view: the latest recorded pqc-vendor-claims, worst status first, each claim with the count of repositories whose latest default-branch manifest SBOM holds its packages, and the repositories whose newest readiness is blocked-external. Claims are Core's projection of the pqc-vendor-claims artifact (every optional field present, null when absent); each field references that artifact's own definition. It reads the latest claims and manifests, so Core refuses an as_of, and a product or team scope. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null.",
+  "type": "object",
+  "required": [
+    "claims_artifact_id",
+    "version",
+    "updated",
+    "vendors",
+    "repositories",
+    "unmeasured",
+    "blocked_external"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "claims_artifact_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The recorded pqc-vendor-claims artifact the claims are from."
+    },
+    "version": {
+      "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/properties/version"
+    },
+    "updated": {
+      "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/properties/updated"
+    },
+    "vendors": {
+      "description": "One row per vendor claim, worst status first (none, in_progress, partial, available), then most repositories, then id.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    },
+    "repositories": {
+      "$ref": "#/$defs/count",
+      "description": "Repositories in scope (the fleet)."
+    },
+    "unmeasured": {
+      "$ref": "#/$defs/count",
+      "description": "Of those, the ones with no manifest SBOM at their default-branch commit: not measured, not zero."
+    },
+    "blocked_external": {
+      "description": "The raw URLs of repositories whose newest-assessed commit reads blocked-external, sorted (one entry per repository; Core does not constrain URLs unique).",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "row": {
+      "description": "A vendor's latest claim and the repositories whose manifests hold its packages.",
+      "type": "object",
+      "required": [
+        "claim",
+        "repositories"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claim": {
+          "$ref": "#/$defs/claim"
+        },
+        "repositories": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Repositories holding any of its packages; null when the claim names no package (reached through a provider, toolchain or service)."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "A count exactly when the claim names packages.",
+          "if": {
+            "properties": {
+              "claim": {
+                "properties": {
+                  "packages": {
+                    "maxItems": 0
+                  }
+                },
+                "required": [
+                  "packages"
+                ]
+              }
+            },
+            "required": [
+              "claim"
+            ]
+          },
+          "then": {
+            "properties": {
+              "repositories": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "repositories": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "claim": {
+      "description": "One vendor's dated, sourced PQC claim, as reviewed.",
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "class",
+        "packages",
+        "status",
+        "claim",
+        "watch",
+        "sources",
+        "last_reviewed",
+        "reviewer"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/vendor/properties/id"
+        },
+        "name": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/vendor/properties/name"
+        },
+        "class": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/vendor_class"
+        },
+        "packages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/package"
+          },
+          "description": "Dependencies carrying the vendor's crypto into the fleet; empty when reached only through a provider, toolchain or service."
+        },
+        "status": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/status"
+        },
+        "claim": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/vendor/properties/claim"
+        },
+        "watch": {
+          "oneOf": [
+            {
+              "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/vendor/properties/watch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The signal that would move the status; null when none."
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        },
+        "last_reviewed": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/vendor/properties/last_reviewed"
+        },
+        "reviewer": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/vendor/properties/reviewer"
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "required": [
+        "name",
+        "ecosystem"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/package/properties/name"
+        },
+        "ecosystem": {
+          "oneOf": [
+            {
+              "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/package/properties/ecosystem"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The package's ecosystem; null matches it in any ecosystem."
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "url",
+        "title",
+        "retrieved"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/source/properties/url"
+        },
+        "title": {
+          "oneOf": [
+            {
+              "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/source/properties/title"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Null when the source names none."
+        },
+        "retrieved": {
+          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/pqc-vendor-claims.schema.json#/$defs/source/properties/retrieved"
+        }
+      }
+    }
+  }
+}
