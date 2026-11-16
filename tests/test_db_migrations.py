@@ -107,6 +107,21 @@ def test_a_script_carries_no_transaction_statements(tmp_path: Path) -> None:
     )
     with pytest.raises(migrations.MigrationError, match="owns those"):
         migrations.pending_upgrades("sqlite", {}, root=root)
+    # mid-file, behind a first semicolon - postgres loads whole files as one
+    # statement, so a per-statement check never saw it
+    root = _write_channel(tmp_path / "b", "0001_mid.sql", "SELECT 1;\nCOMMIT;\nSELECT 2;\n")
+    with pytest.raises(migrations.MigrationError, match="owns those"):
+        migrations.pending_upgrades("postgres", {}, root=root)
+    # a trigger's BEGIN is not a transaction statement
+    root = _write_channel(
+        tmp_path / "c",
+        "0001_trigger.sql",
+        "CREATE TRIGGER t AFTER UPDATE ON {table} FOR EACH ROW BEGIN\n"
+        "  UPDATE {table} SET note = 'x';\nEND;\n",
+    )
+    assert [u.name for u in migrations.pending_upgrades("sqlite", {}, root=root)] == [
+        "0001_trigger"
+    ]
 
 
 def test_pending_refuses_drift_in_both_directions(channel: Path) -> None:

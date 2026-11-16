@@ -49,7 +49,12 @@ __all__ = [
 ]
 
 _NAME = re.compile(r"\A([0-9]{4})_([a-z][a-z0-9_]*)\Z")
-_TRANSACTION = {"BEGIN", "BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"}
+# Statement-initial transaction statements anywhere in a file (postgres loads
+# whole files as one statement, so a per-statement check only ever saw the
+# first). BEGIN inside a trigger body is never statement-initial, so it passes.
+_TRANSACTION = re.compile(
+    r"(?im)(?:^|;)\s*(?:BEGIN(?:\s+IMMEDIATE)?|START\s+TRANSACTION|COMMIT|ROLLBACK)\b"
+)
 # Statement-initial DROP/TRUNCATE/DELETE, or a DROP COLUMN anywhere: the
 # destructive shapes a casually generated script must declare to run.
 _DESTRUCTIVE = re.compile(r"(?im)(?:^|;)\s*(?:DROP|TRUNCATE|DELETE)\b|\bDROP\s+COLUMN\b")
@@ -157,14 +162,14 @@ def pending_upgrades(
                 "fix forward with a new script"
             )
         statements = tuple(bootstrap_statements(dialect, path))
-        for statement in statements:
-            if statement.split(";", 1)[0].strip().upper() in _TRANSACTION:
-                raise MigrationError(
-                    f"{path.name} carries its own transaction statement; the runner owns those"
-                )
         sql = path.read_text(encoding="utf-8")
+        code = _code(sql)
+        if _TRANSACTION.search(code):
+            raise MigrationError(
+                f"{path.name} carries its own transaction statement; the runner owns those"
+            )
         reason = _destructive_reason(sql)
-        if _DESTRUCTIVE.search(_code(sql)) and reason is None:
+        if _DESTRUCTIVE.search(code) and reason is None:
             raise MigrationError(
                 f"{path.name} carries destructive SQL (DROP, TRUNCATE, DELETE) without a "
                 "declared reason: add a '-- destructive: <reason>' line - destructive "
