@@ -153,6 +153,17 @@ def test_a_dry_run_plans_without_touching_the_database(channel: Path) -> None:
         conn.execute("SELECT note FROM repository")  # and no DDL ran
 
 
+def test_a_shape_that_arrived_by_hand_fails_as_a_channel_error(channel: Path) -> None:
+    conn = _sqlite()
+    conn.execute("ALTER TABLE repository ADD COLUMN note TEXT")  # applied by hand, no stamp
+
+    with pytest.raises(migrations.MigrationError, match="without a stamp") as raised:
+        migrations.run_upgrades(conn, "sqlite", root=channel)
+
+    assert isinstance(raised.value.__cause__, sqlite3.OperationalError)  # the driver word kept
+    assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 0  # nothing stamped
+
+
 def test_a_raced_apply_loses_to_the_stamp_and_moves_on(
     channel: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

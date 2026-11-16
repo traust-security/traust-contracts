@@ -174,10 +174,14 @@ def run_upgrades(
                 f"VALUES ('{upgrade.name}', '{upgrade.sha256}')"
             )
             conn.execute("COMMIT")
-        except Exception:
+        except Exception as error:
             with contextlib.suppress(Exception):
                 conn.execute("ROLLBACK")
             if applied_upgrades(conn, dialect).get(upgrade.name) == upgrade.sha256:
                 continue  # a concurrent open applied it first
-            raise
+            raise MigrationError(
+                f"upgrade {upgrade.name} failed to apply and no concurrent open stamped it: "
+                "the script is wrong, or the shape is already there without a stamp - "
+                "applied by hand - so recreate the database or fix forward with a new script"
+            ) from error
     return pending
