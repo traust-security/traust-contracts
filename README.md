@@ -514,6 +514,18 @@ verdict; only product rows have a null key (commits no product ships). Core refu
 or team scope. Every serialized field is required. Core owns the verdict ranking and
 rendering; keys are raw data.
 
+`views_schema/v1/loc.schema.json` is the contract for Core's loc view: the lines of code the
+scope's repositories hold at their observed default-branch commit as of `as_of` (carried in the
+view), by language and by repository, largest first; `code` excludes documentation languages,
+`total` includes them. A repository is measured exactly when it gives no `unmeasured` reason:
+then it has its commit and counts, a primary language exactly when languages were measured,
+and both deltas or neither; an unmeasured one has none of them. Language counts reference the
+`code-facts` artifact's `language` definition. An optional comparison with an earlier moment
+and an optional first-party estimate (measured code over an explicitly supplied divisor, an
+estimate, never a measurement) are null when not asked for. Decimals are Python decimal
+strings, exponent form included. Every serialized field is required; lists are never null.
+URLs and reasons are raw untrusted data.
+
 `views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA
 clocks over the scope's findings (false positives and hardening excluded) as of `as_of`, one
 block per profile of the deployment's SLA policy, default first. Every serialized field is
