@@ -89,6 +89,16 @@ CREATE INDEX IF NOT EXISTS idx_ops_run_order_asset_state
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_updated
     ON ops_run_order (updated_at, id);
 
+-- Global order-history pages, including the nulls-last started-time segment.
+CREATE INDEX IF NOT EXISTS idx_ops_run_order_created
+    ON ops_run_order (created_at, id);
+CREATE INDEX IF NOT EXISTS idx_ops_run_order_started
+    ON ops_run_order (started_at, id)
+    WHERE started_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_ops_run_order_unstarted
+    ON ops_run_order (id)
+    WHERE started_at IS NULL;
+
 -- The database owns updated_at; the guard keeps it stable under recursive
 -- triggers and respects a manually set value.
 CREATE TRIGGER IF NOT EXISTS ops_run_order_touch
