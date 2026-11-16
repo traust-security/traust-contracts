@@ -1,5 +1,7 @@
 """AI Security Contracts — typed Python models derived from JSON schemas."""
 
+import logging
+
 from traust_contracts.config import (
     MANIFEST,
     ConfigFile,
@@ -87,3 +89,8 @@ __all__ = [
     "load_section",
     "optional_config_path",
 ]
+
+
+# A library: the embedding application owns handlers and levels
+# (traust-core configures this logger root as first-party).
+logging.getLogger(__name__).addHandler(logging.NullHandler())

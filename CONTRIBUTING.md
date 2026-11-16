@@ -39,9 +39,11 @@ traust-core's tests. `make schema-diff` lists schema changes (removed
 properties or enum values, newly required fields) that traust-core may need
 to absorb in the same push.
 
-SQL changes require compatibility review, not byte-level equality. Database-shape
-changes need a storage revision bump and explicit migration instructions; `init()`
-rejects mismatches and never upgrades an existing database automatically.
+SQL changes require compatibility review, not byte-level equality. A change to an
+existing database's shape lands in the upgrade channel (`db/v1/migrations`,
+runner `traust_contracts.v1.migrations`) as an additive, hash-stamped script —
+not as a bootstrap edit, a legacy `upgrades/` folder, or a hand-applied ALTER.
+Databases bootstrapped before the channel are version 0: recreate, don't migrate.
 
 ## CI pipeline
 

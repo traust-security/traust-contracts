@@ -69,6 +69,11 @@ def db_dir(version: str = "v1") -> Path:
     return package_root() / "db" / version
 
 
+def migrations_dir(version: str = "v1") -> Path:
+    """Directory of the upgrade channel's runner-owned SQL (stamp table, upgrades)."""
+    return db_dir(version) / "migrations"
+
+
 def storage_dir(version: str = "v1") -> Path:
     """Directory containing the authored storage (traust namespace) SQL."""
     return db_dir(version) / "traust"
