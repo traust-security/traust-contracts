@@ -485,6 +485,22 @@ fuzz-report and report artifacts' own definitions rather than copy them: Core pa
 report against its schema. Verdicts use the `validation-verdict` registry, tied by test.
 Every serialized field is required; lists are never null.
 
+`views_schema/v1/finding-records.schema.json` is not a view: it defines, once, Core's finding
+records as its views serialize them (the finding, an occurrence, a location, a label, the
+folded disposition, the finding view and a decision), for every view that embeds them. A
+location is a recorded one (all eight fields) or a finding claim's (path, lines, symbol), never
+part of a recorded one; a stored record's id and timestamps are never null. A CVSS score is
+Core's canonical 0-10 decimal string (the findings rollup's definition). Enums Core types are
+tied to their registries by test; what Core keeps raw (a decision's validity, resolution,
+reason and channel, which may hold historical values) stays raw.
+
+`views_schema/v1/container-findings.schema.json` is the contract for Core's container-findings
+view: one image repository's container report family's cumulative findings as of `as_of`,
+asked for by a container assessment and its `<image>-container-audit` report stem; absence
+never closes a finding. Each row is a finding view, its occurrences in the family and its
+decisions, all from `finding-records`; the total is the findings rollup's tally. Every
+serialized field is required; lists are never null.
+
 `views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
 dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
 commit and advisory (its latest complete run, else its latest partial run, else, before

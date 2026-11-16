@@ -1,0 +1,630 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/finding-records.schema.json",
+  "title": "Finding records",
+  "description": "Shared definitions, not a view: Core's finding records as its views (and REST reads) serialize them, defined once for every view that embeds them. Each record serializes every field, nullable ones included; a stored record's id and timestamps are never null. Fields Core types as an enum are tied to their registries by test; fields Core keeps as a raw string (a decision's validity, resolution, reason and channel, which may hold historical values) stay raw.",
+  "$defs": {
+    "finding": {
+      "description": "A finding: one weakness or vulnerability in one repository, by fingerprint.",
+      "type": "object",
+      "required": [
+        "id",
+        "created_at",
+        "updated_at",
+        "repository_id",
+        "advisory_id",
+        "advisory_match",
+        "fingerprint_algo",
+        "fingerprint",
+        "kind",
+        "title"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "repository_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "advisory_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "advisory_match": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "How the finding matched its advisory, raw; null when none."
+        },
+        "fingerprint_algo": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string"
+        },
+        "kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The finding kind as recorded (vulnerability, weakness, or a historical value), raw; null when unset."
+        },
+        "title": {
+          "type": "string",
+          "description": "Raw untrusted finding title."
+        }
+      }
+    },
+    "occurrence": {
+      "description": "A finding as one assessment reported it.",
+      "type": "object",
+      "required": [
+        "id",
+        "created_at",
+        "finding_id",
+        "assessment_id",
+        "severity",
+        "cvss_vector",
+        "cvss_score",
+        "rule"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "finding_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "assessment_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational",
+            "unrated"
+          ],
+          "description": "The scanner-severity registry's reported severity."
+        },
+        "cvss_vector": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Raw; null when unscored."
+        },
+        "cvss_score": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/top_finding/properties/cvss_score",
+          "description": "The CVSS base score, 0 to 10, as Core's canonical exact decimal string (shortest fixed-point form, the same from every backend); null when unscored."
+        },
+        "rule": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The scanner rule, raw; null when none."
+        }
+      }
+    },
+    "location": {
+      "description": "Where a finding was located: a recorded location (all eight fields) or a finding claim's location (path, lines and symbol only).",
+      "type": "object",
+      "required": [
+        "path",
+        "line_start",
+        "line_end",
+        "symbol"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "occurrence_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "path": {
+          "type": "string"
+        },
+        "line_start": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "line_end": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Raw; null when unknown."
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Raw; null when none."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "A recorded location carries all eight fields; a claim's only the four required ones.",
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "id"
+                ]
+              },
+              {
+                "required": [
+                  "created_at"
+                ]
+              },
+              {
+                "required": [
+                  "occurrence_id"
+                ]
+              },
+              {
+                "required": [
+                  "language"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "id",
+              "created_at",
+              "occurrence_id",
+              "language"
+            ]
+          }
+        }
+      ]
+    },
+    "label": {
+      "type": "object",
+      "required": [
+        "id",
+        "created_at",
+        "updated_at",
+        "finding_id",
+        "taxonomy",
+        "label"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "finding_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "taxonomy": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      }
+    },
+    "disposition": {
+      "description": "A finding's folded disposition: its decisions resolved to one answer.",
+      "type": "object",
+      "required": [
+        "finding_id",
+        "line",
+        "validity",
+        "resolution",
+        "assurance",
+        "conflict",
+        "fp_overridden",
+        "fp_reassertion_blocked",
+        "awaiting_signoff",
+        "severity",
+        "last_decision_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "line": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The line the merged judgement was taken for, raw; null when unset."
+        },
+        "validity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "confirmed",
+            "corrected",
+            "false_positive",
+            "not_verified",
+            "hardening",
+            "not_affected",
+            "true_positive",
+            null
+          ],
+          "description": "The validity registry's folded validity; null when undecided."
+        },
+        "resolution": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "open",
+            "fix_in_progress",
+            "resolved",
+            "partially_resolved",
+            "risk_accepted",
+            "regression_introduced",
+            null
+          ],
+          "description": "The disposition-resolution registry's folded resolution; null when undecided."
+        },
+        "assurance": {
+          "type": "string",
+          "enum": [
+            "execution_proven",
+            "human_reviewed",
+            "machine_verified",
+            "claimed"
+          ],
+          "description": "The disposition-assurance registry's assurance."
+        },
+        "conflict": {
+          "type": "boolean"
+        },
+        "fp_overridden": {
+          "type": "boolean"
+        },
+        "fp_reassertion_blocked": {
+          "type": "boolean"
+        },
+        "awaiting_signoff": {
+          "type": "boolean"
+        },
+        "severity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational",
+            null
+          ],
+          "description": "A decided severity override; null when none."
+        },
+        "last_decision_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "finding_view": {
+      "description": "A finding as Core serves it: the record, its selected occurrence and disposition, effective severity and SLA.",
+      "type": "object",
+      "required": [
+        "finding",
+        "occurrence",
+        "disposition",
+        "effective_severity",
+        "sla_due",
+        "first_reported_at",
+        "last_reported_at",
+        "locations",
+        "cwes",
+        "labels"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "finding": {
+          "$ref": "#/$defs/finding"
+        },
+        "occurrence": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/occurrence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disposition": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/disposition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "effective_severity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational",
+            null
+          ],
+          "description": "The severity it counts at; null when unrated."
+        },
+        "sla_due": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "first_reported_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "last_reported_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/location"
+          }
+        },
+        "cwes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "CWE ids as recorded, raw."
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/label"
+          }
+        }
+      }
+    },
+    "decision": {
+      "description": "One judgement on a finding; corrections are new decisions.",
+      "type": "object",
+      "required": [
+        "id",
+        "created_at",
+        "finding_id",
+        "assessment_id",
+        "fixed_repository_ref_id",
+        "repository_ref_id",
+        "restates_id",
+        "artifact_id",
+        "statement_key",
+        "validity",
+        "resolution",
+        "evidence_grade",
+        "reason",
+        "severity",
+        "source_channel",
+        "actor",
+        "rationale",
+        "ticket",
+        "auto_accept_tier",
+        "occurred_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
+        },
+        "finding_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "assessment_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "fixed_repository_ref_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "repository_ref_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "restates_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "artifact_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "statement_key": {
+          "type": "string"
+        },
+        "validity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "As recorded, raw (a validity registry value or a historical one); null when the decision states none."
+        },
+        "resolution": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "As recorded, raw; null when none."
+        },
+        "evidence_grade": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "As recorded, raw; null when none."
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "As recorded, raw; null when none."
+        },
+        "severity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "As recorded, raw; null when none."
+        },
+        "source_channel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "As recorded, raw; null when none."
+        },
+        "actor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Raw; null when unattributed."
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Raw untrusted text; null when none."
+        },
+        "ticket": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Raw; null when none."
+        },
+        "auto_accept_tier": {
+          "type": "boolean"
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
