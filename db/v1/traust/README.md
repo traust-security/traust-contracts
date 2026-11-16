@@ -86,9 +86,24 @@ The channel's rules:
 
 - **Named and ordered.** `NNNN_slug.sql`, four-digit, gapless from `0001`,
   dialect-paired: the same names in `postgres/` and `sqlite/`.
-- **Additive only.** Never `DROP`, never `DELETE` — no data is lost. A change
-  that must rebuild (a SQLite CHECK or constraint rebuild) stays
-  recreate-only, by decision, as documented above.
+- **Data-preserving; superseding and backfill allowed.** A script never loses
+  data: it may backfill what a prior script added (`INSERT … SELECT`,
+  `UPDATE … SET` of a channel-introduced column), and may supersede a shape
+  only by carrying its rows forward and asserting count parity in-transaction
+  before its stamp. A `DROP` of a superseded object lands in the same script
+  as the successor holding its data.
+- **Destructive SQL is declared, never casual.** `DROP`, `TRUNCATE`, `DELETE`
+  (and `DROP COLUMN`) require a `-- destructive: <reason>` line - the runner
+  refuses to load the script without one and warns with the reason when it
+  applies. This is the tripwire against casually generated scripts, not a
+  seal against a determined author: review is.
+- **Guards lift only inside the transaction that restores them.** A script
+  may drop an append-only or mutation-rejecting trigger to transform a table
+  and must recreate it in the same script - transactional DDL means no other
+  session ever sees the guard absent.
+- **In-transaction only.** Scripts run inside one transaction with their
+  stamp, so `CREATE INDEX CONCURRENTLY` (which postgres forbids there) is
+  out of scope; use a plain `CREATE INDEX`.
 - **Whole, once, transaction-free.** A script carries no `BEGIN`/`COMMIT` of
   its own; the runner applies each script whole with its stamp in one
   transaction, and a dry run plans without touching the database.

@@ -4,8 +4,10 @@ The db contract ships as one unit (see traust_contracts.v1.db): the current
 schema files are the baseline, and the channel starts empty. A later change
 to an existing database's shape lands as a script in
 db/v1/migrations/<dialect>/upgrades/NNNN_slug.sql rather than an edit readers
-can miss. A script is four-digit, gapless from 0001, dialect-paired, additive
-only (never DROP, never DELETE: no data is lost), and carries no transaction
+can miss. A script is four-digit, gapless from 0001, dialect-paired,
+data-preserving - destructive SQL (DROP, TRUNCATE, DELETE) is rare, deliberate
+and declared with a '-- destructive: <reason>' line the runner refuses to
+load without - and carries no transaction
 statements - the runner owns those, applying each script whole with its stamp
 in one transaction.
 
@@ -48,6 +50,10 @@ __all__ = [
 
 _NAME = re.compile(r"\A([0-9]{4})_([a-z][a-z0-9_]*)\Z")
 _TRANSACTION = {"BEGIN", "BEGIN IMMEDIATE", "COMMIT", "ROLLBACK"}
+# Statement-initial DROP/TRUNCATE/DELETE, or a DROP COLUMN anywhere: the
+# destructive shapes a casually generated script must declare to run.
+_DESTRUCTIVE = re.compile(r"(?im)(?:^|;)\s*(?:DROP|TRUNCATE|DELETE)\b|\bDROP\s+COLUMN\b")
+_DESTRUCTIVE_MARKER = "-- destructive:"
 
 _STAMP_TABLE: dict[str, str] = {"postgres": "traust.db_upgrade", "sqlite": "db_upgrade"}
 _BEGIN: dict[str, str] = {"postgres": "BEGIN", "sqlite": "BEGIN IMMEDIATE"}
@@ -73,6 +79,23 @@ class Upgrade:
     name: str
     sha256: str
     statements: tuple[str, ...]
+    destructive: str | None = None  # the declared reason, when the script is destructive
+
+
+def _code(sql: str) -> str:
+    """Authored SQL with ``--`` comment lines removed, for keyword scans."""
+    return "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("--"))
+
+
+def _destructive_reason(sql: str) -> str | None:
+    """The reason a destructive script declares, or None when it declares none."""
+    for line in sql.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith(_DESTRUCTIVE_MARKER):
+            reason = stripped.split(":", 1)[1].strip()
+            if reason:
+                return reason
+    return None
 
 
 class _Connection(Protocol):
@@ -139,7 +162,15 @@ def pending_upgrades(
                 raise MigrationError(
                     f"{path.name} carries its own transaction statement; the runner owns those"
                 )
-        pending.append(Upgrade(path.stem, sha256, statements))
+        sql = path.read_text(encoding="utf-8")
+        reason = _destructive_reason(sql)
+        if _DESTRUCTIVE.search(_code(sql)) and reason is None:
+            raise MigrationError(
+                f"{path.name} carries destructive SQL (DROP, TRUNCATE, DELETE) without a "
+                "declared reason: add a '-- destructive: <reason>' line - destructive "
+                "scripts are deliberate, reviewed, and rare"
+            )
+        pending.append(Upgrade(path.stem, sha256, statements, destructive=reason))
     return pending
 
 
@@ -195,6 +226,15 @@ def run_upgrades(
         extra={"operation": "db.upgrade", "outcome": "applying", "count": len(pending)},
     )
     for upgrade in pending:
+        if upgrade.destructive:
+            log.warning(
+                "db upgrade DESTRUCTIVE dialect=%s name=%s sha256=%s reason=%s",
+                dialect,
+                upgrade.name,
+                upgrade.sha256,
+                upgrade.destructive,
+                extra={"operation": "db.upgrade", "outcome": "destructive"},
+            )
         started = time.perf_counter()
         try:
             conn.execute(_BEGIN[dialect])

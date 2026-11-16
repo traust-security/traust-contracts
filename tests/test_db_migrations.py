@@ -183,6 +183,46 @@ def test_a_shape_that_arrived_by_hand_fails_as_a_channel_error(channel: Path) ->
     assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 0  # nothing stamped
 
 
+def test_destructive_sql_without_a_declared_reason_is_refused(tmp_path: Path) -> None:
+    root = _write_channel(tmp_path, "0001_drop.sql", "DROP TABLE {table};")
+    with pytest.raises(migrations.MigrationError, match="destructive SQL"):
+        migrations.pending_upgrades("sqlite", {}, root=root)
+    root = _write_channel(
+        tmp_path / "b", "0001_dropcol.sql", "ALTER TABLE {table} DROP COLUMN note;"
+    )
+    with pytest.raises(migrations.MigrationError, match="destructive SQL"):
+        migrations.pending_upgrades("sqlite", {}, root=root)
+
+
+def test_a_guard_clause_is_not_destructive_sql(tmp_path: Path) -> None:
+    body = (
+        "CREATE TABLE guard (id TEXT, FOREIGN KEY (id) REFERENCES {table} (id) ON DELETE RESTRICT);"
+    )
+    root = _write_channel(tmp_path, "0001_guard.sql", body)
+    assert [u.name for u in migrations.pending_upgrades("sqlite", {}, root=root)] == ["0001_guard"]
+
+
+def test_a_declared_destructive_upgrade_applies_and_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    root = _write_channel(
+        tmp_path,
+        "0001_supersede.sql",
+        "-- destructive: repository superseded by repository_v2\nDROP TABLE {table};",
+    )
+    conn = _sqlite()
+    with caplog.at_level(logging.WARNING, logger="traust_contracts.v1.migrations"):
+        applied = migrations.run_upgrades(conn, "sqlite", root=root)
+
+    assert [u.name for u in applied] == ["0001_supersede"]
+    assert applied[0].destructive == "repository superseded by repository_v2"
+    warned = [r for r in caplog.records if "DESTRUCTIVE" in r.message]
+    assert len(warned) == 1
+    assert "reason=repository superseded by repository_v2" in warned[0].getMessage()
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
+    assert [name for name, _ in stamps] == ["0001_supersede"]  # stamped like any other
+
+
 def test_a_raced_apply_loses_to_the_stamp_and_moves_on(
     channel: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

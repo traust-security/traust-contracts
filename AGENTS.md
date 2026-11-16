@@ -9,8 +9,10 @@ Identity vectors are **not** here: the finding-fingerprint suite was retired on 
   question litmus test in [README.md](README.md#before-adding-anything-to-the-data-model);
   answer them in the PR description. A change to an existing database's shape
   lands ONLY in the upgrade channel —
-  `db/v1/migrations/<dialect>/upgrades/NNNN_slug.sql`, additive, hash-stamped,
-  applied by `traust_contracts.v1.migrations`. Never a bootstrap-only edit
+  `db/v1/migrations/<dialect>/upgrades/NNNN_slug.sql`, data-preserving, hash-stamped,
+  applied by `traust_contracts.v1.migrations`. Destructive SQL (DROP/TRUNCATE/DELETE)
+  additionally requires a `-- destructive: <reason>` line - the runner refuses
+  to load the script without one. Never a bootstrap-only edit
   (existing databases never see it), never a per-namespace `upgrades/` folder
   (deleted), never a `*_upgrade()` helper (deleted), never a hand-applied ALTER
 - **Lint:** line length 100; ruff E/W/F/I/UP/B/SIM/PTH/RUF (`pyproject.toml`) — `Path` not `os.path`, no bare `except: pass`
