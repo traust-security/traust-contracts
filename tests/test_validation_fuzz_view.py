@@ -122,6 +122,8 @@ def test_unknown_fields_are_rejected(
         ("target", "engines", ["fuzzilli"]),
         ("target", "outcomes", {"exploded": 1}),
         ("target", "outcomes", {"clean": 0}),
+        ("target", "outcomes", {}),
+        ("target", "engines", []),
         ("target", "execs", -1),
         ("target", "lines_total", None),
         ("target", "occurred_at", "yesterday"),

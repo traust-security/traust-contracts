@@ -100,10 +100,11 @@
           "items": {
             "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/engine"
           },
-          "description": "The engines its harnesses ran, sorted."
+          "description": "The engines its harnesses ran, sorted; at least one, as a report has at least one harness.",
+          "minItems": 1
         },
         "outcomes": {
-          "description": "Harness outcome to how many harnesses had it; only outcomes seen appear.",
+          "description": "Harness outcome to how many harnesses had it; only outcomes seen appear, at least one (a report has at least one harness).",
           "type": "object",
           "propertyNames": {
             "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/fuzz-report.schema.json#/$defs/outcome"
@@ -111,7 +112,8 @@
           "additionalProperties": {
             "type": "integer",
             "minimum": 1
-          }
+          },
+          "minProperties": 1
         },
         "execs": {
           "type": [
