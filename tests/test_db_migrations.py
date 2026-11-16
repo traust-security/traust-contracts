@@ -49,11 +49,29 @@ def channel(tmp_path: Path) -> Path:
     return _write_channel(tmp_path, "0001_add_note.sql", NOTE)
 
 
-def test_a_fresh_bootstrap_stamps_the_channel_empty() -> None:
+def test_a_fresh_bootstrap_applies_the_shipped_channel_whole() -> None:
     conn = _sqlite()
-    assert migrations.run_upgrades(conn, "sqlite") == []
+    applied = migrations.run_upgrades(conn, "sqlite")
+    assert [u.name for u in applied] == ["0001_repository_disposition"]
     assert migrations.run_upgrades(conn, "sqlite") == []  # idempotent
-    assert conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall() == []
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
+    assert [name for name, _ in stamps] == ["0001_repository_disposition"]
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(repository)").fetchall()]
+    assert {"disposition", "gone_streak"} <= set(columns)
+
+
+def test_the_shipped_first_script_preserves_every_row() -> None:
+    conn = _sqlite()
+    for url in ("https://example.com/r1", "https://example.com/r2"):
+        conn.execute("INSERT INTO repository (url, public) VALUES (?, 1)", (url,))
+    before = conn.execute("SELECT * FROM repository").fetchall()
+
+    migrations.run_upgrades(conn, "sqlite")
+
+    after = conn.execute("SELECT * FROM repository").fetchall()
+    assert [row[:7] for row in after] == before  # every baseline column, every row
+    assert all(row[7] is None for row in after)  # disposition: existing rows stay active
+    assert all(row[11] == 0 for row in after)  # gone_streak starts at 0
 
 
 def test_names_must_be_slugs_numbered_gaplessly_from_one(tmp_path: Path) -> None:
@@ -194,24 +212,32 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
             for statement in module.bootstrap_statements("postgres", path):
                 conn.execute(statement)
 
+    shipped = migrations.upgrade_files("postgres")
     try:
-        assert migrations.run_upgrades(conn, "postgres") == []  # fresh: empty channel
-        assert conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall() == []
+        applied = migrations.run_upgrades(conn, "postgres")  # fresh: the shipped channel
+        assert [u.name for u in applied] == ["0001_repository_disposition"]
+        stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
+        assert stamps == [("0001_repository_disposition", _sha256(shipped[0]))]
 
-        channel = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+        channel = _write_channel(tmp_path, "0002_add_note.sql", NOTE)
+        for dialect in ("postgres", "sqlite"):  # the fixture channel carries the shipped scripts
+            for path in migrations.upgrade_files(dialect):
+                target = channel / dialect / "upgrades" / path.name
+                target.write_bytes(path.read_bytes())
         for url in ("https://example.com/r1", "https://example.com/r2"):
             conn.execute("INSERT INTO traust.repository (url, public) VALUES (%s, true)", (url,))
         before = conn.execute("SELECT * FROM traust.repository").fetchall()
 
         applied = migrations.run_upgrades(conn, "postgres", root=channel)
-        assert [u.name for u in applied] == ["0001_add_note"]
+        assert [u.name for u in applied] == ["0002_add_note"]
 
         after = conn.execute("SELECT * FROM traust.repository").fetchall()
         assert [row[:-1] for row in after] == before
         assert all(row[-1] is None for row in after)
-        script = channel / "postgres" / "upgrades" / "0001_add_note.sql"
+        script = channel / "postgres" / "upgrades" / "0002_add_note.sql"
         stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
-        assert stamps == [("0001_add_note", _sha256(script))]
+        assert ("0002_add_note", _sha256(script)) in stamps
+        assert migrations.run_upgrades(conn, "postgres", root=channel) == []
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
     finally:
         conn.close()

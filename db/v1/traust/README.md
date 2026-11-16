@@ -14,7 +14,7 @@ Each namespace of the model owns its own top-level directory and loader:
 | [storage/v1](.) (this directory) | `traust` — domain | 1–3: inventory, dependencies, assessments & findings |
 | [db/v1/traust_ops](../traust_ops/) | `traust_ops` — operations | 4: runs, spend, feed snapshots |
 | [db/v1/traust_ledger](../traust_ledger/) | `traust_ledger` — ledger | 5: append-only layers and events |
-| [db/v1/migrations](../migrations/) | upgrade channel — runner-owned stamp table and future upgrade scripts | — |
+| [db/v1/migrations](../migrations/) | upgrade channel — runner-owned stamp table and the upgrade scripts | — |
 
 | Database | Driver | Shape |
 |---|---|---|
@@ -74,11 +74,13 @@ database revision or perform a migration.
 
 ## Upgrades
 
-The current schema files are the baseline: the upgrade channel in
-[db/v1/migrations](../migrations/) starts empty. A later change to an existing
-database's shape lands as a script `migrations/<dialect>/upgrades/NNNN_slug.sql`
+The current schema files are the baseline: a change to an existing database's
+shape lands as a script `migrations/<dialect>/upgrades/NNNN_slug.sql`
 applied by the runner `traust_contracts.v1.migrations` on open — not as a
-bootstrap edit readers can miss, and not as hand-applied ALTERs.
+bootstrap edit readers can miss, and not as hand-applied ALTERs. The baseline
+plus the channel is the current shape: fresh bootstraps run the whole channel,
+existing databases the scripts they lack (`0001_repository_disposition.sql`
+is the first).
 
 The channel's rules:
 
