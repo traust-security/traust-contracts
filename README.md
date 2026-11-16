@@ -488,10 +488,11 @@ Every serialized field is required; lists are never null.
 `views_schema/v1/finding-records.schema.json` is not a view: it defines, once, Core's finding
 records as its views serialize them (the finding, an occurrence, a location, a label, the
 folded disposition, the finding view and a decision), for every view that embeds them. A
-location is a recorded one (eight fields) or a finding claim's (path, lines, symbol). Enums
-Core types are tied to their registries by test; what Core keeps raw (a decision's validity,
-resolution, reason and channel, which may hold historical values; a stored CVSS decimal in
-any form) stays raw.
+location is a recorded one (all eight fields) or a finding claim's (path, lines, symbol), never
+part of a recorded one; a stored record's id and timestamps are never null. A CVSS score is
+Core's canonical 0-10 decimal string (the findings rollup's definition). Enums Core types are
+tied to their registries by test; what Core keeps raw (a decision's validity, resolution,
+reason and channel, which may hold historical values) stays raw.
 
 `views_schema/v1/container-findings.schema.json` is the contract for Core's container-findings
 view: one image repository's container report family's cumulative findings as of `as_of`,

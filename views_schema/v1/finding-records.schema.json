@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/traust-contracts/views_schema/v1/finding-records.schema.json",
   "title": "Finding records",
-  "description": "Shared definitions, not a view: Core's finding records as its views (and REST reads) serialize them, defined once for every view that embeds them. Each record serializes every field, nullable ones included. Fields Core types as an enum are tied to their registries by test; fields Core keeps as a raw string (a decision's validity, resolution, reason and channel, which may hold historical values) stay raw.",
+  "description": "Shared definitions, not a view: Core's finding records as its views (and REST reads) serialize them, defined once for every view that embeds them. Each record serializes every field, nullable ones included; a stored record's id and timestamps are never null. Fields Core types as an enum are tied to their registries by test; fields Core keeps as a raw string (a decision's validity, resolution, reason and channel, which may hold historical values) stay raw.",
   "$defs": {
     "finding": {
       "description": "A finding: one weakness or vulnerability in one repository, by fingerprint.",
@@ -22,25 +22,19 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid"
+          "type": "string",
+          "format": "uuid",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "created_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "updated_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "repository_id": {
           "type": "string",
@@ -95,18 +89,14 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid"
+          "type": "string",
+          "format": "uuid",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "created_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "finding_id": {
           "type": "string",
@@ -136,16 +126,8 @@
           "description": "Raw; null when unscored."
         },
         "cvss_score": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "pattern": "^-?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(E[+-]?[0-9]+)?$",
-          "not": {
-            "type": "string",
-            "pattern": "\\s"
-          },
-          "description": "The stored decimal as Core serializes it (any decimal form, e.g. 9.8, 9.80 or 0E-10 from SQLite; compare as decimals); null when unscored."
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/top_finding/properties/cvss_score",
+          "description": "The CVSS base score, 0 to 10, as Core's canonical exact decimal string (shortest fixed-point form, the same from every backend); null when unscored."
         },
         "rule": {
           "type": [
@@ -168,17 +150,11 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "format": "uuid"
         },
         "created_at": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "format": "date-time"
         },
         "occurrence_id": {
@@ -216,7 +192,44 @@
           ],
           "description": "Raw; null when none."
         }
-      }
+      },
+      "allOf": [
+        {
+          "$comment": "A recorded location carries all eight fields; a claim's only the four required ones.",
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "id"
+                ]
+              },
+              {
+                "required": [
+                  "created_at"
+                ]
+              },
+              {
+                "required": [
+                  "occurrence_id"
+                ]
+              },
+              {
+                "required": [
+                  "language"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "id",
+              "created_at",
+              "occurrence_id",
+              "language"
+            ]
+          }
+        }
+      ]
     },
     "label": {
       "type": "object",
@@ -231,25 +244,19 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid"
+          "type": "string",
+          "format": "uuid",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "created_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "updated_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "finding_id": {
           "type": "string",
@@ -496,18 +503,14 @@
       "additionalProperties": false,
       "properties": {
         "id": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "uuid"
+          "type": "string",
+          "format": "uuid",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "created_at": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "format": "date-time"
+          "type": "string",
+          "format": "date-time",
+          "description": "The stored record's (never null: the column is NOT NULL)."
         },
         "finding_id": {
           "type": "string",

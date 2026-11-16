@@ -231,6 +231,12 @@ def test_a_claim_location_carries_only_its_four_fields(
         (OBJECTS["row"] + ("occurrences",), []),
         (OBJECTS["occurrence"] + ("severity",), "severe"),
         (OBJECTS["occurrence"] + ("cvss_score",), "high"),
+        (OBJECTS["occurrence"] + ("cvss_score",), "-1"),
+        (OBJECTS["occurrence"] + ("cvss_score",), "11"),
+        (OBJECTS["occurrence"] + ("cvss_score",), "0E-10"),
+        (OBJECTS["finding"] + ("id",), None),
+        (OBJECTS["occurrence"] + ("created_at",), None),
+        (OBJECTS["decision"] + ("id",), None),
         (OBJECTS["disposition"] + ("assurance",), "trusted"),
         (OBJECTS["disposition"] + ("validity",), "probably"),
         (OBJECTS["finding_view"] + ("effective_severity",), "unrated"),
@@ -253,8 +259,8 @@ def test_out_of_contract_values_are_rejected(
         (OBJECTS["finding_view"] + ("occurrence",), None),
         (OBJECTS["finding_view"] + ("disposition",), None),
         (OBJECTS["finding_view"] + ("effective_severity",), None),
-        (OBJECTS["occurrence"] + ("cvss_score",), "0E-10"),
-        (OBJECTS["occurrence"] + ("cvss_score",), "9.80"),
+        (OBJECTS["occurrence"] + ("cvss_score",), "10"),
+        (OBJECTS["occurrence"] + ("cvss_score",), "0"),
         (OBJECTS["occurrence"] + ("cvss_score",), None),
         (OBJECTS["finding"] + ("kind",), "legacy-kind"),
         (OBJECTS["decision"] + ("validity",), "not_verified"),
@@ -296,3 +302,16 @@ def test_finding_records_are_shared_definitions_not_a_view() -> None:
     view = SCHEMA.read_text()
     for definition in ("finding_view", "occurrence", "decision"):
         assert f"finding-records.schema.json#/$defs/{definition}" in view
+
+
+@pytest.mark.parametrize("partial", ["id", "created_at", "occurrence_id", "language"])
+def test_a_location_is_a_claim_or_a_whole_recorded_one(
+    validator: Draft202012Validator, document: dict[str, Any], partial: str
+) -> None:
+    recorded = {"id": F, "created_at": AT, "occurrence_id": F, "language": None}
+    claim = {"path": "Dockerfile", "line_start": None, "line_end": 3, "symbol": None}
+    _set(document, LOCATION, claim | {partial: recorded[partial]})
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+    _set(document, LOCATION, claim | recorded)
+    validator.validate(document)
