@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json",
+  "title": "Spend records",
+  "description": "Shared definitions for the Insight views that roll up recorded spend events (program, spend): no view itself, only `$defs` the views reference by $id. A rollup sums spend events over one group; the spend_event table guarantees non-negative tokens and cost.",
+  "$defs": {
+    "usd": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?(E[+-][0-9]+)?$",
+      "description": "A non-negative US-dollar amount as a Python decimal string (exponent form allowed: `1E-9`)."
+    },
+    "rollup": {
+      "description": "Spend summed over one group. Its key is the group's value, null for spend without that dimension (no lane, no skill).",
+      "type": "object",
+      "required": [
+        "key",
+        "events",
+        "tokens_in",
+        "tokens_out",
+        "cost_usd"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Raw recorded text."
+        },
+        "events": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Spend events in the group: a group is never empty."
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "$ref": "#/$defs/usd"
+        }
+      }
+    }
+  }
+}

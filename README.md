@@ -514,6 +514,21 @@ verdict; only product rows have a null key (commits no product ships). Core refu
 or team scope. Every serialized field is required. Core owns the verdict ranking and
 rendering; keys are raw data.
 
+`views_schema/v1/spend-records.schema.json` is not a view: it defines, once, a spend rollup
+(spend events summed over one group, its key null for spend without that dimension) and a
+non-negative US-dollar amount (a Python decimal string, exponent form included), for every
+view that rolls up recorded spend. The `spend_event` table guarantees non-negative tokens and
+cost; a group is never empty.
+
+`views_schema/v1/program.schema.json` is the contract for Core's program view: what the program
+spent and ran over an explicit window, derived from spend events and run orders. Spend splits
+into what run orders claim and what none claims, and rolls up by month (a `YYYY-MM` key), model
+(a non-empty key), lane (a non-empty key, or null for spend without one) and skill (a raw key),
+from `spend-records`; throughput counts each registered asset's finished run orders per bucket,
+every finished `run-order-state` outcome present and zero-filled, tied by test. Core needs the
+window and does not order its bounds. Every serialized field is required; lists are never null.
+Keys and asset names are raw recorded text.
+
 `views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA
 clocks over the scope's findings (false positives and hardening excluded) as of `as_of`, one
 block per profile of the deployment's SLA policy, default first. Every serialized field is
