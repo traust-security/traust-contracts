@@ -561,7 +561,8 @@ worst status first, the toolchain that would run, and the scope's audit coverage
 view's `coverage` definition, by `$id`), derived now, so Core refuses an `as_of`. The
 secure-code and threat-model cadences are always present, once each. A stale item says how to
 refresh it; a fresh or unavailable one has nothing to refresh; a pending one may or may not.
-The toolchain is null exactly when an unavailable `toolchain` item explains why. A tool
+The toolchain is null exactly when one `toolchain` item, unavailable and with a non-empty
+detail, explains why. A tool
 database's `max_age` is an ISO 8601 duration. Every serialized field is required, nullable
 ones included; item names, details, hints, versions and paths are raw text.
 

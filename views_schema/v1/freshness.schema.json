@@ -87,7 +87,7 @@
       }
     },
     {
-      "$comment": "No toolchain exactly when an unavailable toolchain item explains it.",
+      "$comment": "No toolchain exactly when one toolchain item, unavailable and saying why, explains it.",
       "if": {
         "properties": {
           "toolchain": {
@@ -101,21 +101,41 @@
       "then": {
         "properties": {
           "items": {
-            "contains": {
-              "properties": {
-                "item": {
-                  "const": "toolchain"
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "item": {
+                      "const": "toolchain"
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ]
                 },
-                "status": {
-                  "const": "unavailable"
-                }
+                "maxContains": 1
               },
-              "required": [
-                "item",
-                "status"
-              ]
-            },
-            "maxContains": 1
+              {
+                "contains": {
+                  "properties": {
+                    "item": {
+                      "const": "toolchain"
+                    },
+                    "status": {
+                      "const": "unavailable"
+                    },
+                    "detail": {
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "item",
+                    "status",
+                    "detail"
+                  ]
+                }
+              }
+            ]
           }
         }
       },

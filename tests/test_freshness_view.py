@@ -211,6 +211,26 @@ def test_no_toolchain_needs_its_unavailable_item(
         validator.validate(document | {"toolchain": None})
 
 
+@pytest.mark.parametrize(
+    "items",
+    [
+        [_item("toolchain", "unavailable", detail="")],
+        [_item("toolchain", "unavailable", detail="no tools"), _item("toolchain", "fresh")],
+        [
+            _item("toolchain", "unavailable", detail="a"),
+            _item("toolchain", "unavailable", detail="b"),
+        ],
+    ],
+)
+def test_an_unread_toolchain_has_one_unavailable_item_saying_why(
+    validator: Draft202012Validator, document: dict[str, Any], items: list[dict[str, Any]]
+) -> None:
+    document["toolchain"] = None
+    document["items"] += items
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
 def test_a_read_toolchain_has_no_toolchain_item(
     validator: Draft202012Validator, document: dict[str, Any]
 ) -> None:
