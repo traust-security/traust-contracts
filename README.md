@@ -542,19 +542,6 @@ not order its bounds, so a series is empty only over an empty window. Decimal st
 keys carry no whitespace. Every serialized field is required; lists are never null.
 Keys and asset names are raw recorded text.
 
-`views_schema/v1/loc.schema.json` is the contract for Core's loc view: the lines of code the
-scope's repositories hold at their observed default-branch commit as of `as_of` (carried in the
-view), by language and by repository, largest first; `code` excludes documentation languages,
-`total` includes them. A repository is measured exactly when it gives no `unmeasured` reason:
-then it has its commit and counts, a primary language exactly when languages were measured,
-and both deltas or neither; an unmeasured one has none of them. Language counts reference the
-`code-facts` artifact's `language` definition. An optional comparison with an earlier moment
-is null when not asked for, and then no repository carries a delta. A first-party estimate
-(measured code over an explicitly supplied divisor, an estimate, never a measurement) is
-present exactly when a divisor was supplied and at least one repository was measured. Decimals are Python decimal
-strings, exponent form included. Every serialized field is required; lists are never null.
-URLs and reasons are raw untrusted data.
-
 `views_schema/v1/spend.schema.json` is the contract for Core's spend view
 (financial-tracking): list-priced spend per UTC calendar month the window touches, split by
 skill, lane, model and business unit (from `spend-records`; a business unit is the corpus
@@ -567,6 +554,19 @@ with spend has a row in every split (a null-key row at least); business-unit cov
 0-100 percentage exactly when the month cost something. Core needs the window, refuses a product or team scope
 and does not order the window's bounds. Every serialized field is required, nullable ones
 included; lists are never null. Keys, models and notes are raw recorded text.
+
+`views_schema/v1/loc.schema.json` is the contract for Core's loc view: the lines of code the
+scope's repositories hold at their observed default-branch commit as of `as_of` (carried in the
+view), by language and by repository, largest first; `code` excludes documentation languages,
+`total` includes them. A repository is measured exactly when it gives no `unmeasured` reason:
+then it has its commit and counts, a primary language exactly when languages were measured,
+and both deltas or neither; an unmeasured one has none of them. Language counts reference the
+`code-facts` artifact's `language` definition. An optional comparison with an earlier moment
+is null when not asked for, and then no repository carries a delta. A first-party estimate
+(measured code over an explicitly supplied divisor, an estimate, never a measurement) is
+present exactly when a divisor was supplied and at least one repository was measured. Decimals are Python decimal
+strings, exponent form included. Every serialized field is required; lists are never null.
+URLs and reasons are raw untrusted data.
 
 `views_schema/v1/scoreboard.schema.json` is the contract for Core's scoreboard view: the
 leadership scoreboard's headline counts read off the executive summary, findings trend and
