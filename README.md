@@ -555,6 +555,19 @@ present exactly when a divisor was supplied and at least one repository was meas
 strings, exponent form included. Every serialized field is required; lists are never null.
 URLs and reasons are raw untrusted data.
 
+`views_schema/v1/spend.schema.json` is the contract for Core's spend view
+(financial-tracking): list-priced spend per UTC calendar month the window touches, split by
+skill, lane, model and business unit (from `spend-records`; a business unit is the corpus
+registry's, null when none claims the spend), with the estimate's limits named: models whose
+rate the registry does not confirm and their cost, models it does not know, invoices
+reconciled (a variance may be negative; its percentage is null against a zero estimate), and
+the latest month with spend over all-time counts (null when no month has spend). A month's
+`total` is its own row (null key, zero counts when idle); an idle month has no rows to split,
+one with spend has its models and business units; business-unit coverage is a percentage
+exactly when the month cost something. Core needs the window, refuses a product or team scope
+and does not order the window's bounds. Every serialized field is required, nullable ones
+included; lists are never null. Keys, models and notes are raw recorded text.
+
 `views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA
 clocks over the scope's findings (false positives and hardening excluded) as of `as_of`, one
 block per profile of the deployment's SLA policy, default first. Every serialized field is

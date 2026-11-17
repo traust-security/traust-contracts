@@ -1,0 +1,537 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/spend.schema.json",
+  "title": "Spend view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's spend view (financial-tracking): list-priced spend per UTC calendar month the window touches, split by skill, lane, model and business unit (run order, repository, product, corpus registry), with the estimate's limits named: models whose rate the registry does not confirm, models it does not know, invoices reconciled, and one month's unit economics. Spend no business unit claims stays unattributed (a null key), never redistributed. Rollups are the shared spend-records definitions. Core needs the window, is fleet-wide (it refuses a product or team scope) and does not order the window's bounds. Not a persisted artifact or SQL projection. Every serialized field is required, nullable ones included; lists are never null. Keys, models and notes are raw recorded text.",
+  "type": "object",
+  "required": [
+    "window",
+    "months",
+    "unverified_models",
+    "unregistered_models",
+    "unverified_usd",
+    "invoices",
+    "unit_economics"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "window": {
+      "type": "object",
+      "required": [
+        "start",
+        "end"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Exclusive."
+        }
+      },
+      "description": "The explicit timezone-aware window."
+    },
+    "months": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/month"
+      },
+      "description": "Each UTC calendar month the window touches, oldest first, clipped to the window; empty only over an empty window."
+    },
+    "unverified_models": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Models spent on whose list price the registry does not confirm, sorted."
+    },
+    "unregistered_models": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Models spent on that the registry does not know, sorted."
+    },
+    "unverified_usd": {
+      "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/usd",
+      "description": "Spend on the unverified models."
+    },
+    "invoices": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/invoice"
+      },
+      "description": "The months with a recorded invoice, oldest first."
+    },
+    "unit_economics": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/unit_economics"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The latest month with spend, over all-time counts; null when no month has spend."
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "Unit economics exactly when some month has spend.",
+      "if": {
+        "properties": {
+          "months": {
+            "contains": {
+              "properties": {
+                "total": {
+                  "properties": {
+                    "events": {
+                      "minimum": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "months"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unit_economics": {
+            "type": "object"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "unit_economics": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Nothing spent on unverified models means none listed.",
+      "if": {
+        "properties": {
+          "unverified_models": {
+            "maxItems": 0
+          }
+        },
+        "required": [
+          "unverified_models"
+        ]
+      },
+      "then": {
+        "properties": {
+          "unverified_usd": {
+            "type": "string",
+            "pattern": "^0+(\\.0+)?(E[+-][0-9]+)?$"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "signed_usd": {
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?(E[+-][0-9]+)?$",
+      "not": {
+        "type": "string",
+        "pattern": "\\s"
+      },
+      "description": "A US-dollar amount that may be negative, as a Python decimal string."
+    },
+    "percent": {
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?(E[+-][0-9]+)?$",
+      "not": {
+        "type": "string",
+        "pattern": "\\s"
+      },
+      "description": "A percentage rounded to one decimal, as a Python decimal string."
+    },
+    "total": {
+      "description": "The month's spend over every event (every event names its model); zero counts when the month had none.",
+      "type": "object",
+      "required": [
+        "key",
+        "events",
+        "tokens_in",
+        "tokens_out",
+        "cost_usd"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "null"
+        },
+        "events": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/usd"
+        }
+      }
+    },
+    "month": {
+      "description": "One month's spend, split by skill, lane, model and business unit; each split's null-key row is what nothing in that dimension claims.",
+      "type": "object",
+      "required": [
+        "month",
+        "total",
+        "by_skill",
+        "by_lane",
+        "by_model",
+        "by_business_unit",
+        "skill_usd",
+        "business_unit_coverage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "month": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+          "not": {
+            "type": "string",
+            "pattern": "\\s"
+          },
+          "description": "The UTC calendar month, YYYY-MM."
+        },
+        "total": {
+          "$ref": "#/$defs/total"
+        },
+        "by_skill": {
+          "type": "array",
+          "items": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/rollup"
+          }
+        },
+        "by_lane": {
+          "type": "array",
+          "items": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/rollup"
+          }
+        },
+        "by_model": {
+          "type": "array",
+          "items": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/rollup"
+          }
+        },
+        "by_business_unit": {
+          "type": "array",
+          "items": {
+            "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/rollup"
+          }
+        },
+        "skill_usd": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/usd",
+          "description": "Spend a skill claims (the harness lanes); the rest is workstation sessions."
+        },
+        "business_unit_coverage": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/percent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The share (%) of the month's cost that resolves to a business unit; null when the month cost nothing."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "Every spend event names its model (non-empty).",
+          "if": {
+            "required": [
+              "by_model"
+            ]
+          },
+          "then": {
+            "properties": {
+              "by_model": {
+                "items": {
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "$comment": "A recorded lane is never empty; null is spend without one.",
+          "if": {
+            "required": [
+              "by_lane"
+            ]
+          },
+          "then": {
+            "properties": {
+              "by_lane": {
+                "items": {
+                  "properties": {
+                    "key": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "$comment": "A business unit from the corpus registry; null is spend none claims.",
+          "if": {
+            "required": [
+              "by_business_unit"
+            ]
+          },
+          "then": {
+            "properties": {
+              "by_business_unit": {
+                "items": {
+                  "properties": {
+                    "key": {
+                      "oneOf": [
+                        {
+                          "$ref": "https://example.com/traust-contracts/artifacts_schema/v1/corpus-registry.schema.json#/$defs/subject/properties/business_unit"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "$comment": "A month without events has no rows to split; one with events has its models.",
+          "if": {
+            "properties": {
+              "total": {
+                "properties": {
+                  "events": {
+                    "maximum": 0
+                  }
+                }
+              }
+            },
+            "required": [
+              "total"
+            ]
+          },
+          "then": {
+            "properties": {
+              "by_skill": {
+                "maxItems": 0
+              },
+              "by_lane": {
+                "maxItems": 0
+              },
+              "by_model": {
+                "maxItems": 0
+              },
+              "by_business_unit": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "by_model": {
+                "minItems": 1
+              },
+              "by_business_unit": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "$comment": "Coverage exactly when the month cost something.",
+          "if": {
+            "properties": {
+              "total": {
+                "properties": {
+                  "cost_usd": {
+                    "type": "string",
+                    "pattern": "^0+(\\.0+)?(E[+-][0-9]+)?$"
+                  }
+                }
+              }
+            },
+            "required": [
+              "total"
+            ]
+          },
+          "then": {
+            "properties": {
+              "business_unit_coverage": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "business_unit_coverage": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "invoice": {
+      "description": "A month's billed amount against its list-priced estimate.",
+      "type": "object",
+      "required": [
+        "period",
+        "estimate_usd",
+        "invoiced_usd",
+        "note",
+        "variance_usd",
+        "variance_pct"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "period": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+          "not": {
+            "type": "string",
+            "pattern": "\\s"
+          },
+          "description": "The month, YYYY-MM."
+        },
+        "estimate_usd": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/usd"
+        },
+        "invoiced_usd": {
+          "$ref": "#/$defs/signed_usd",
+          "description": "As recorded."
+        },
+        "note": {
+          "type": "string",
+          "description": "As recorded; may be empty."
+        },
+        "variance_usd": {
+          "$ref": "#/$defs/signed_usd",
+          "description": "Invoiced less estimated."
+        },
+        "variance_pct": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/percent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The variance as a share (%) of the estimate; null when the estimate is zero."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "A percentage exactly when there is an estimate to divide by.",
+          "if": {
+            "properties": {
+              "estimate_usd": {
+                "type": "string",
+                "pattern": "^0+(\\.0+)?(E[+-][0-9]+)?$"
+              }
+            },
+            "required": [
+              "estimate_usd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "variance_pct": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "variance_pct": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "unit_economics": {
+      "description": "One month's skill spend over the all-time counts as of the view's point in time: internal cost ratios, not coverage claims.",
+      "type": "object",
+      "required": [
+        "month",
+        "spend_usd",
+        "repositories",
+        "findings",
+        "critical_high"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "month": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+          "not": {
+            "type": "string",
+            "pattern": "\\s"
+          }
+        },
+        "spend_usd": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/usd"
+        },
+        "repositories": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "findings": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tracked findings that are not false positives."
+        },
+        "critical_high": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Open and remediated critical and high findings."
+        }
+      }
+    }
+  }
+}
