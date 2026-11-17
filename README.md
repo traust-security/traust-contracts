@@ -555,6 +555,16 @@ present exactly when a divisor was supplied and at least one repository was meas
 strings, exponent form included. Every serialized field is required; lists are never null.
 URLs and reasons are raw untrusted data.
 
+`views_schema/v1/scoreboard.schema.json` is the contract for Core's scoreboard view: the
+leadership scoreboard's headline counts read off the executive summary, findings trend and
+threat register as of `as_of` (carried in the view), plus the findings filed in Jira; it
+authors none. Open severities are the findings rollup's `severity_counts`, the top three risk
+themes the executive summary's `theme_counts`, and the trend the findings trend's latest
+`point` (null without one), each referenced by `$id`. A repository with an open critical (or
+high) means an open critical (or high); no threat models means no threats, and no threats no
+open ones. Every serialized field is required, nullable ones included. JSON Schema checks
+counts and shapes, not sums across fields; theme labels are raw data.
+
 `views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA
 clocks over the scope's findings (false positives and hardening excluded) as of `as_of`, one
 block per profile of the deployment's SLA policy, default first. Every serialized field is
