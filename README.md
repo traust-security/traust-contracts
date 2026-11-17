@@ -555,6 +555,17 @@ present exactly when a divisor was supplied and at least one repository was meas
 strings, exponent form included. Every serialized field is required; lists are never null.
 URLs and reasons are raw untrusted data.
 
+`views_schema/v1/freshness.schema.json` is the contract for Core's freshness view
+(drift-watch): every checked input (feeds, providers, tool databases) and assessment cadence,
+worst status first, the toolchain that would run, and the scope's audit coverage (the coverage
+view's `coverage` definition, by `$id`), derived now, so Core refuses an `as_of`. The
+secure-code and threat-model cadences are always present, once each. A stale item says how to
+refresh it; a fresh or unavailable one has nothing to refresh; a pending one may or may not.
+The toolchain is null exactly when one `toolchain` item, unavailable and with a non-empty
+detail, explains why. A tool
+database's `max_age` is an ISO 8601 duration. Every serialized field is required, nullable
+ones included; item names, details, hints, versions and paths are raw text.
+
 `views_schema/v1/scoreboard.schema.json` is the contract for Core's scoreboard view: the
 leadership scoreboard's headline counts read off the executive summary, findings trend and
 threat register as of `as_of` (carried in the view), plus the findings filed in Jira; it

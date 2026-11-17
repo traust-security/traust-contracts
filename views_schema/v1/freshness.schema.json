@@ -1,0 +1,356 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/freshness.schema.json",
+  "title": "Freshness view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's freshness view (drift-watch): every checked input and assessment cadence, worst status first, the toolchain that would run, and what the scope's latest audits could not examine, derived now (Core refuses an `as_of`). It routes attention, never concludes. Coverage is the coverage view's own definition, referenced by $id. Not a persisted artifact or SQL projection. Every serialized field is required, nullable ones included. Item names, details, refresh hints, versions and paths are raw text.",
+  "type": "object",
+  "required": [
+    "items",
+    "toolchain",
+    "coverage"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/item"
+      },
+      "description": "Feeds, providers, tool databases, the secure-code audit and threat-model cadences (always present) and, when it cannot be read, the toolchain; worst status first (stale, unavailable, pending, fresh), then item."
+    },
+    "toolchain": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/toolchain"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "What would run; null when it could not be read (an unavailable toolchain item says why)."
+    },
+    "coverage": {
+      "$ref": "https://example.com/traust-contracts/views_schema/v1/coverage.schema.json#/$defs/coverage",
+      "description": "What the scope's latest audits examined and the gaps they reported."
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "Core always checks the assessments:secure-code cadence, once.",
+      "if": {
+        "required": [
+          "items"
+        ]
+      },
+      "then": {
+        "properties": {
+          "items": {
+            "contains": {
+              "properties": {
+                "item": {
+                  "const": "assessments:secure-code"
+                }
+              },
+              "required": [
+                "item"
+              ]
+            },
+            "maxContains": 1
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Core always checks the assessments:threat-model cadence, once.",
+      "if": {
+        "required": [
+          "items"
+        ]
+      },
+      "then": {
+        "properties": {
+          "items": {
+            "contains": {
+              "properties": {
+                "item": {
+                  "const": "assessments:threat-model"
+                }
+              },
+              "required": [
+                "item"
+              ]
+            },
+            "maxContains": 1
+          }
+        }
+      }
+    },
+    {
+      "$comment": "No toolchain exactly when one toolchain item, unavailable and saying why, explains it.",
+      "if": {
+        "properties": {
+          "toolchain": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "toolchain"
+        ]
+      },
+      "then": {
+        "properties": {
+          "items": {
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "item": {
+                      "const": "toolchain"
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ]
+                },
+                "maxContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "item": {
+                      "const": "toolchain"
+                    },
+                    "status": {
+                      "const": "unavailable"
+                    },
+                    "detail": {
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "item",
+                    "status",
+                    "detail"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "items": {
+            "not": {
+              "contains": {
+                "properties": {
+                  "item": {
+                    "const": "toolchain"
+                  }
+                },
+                "required": [
+                  "item"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "status": {
+      "enum": [
+        "stale",
+        "unavailable",
+        "pending",
+        "fresh"
+      ],
+      "description": "Worst first. stale: past its threshold; unavailable: not checkable; pending: never produced yet; fresh: within its threshold."
+    },
+    "item": {
+      "description": "One checked input.",
+      "type": "object",
+      "required": [
+        "item",
+        "status",
+        "detail",
+        "refresh"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "item": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What was checked, e.g. `feeds:<name>`, `database:<tool>`, `<kind>:<name>` for a provider, `assessments:secure-code`."
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "detail": {
+          "type": "string",
+          "description": "Why, as text; may be empty."
+        },
+        "refresh": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "description": "What would refresh it; null when nothing to do."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "A stale item says how to refresh it.",
+          "if": {
+            "properties": {
+              "status": {
+                "const": "stale"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "refresh": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "$comment": "A fresh or unavailable item has nothing to refresh.",
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "fresh",
+                  "unavailable"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "refresh": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "toolchain": {
+      "description": "traust-core's version and each registered tool's version and database.",
+      "type": "object",
+      "required": [
+        "core_version",
+        "tools"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "core_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tool"
+          }
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "tool",
+        "version",
+        "database"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "type": "string"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Null when it could not be read."
+        },
+        "database": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/database"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Its local vulnerability database; null for a tool without one."
+        }
+      }
+    },
+    "database": {
+      "description": "A tool's local vulnerability database: present, when built, how old it may get.",
+      "type": "object",
+      "required": [
+        "tool",
+        "exists",
+        "built_at",
+        "schema_version",
+        "max_age",
+        "path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "type": "string"
+        },
+        "exists": {
+          "type": "boolean"
+        },
+        "built_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "schema_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_age": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^-?P(?=[0-9]|T[0-9])([0-9]+Y)?([0-9]+M)?([0-9]+W)?([0-9]+D)?(T(?=[0-9])([0-9]+H)?([0-9]+M)?([0-9]+(\\.[0-9]+)?S)?)?$",
+          "description": "An ISO 8601 duration (`P5DT1H`); null when unbounded.",
+          "not": {
+            "type": "string",
+            "pattern": "\\s"
+          }
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}
