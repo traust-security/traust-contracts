@@ -542,6 +542,19 @@ not order its bounds, so a series is empty only over an empty window. Decimal st
 keys carry no whitespace. Every serialized field is required; lists are never null.
 Keys and asset names are raw recorded text.
 
+`views_schema/v1/spend.schema.json` is the contract for Core's spend view
+(financial-tracking): list-priced spend per UTC calendar month the window touches, split by
+skill, lane, model and business unit (from `spend-records`; a business unit is the corpus
+registry's, null when none claims the spend), with the estimate's limits named: models whose
+rate the registry does not confirm and their cost, models it does not know, invoices
+reconciled (a variance may be negative; its percentage is null against a zero estimate), and
+the latest month with spend over all-time counts (null when no month has spend). A month's
+`total` is its own row (null key); an idle month is all zeros with no rows to split, and one
+with spend has a row in every split (a null-key row at least); business-unit coverage is a
+0-100 percentage exactly when the month cost something. Core needs the window, refuses a product or team scope
+and does not order the window's bounds. Every serialized field is required, nullable ones
+included; lists are never null. Keys, models and notes are raw recorded text.
+
 `views_schema/v1/loc.schema.json` is the contract for Core's loc view: the lines of code the
 scope's repositories hold at their observed default-branch commit as of `as_of` (carried in the
 view), by language and by repository, largest first; `code` excludes documentation languages,
