@@ -239,6 +239,8 @@ def test_nothing_unverified_costs_nothing(
         {"by_model": [_rollup("model-a")], "total": _rollup(None, "0", 0)},
         {"by_model": []},
         {"by_business_unit": []},
+        {"by_skill": []},
+        {"by_lane": []},
     ],
 )
 def test_a_months_rows_follow_its_events(
@@ -265,6 +267,36 @@ def test_a_variance_percentage_exactly_when_there_is_an_estimate(
     validator: Draft202012Validator, document: dict[str, Any], estimate: str, pct: str | None
 ) -> None:
     document["invoices"][0] |= {"estimate_usd": estimate, "variance_pct": pct}
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("cost_usd", "5"), ("tokens_in", 1), ("tokens_out", 1), ("skill_usd", "5")],
+)
+def test_an_idle_month_shows_no_spend(
+    validator: Draft202012Validator, document: dict[str, Any], field: str, value: Any
+) -> None:
+    idle = document["months"][1]
+    (idle if field == "skill_usd" else idle["total"])[field] = value
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize("coverage", ["0.0", "100.0", "100", "33.3"])
+def test_coverage_is_a_share_of_the_month(
+    validator: Draft202012Validator, document: dict[str, Any], coverage: str
+) -> None:
+    document["months"][0]["business_unit_coverage"] = coverage
+    validator.validate(document)
+
+
+@pytest.mark.parametrize("coverage", ["-1", "101", "100.1", "1E+3", "50.0\n"])
+def test_coverage_outside_zero_to_a_hundred_is_rejected(
+    validator: Draft202012Validator, document: dict[str, Any], coverage: str
+) -> None:
+    document["months"][0]["business_unit_coverage"] = coverage
     with pytest.raises(ValidationError):
         validator.validate(document)
 

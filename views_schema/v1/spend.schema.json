@@ -252,7 +252,7 @@
         "business_unit_coverage": {
           "oneOf": [
             {
-              "$ref": "#/$defs/percent"
+              "$ref": "#/$defs/coverage"
             },
             {
               "type": "null"
@@ -338,7 +338,7 @@
           }
         },
         {
-          "$comment": "A month without events has no rows to split; one with events has its models.",
+          "$comment": "An idle month is all zeros with no rows to split; a month with spend has a row in every split (a null-key row at least).",
           "if": {
             "properties": {
               "total": {
@@ -355,6 +355,24 @@
           },
           "then": {
             "properties": {
+              "total": {
+                "properties": {
+                  "tokens_in": {
+                    "maximum": 0
+                  },
+                  "tokens_out": {
+                    "maximum": 0
+                  },
+                  "cost_usd": {
+                    "type": "string",
+                    "pattern": "^0+(\\.0+)?(E[+-][0-9]+)?$"
+                  }
+                }
+              },
+              "skill_usd": {
+                "type": "string",
+                "pattern": "^0+(\\.0+)?(E[+-][0-9]+)?$"
+              },
               "by_skill": {
                 "maxItems": 0
               },
@@ -371,6 +389,12 @@
           },
           "else": {
             "properties": {
+              "by_skill": {
+                "minItems": 1
+              },
+              "by_lane": {
+                "minItems": 1
+              },
               "by_model": {
                 "minItems": 1
               },
@@ -532,6 +556,15 @@
           "description": "Open and remediated critical and high findings."
         }
       }
+    },
+    "coverage": {
+      "type": "string",
+      "pattern": "^(100(\\.0+)?|[0-9]{1,2}(\\.[0-9]+)?)$",
+      "not": {
+        "type": "string",
+        "pattern": "\\s"
+      },
+      "description": "A share of the month's cost, 0-100, rounded to one decimal, as a Python decimal string."
     }
   }
 }

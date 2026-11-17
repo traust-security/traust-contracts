@@ -562,9 +562,9 @@ registry's, null when none claims the spend), with the estimate's limits named: 
 rate the registry does not confirm and their cost, models it does not know, invoices
 reconciled (a variance may be negative; its percentage is null against a zero estimate), and
 the latest month with spend over all-time counts (null when no month has spend). A month's
-`total` is its own row (null key, zero counts when idle); an idle month has no rows to split,
-one with spend has its models and business units; business-unit coverage is a percentage
-exactly when the month cost something. Core needs the window, refuses a product or team scope
+`total` is its own row (null key); an idle month is all zeros with no rows to split, and one
+with spend has a row in every split (a null-key row at least); business-unit coverage is a
+0-100 percentage exactly when the month cost something. Core needs the window, refuses a product or team scope
 and does not order the window's bounds. Every serialized field is required, nullable ones
 included; lists are never null. Keys, models and notes are raw recorded text.
 
