@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/scoreboard.schema.json",
+  "title": "Scoreboard view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's scoreboard view: the leadership scoreboard's headline numbers read off the executive summary, findings trend and threat register as of `as_of`, plus the findings filed in Jira; it authors none. Open severities, risk themes and the trend point reference those views' own definitions. Not a persisted artifact or SQL projection. Every serialized field is required, nullable ones included. JSON Schema checks counts and shapes, not sums across fields.",
+  "type": "object",
+  "required": [
+    "as_of",
+    "repositories",
+    "reported",
+    "dispositioned",
+    "open",
+    "repositories_with_critical",
+    "repositories_with_high",
+    "credential_leaks",
+    "resolved",
+    "risk_accepted",
+    "false_positives",
+    "hardening",
+    "execution_proven",
+    "themes",
+    "trend",
+    "threat_models",
+    "threats",
+    "open_threats",
+    "filed"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The moment read: the filter's, else the clock's."
+    },
+    "repositories": {
+      "$ref": "#/$defs/count",
+      "description": "Repositories in scope."
+    },
+    "reported": {
+      "$ref": "#/$defs/count",
+      "description": "Of those, with findings reported."
+    },
+    "dispositioned": {
+      "$ref": "#/$defs/count",
+      "description": "Of those, with a decision recorded (ledger coverage)."
+    },
+    "open": {
+      "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/severity_counts",
+      "description": "Open findings by severity, the findings rollup's total."
+    },
+    "repositories_with_critical": {
+      "$ref": "#/$defs/count",
+      "description": "Repositories with an open critical finding."
+    },
+    "repositories_with_high": {
+      "$ref": "#/$defs/count",
+      "description": "Repositories with an open high finding."
+    },
+    "credential_leaks": {
+      "$ref": "#/$defs/count",
+      "description": "Open credential or secret leaks."
+    },
+    "resolved": {
+      "$ref": "#/$defs/count",
+      "description": "Findings resolved."
+    },
+    "risk_accepted": {
+      "$ref": "#/$defs/count",
+      "description": "Findings risk-accepted."
+    },
+    "false_positives": {
+      "$ref": "#/$defs/count",
+      "description": "Confirmed false positives."
+    },
+    "hardening": {
+      "$ref": "#/$defs/count",
+      "description": "The hardening backlog."
+    },
+    "execution_proven": {
+      "$ref": "#/$defs/count",
+      "description": "Open findings with execution proof."
+    },
+    "themes": {
+      "$ref": "https://example.com/traust-contracts/views_schema/v1/executive-summary.schema.json#/$defs/theme_counts",
+      "description": "The executive summary's top three risk themes."
+    },
+    "trend": {
+      "oneOf": [
+        {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-trend.schema.json#/$defs/point"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "The findings trend's latest bucket; null when it has none."
+    },
+    "threat_models": {
+      "$ref": "#/$defs/count",
+      "description": "Repositories' latest completed threat models."
+    },
+    "threats": {
+      "$ref": "#/$defs/count",
+      "description": "Threats in those models."
+    },
+    "open_threats": {
+      "$ref": "#/$defs/count",
+      "description": "Of those, the ones still open."
+    },
+    "filed": {
+      "$ref": "#/$defs/count",
+      "description": "Findings filed in Jira."
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "The top three themes at most.",
+      "if": {
+        "required": [
+          "themes"
+        ]
+      },
+      "then": {
+        "properties": {
+          "themes": {
+            "maxProperties": 3
+          }
+        }
+      }
+    },
+    {
+      "$comment": "A repository with an open critical means an open critical.",
+      "if": {
+        "properties": {
+          "repositories_with_critical": {
+            "minimum": 1
+          }
+        },
+        "required": [
+          "repositories_with_critical"
+        ]
+      },
+      "then": {
+        "properties": {
+          "open": {
+            "properties": {
+              "critical": {
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "A repository with an open high means an open high.",
+      "if": {
+        "properties": {
+          "repositories_with_high": {
+            "minimum": 1
+          }
+        },
+        "required": [
+          "repositories_with_high"
+        ]
+      },
+      "then": {
+        "properties": {
+          "open": {
+            "properties": {
+              "high": {
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Threats come from threat models.",
+      "if": {
+        "properties": {
+          "threat_models": {
+            "maximum": 0
+          }
+        },
+        "required": [
+          "threat_models"
+        ]
+      },
+      "then": {
+        "properties": {
+          "threats": {
+            "maximum": 0
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Open threats are threats.",
+      "if": {
+        "properties": {
+          "threats": {
+            "maximum": 0
+          }
+        },
+        "required": [
+          "threats"
+        ]
+      },
+      "then": {
+        "properties": {
+          "open_threats": {
+            "maximum": 0
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}
