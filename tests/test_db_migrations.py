@@ -122,6 +122,34 @@ def test_stamp_channel_never_stamps_over_an_enrolled_behind_store(tmp_path: Path
     ]
 
 
+def test_a_failed_stamp_leaves_no_stranded_empty_table(tmp_path: Path) -> None:
+    """A stamp that fails without a concurrent winner must not strand the
+    store behind an empty stamp table - the next open would read it as
+    enrolled and run scripts against an already-current shape."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    real = conn.execute
+
+    class failing:  # an insert error with no concurrent winner
+        def execute(self, sql: str) -> Any:
+            if sql.startswith("BEGIN") or sql in ("COMMIT", "ROLLBACK"):
+                return None
+            if sql.startswith("INSERT INTO db_upgrade"):
+                raise sqlite3.OperationalError("disk I/O error")
+            return real(sql)
+
+    with pytest.raises(sqlite3.OperationalError):
+        migrations.stamp_channel(failing(), "sqlite", root=root)
+
+    # the empty bookkeeping is gone: the store is still pre-channel, and a retry stamps
+    assert (
+        conn.execute("SELECT count(*) FROM sqlite_master WHERE name = 'db_upgrade'").fetchone()[0]
+        == 0
+    )
+    stamped = migrations.stamp_channel(conn, "sqlite", root=root)
+    assert [upgrade.name for upgrade in stamped] == ["0001_add_note"]
+
+
 def test_stamp_channel_treats_a_won_race_as_a_no_op(tmp_path: Path) -> None:
     """Two openers plan the same stamps; the one whose insert loses to the
     other's commit rolls back, re-reads, and stamps nothing."""

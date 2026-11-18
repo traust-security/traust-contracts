@@ -368,6 +368,11 @@ def stamp_channel(
                 extra={"operation": "db.channel.stamp", "outcome": "raced"},
             )
             return []
+        if not stamped:
+            # nothing committed and the stamp table is this attempt's empty
+            # bookkeeping: drop it, restoring the pre-channel state a retry
+            # expects - an empty table must never read as an enrolled store
+            conn.execute(f"DROP TABLE {_STAMP_TABLE[dialect]}")
         raise
     log.info(
         "db channel stamped dialect=%s scripts=%d names=%s - presumed current, at the head",
