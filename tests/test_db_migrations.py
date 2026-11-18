@@ -11,6 +11,7 @@ import hashlib
 import logging
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -221,6 +222,104 @@ def test_a_downgrade_with_nothing_applied_is_a_no_op(tmp_path: Path) -> None:
     root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
     conn = _sqlite()
     assert migrations.run_downgrades(conn, "sqlite", root=root) == []
+
+
+def test_a_down_with_its_own_transaction_refuses_before_anything_runs(tmp_path: Path) -> None:
+    """The whole range is validated - including each down's own statements -
+    before anything runs: a late refusal never leaves a partial rollback."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_channel(root, "0002_add_note2.sql", NOTE.replace("note", "note2"))
+    _write_down(root, "0002_add_note2.sql", DOWN.replace("note", "note2"))
+    _write_down(root, "0001_add_note.sql", "-- a rollback that owns its commit\nCOMMIT;\n")
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)
+
+    with pytest.raises(migrations.MigrationError, match="carries its own transaction statement"):
+        migrations.run_downgrades(conn, "sqlite", steps=2, root=root)
+
+    assert {"note", "note2"} <= set(_columns(conn))  # the valid head down never ran either
+    assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 2
+
+
+def test_a_rollback_that_loses_the_stamp_claim_runs_nothing(tmp_path: Path) -> None:
+    """The stamp's removal claims the rollback before the down runs: a caller
+    that loses the claim to a concurrent open runs no down at all."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_down(root, "0001_add_note.sql", DOWN)
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)
+    real = conn.execute
+
+    class lost:  # a concurrent open already claimed the stamp: our delete removes nothing
+        def execute(self, sql: str) -> Any:
+            if sql.startswith("DELETE FROM db_upgrade"):
+                return SimpleNamespace(rowcount=0)
+            return real(sql)
+
+    rolled = migrations.run_downgrades(lost(), "sqlite", root=root)
+
+    assert rolled == []  # lost the claim: the winner's rollback stands
+    assert "note" in _columns(conn)  # our down never ran
+
+
+def test_a_fully_rolled_back_store_cannot_be_restamped_as_current(tmp_path: Path) -> None:
+    """A full rollback leaves an empty stamp table on an enrolled store: that
+    is rolled-back-to-start, not pre-channel - stamping it would record the
+    reverted schema as current. The store runs forward instead."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_down(root, "0001_add_note.sql", DOWN)
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)
+    assert migrations.run_downgrades(conn, "sqlite", root=root)  # back to the start
+
+    with pytest.raises(migrations.MigrationError, match="run the channel"):
+        migrations.stamp_channel(conn, "sqlite", root=root)  # never stamped over
+
+    assert [u.name for u in migrations.run_upgrades(conn, "sqlite", root=root)] == [
+        "0001_add_note"
+    ]  # the honest path forward runs the script again
+
+
+def test_a_quoted_literal_is_never_mistaken_for_a_transaction_statement(tmp_path: Path) -> None:
+    """A value's text is not a statement: 'text; COMMIT' inside a literal
+    passes the scan the runner applies to upgrades and downs alike."""
+    literal = (
+        "-- a value that looks like a transaction\n"
+        "INSERT INTO {table} (url, public) VALUES ('text; COMMIT', 1);\n"
+    )
+    root = _write_channel(tmp_path, "0001_literal.sql", literal)
+    _write_down(root, "0001_literal.sql", "DELETE FROM {table} WHERE url = 'text; COMMIT';\n")
+    conn = _sqlite()
+
+    assert [u.name for u in migrations.run_upgrades(conn, "sqlite", root=root)] == ["0001_literal"]
+    assert [u.name for u in migrations.run_downgrades(conn, "sqlite", root=root)] == [
+        "0001_literal"
+    ]
+
+
+def test_a_dead_connection_does_not_hide_the_downgrade_failure(tmp_path: Path) -> None:
+    """The failure is logged and wrapped before any re-read: a connection
+    that died mid-downgrade surfaces the downgrade's error, not its own."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_down(root, "0001_add_note.sql", "ALTER TABLE {table} DROP COLUMN never_existed;\n")
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)
+    real = conn.execute
+
+    class dying:  # the down fails, and the recovery re-read dies with the connection
+        reads = 0  # the planning read lives; the recovery read dies
+
+        def execute(self, sql: str) -> Any:
+            if "never_existed" in sql:
+                raise sqlite3.OperationalError("no such column")
+            if sql.startswith("SELECT name, sha256 FROM db_upgrade"):
+                self.reads += 1
+                if self.reads > 1:
+                    raise sqlite3.OperationalError("connection closed")
+            return real(sql)
+
+    with pytest.raises(migrations.MigrationError, match="downgrade failed"):
+        migrations.run_downgrades(dying(), "sqlite", root=root)
 
 
 def test_stamp_channel_treats_a_won_race_as_a_no_op(tmp_path: Path) -> None:

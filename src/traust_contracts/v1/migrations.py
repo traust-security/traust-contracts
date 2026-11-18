@@ -99,10 +99,12 @@ class Upgrade:
 
 
 def _code(sql: str) -> str:
-    """Authored SQL with ``--`` lines and ``/* … */`` blocks removed, for scans."""
+    """Authored SQL with ``--`` lines, ``/* … */`` blocks and string literals
+    removed, for scans: a value's text is never a statement."""
     without_blocks = re.sub(r"/\*.*?\*/", "", sql, flags=re.S)
+    without_strings = re.sub(r"'(?:[^']|'')*'", "''", without_blocks)
     return "\n".join(
-        line for line in without_blocks.splitlines() if not line.lstrip().startswith("--")
+        line for line in without_strings.splitlines() if not line.lstrip().startswith("--")
     )
 
 
@@ -354,19 +356,24 @@ def run_downgrades(
     A script rolls back only when its upgrade shipped a paired down script
     (``downgrades/NNNN_slug.sql``); one that declared destructive work never
     does - what it removed is gone - and one without a down file never does.
-    The whole requested range is validated before anything runs, so a refusal
-    leaves the store exactly as it was. A down script's own DROPs are its
-    point - restoring the pre-upgrade shape - so only the transaction-statement
-    rule applies to it. Each down runs whole with its stamp's removal in one
-    transaction; a race that loses the rollback to a concurrent open is a
-    no-op, mirroring the upgrades. Returns what rolled back, head first.
+    The whole requested range is validated before anything runs, and the whole
+    range runs in one transaction, so a refusal leaves the store exactly as it
+    was and a concurrent open never interleaves between scripts. A down
+    script's own DROPs are its point - restoring the pre-upgrade shape - so
+    only the transaction-statement rule applies to it. Each stamp's removal
+    claims its rollback before the down runs; a race that loses the claim is a
+    no-op for the whole call, mirroring the upgrades. Returns what rolled
+    back, head first.
     """
     if steps < 1:
         raise MigrationError(f"downgrade steps are at least 1, not {steps}")
     if not conn.execute(_EXISTS[dialect]).fetchall():
         return []  # nothing applied: nothing to roll back
     done, _ = _upgrades_with_state(dialect, applied_upgrades(conn, dialect), root=root)
-    candidates: list[tuple[Upgrade, Path]] = []
+    # the whole range is read and checked before anything runs: a refusal -
+    # destructive, unpaired, or a down carrying its own transaction statement -
+    # leaves the store exactly as it was, never partially rolled back
+    candidates: list[tuple[Upgrade, tuple[str, ...]]] = []
     for upgrade in reversed(done):
         if len(candidates) == steps:
             break
@@ -381,61 +388,82 @@ def run_downgrades(
                 f"upgrade {upgrade.name} ships no down script (downgrades/{upgrade.name}.sql): "
                 "it cannot roll back"
             )
-        candidates.append((upgrade, down))
-    rolled: list[Upgrade] = []
-    for upgrade, down in candidates:
         sql = down.read_text(encoding="utf-8")
         if _TRANSACTION.search(_code(sql)):
             raise MigrationError(
                 f"{down.name} carries its own transaction statement; the runner owns those"
             )
-        statements = tuple(bootstrap_statements(dialect, down))
-        started = time.perf_counter()
-        try:
-            conn.execute(_BEGIN[dialect])
-            for statement in statements:
-                conn.execute(statement)
-            conn.execute(f"DELETE FROM {_STAMP_TABLE[dialect]} WHERE name = '{upgrade.name}'")
-            conn.execute("COMMIT")
-        except Exception as error:
-            with contextlib.suppress(Exception):
+        candidates.append((upgrade, tuple(bootstrap_statements(dialect, down))))
+    started = time.perf_counter()
+    try:
+        # the whole range runs in one transaction: a concurrent open never
+        # interleaves between scripts (re-applying a prerequisite out of order),
+        # and any lost claim rolls the entire call back to a no-op
+        conn.execute(_BEGIN[dialect])
+        for upgrade, statements in candidates:
+            # the stamp's removal claims the rollback before the down runs: a
+            # concurrent open that already rolled this script back leaves the
+            # claim empty, and this whole call is a no-op - a down never runs twice
+            claim = conn.execute(
+                f"DELETE FROM {_STAMP_TABLE[dialect]} WHERE name = '{upgrade.name}'"
+            )
+            if getattr(claim, "rowcount", -1) == 0:
                 conn.execute("ROLLBACK")
-            if applied_upgrades(conn, dialect).get(upgrade.name) is None:
                 log.info(
-                    "db downgrade raced away dialect=%s name=%s - rolled back by a concurrent open",
+                    "db downgrade raced away dialect=%s names=%s - lost to a concurrent open",
                     dialect,
-                    upgrade.name,
+                    [upgrade.name for upgrade, _ in candidates],
                     extra={"operation": "db.downgrade", "outcome": "raced"},
                 )
-                continue
-            log.error(
-                "db downgrade failed dialect=%s name=%s error_type=%s error=%s",
-                dialect,
-                upgrade.name,
-                type(error).__name__,
-                error,
-                extra={"operation": "db.downgrade", "outcome": "failed"},
-            )
-            raise MigrationError(
-                f"downgrade {upgrade.name} failed to apply and no concurrent open rolled it "
-                "back first: the script is wrong, or the shape is not what its upgrade left"
-            ) from error
-        duration_ms = (time.perf_counter() - started) * 1000
-        log.info(
-            "db downgrade applied dialect=%s name=%s sha256=%s statements=%d duration_ms=%.1f",
+                return []
+            for statement in statements:
+                conn.execute(statement)
+        conn.execute("COMMIT")
+    except Exception as error:
+        with contextlib.suppress(Exception):
+            conn.execute("ROLLBACK")
+        # the failure is logged and wrapped before any re-read: a connection
+        # that died mid-downgrade must not replace the failure with its own
+        log.error(
+            "db downgrade failed dialect=%s error_type=%s",
             dialect,
-            upgrade.name,
-            upgrade.sha256,
-            len(statements),
-            duration_ms,
-            extra={
-                "operation": "db.downgrade",
-                "outcome": "applied",
-                "count": len(statements),
-                "duration_ms": duration_ms,
-            },
+            type(error).__name__,  # the raw message can carry row data: type only
+            extra={"operation": "db.downgrade", "outcome": "failed"},
         )
-        rolled.append(upgrade)
+        try:
+            raced = all(
+                applied_upgrades(conn, dialect).get(upgrade.name) is None
+                for upgrade, _ in candidates
+            )
+        except Exception:
+            raced = False  # the re-read itself failed: the original failure stands
+        if raced:
+            log.info(
+                "db downgrade raced away dialect=%s names=%s - lost to a concurrent open",
+                dialect,
+                [upgrade.name for upgrade, _ in candidates],
+                extra={"operation": "db.downgrade", "outcome": "raced"},
+            )
+            return []
+        raise MigrationError(
+            f"downgrade failed ({', '.join(upgrade.name for upgrade, _ in candidates)}) and no "
+            "concurrent open rolled it back first: a script is wrong, or the shape is not what "
+            "its upgrade left"
+        ) from error
+    duration_ms = (time.perf_counter() - started) * 1000
+    rolled = [upgrade for upgrade, _ in candidates]
+    log.info(
+        "db downgrade applied dialect=%s scripts=%d names=%s duration_ms=%.1f",
+        dialect,
+        len(rolled),
+        [upgrade.name for upgrade in rolled],
+        extra={
+            "operation": "db.downgrade",
+            "outcome": "applied",
+            "count": len(rolled),
+            "duration_ms": duration_ms,
+        },
+    )
     return rolled
 
 
@@ -454,7 +482,8 @@ def stamp_channel(
     way. A concurrent open that wins the stamping makes this one a no-op.
     Returns what it stamped - nothing when the channel already knows the store.
     """
-    if not conn.execute(_EXISTS[dialect]).fetchall():
+    existed = bool(conn.execute(_EXISTS[dialect]).fetchall())
+    if not existed:
         try:
             for statement in stamp_table_statements(dialect):
                 conn.execute(statement)
@@ -462,13 +491,16 @@ def stamp_channel(
             if not conn.execute(_EXISTS[dialect]).fetchall():  # a concurrent open won the create
                 raise
     applied = applied_upgrades(conn, dialect)
-    if applied:
+    if applied or existed:
+        # on the channel: with stamps (known - current is a no-op, behind is
+        # refused) or without them (rolled back to its start - run it forward,
+        # never stamp over the rollback)
         remaining = pending_upgrades(dialect, applied, root=root)  # drift refused inside
         if remaining:
             raise MigrationError(
                 "the store is on the channel and behind ("
                 f"{', '.join(upgrade.name for upgrade in remaining)}): run the channel, "
-                "never stamp over its pending work"
+                "never stamp over its pending or rolled-back work"
             )
         log.debug(
             "db channel stamp dialect=%s already known",
