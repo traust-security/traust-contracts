@@ -44,6 +44,15 @@ def _write_channel(root: Path, name: str, body: str) -> Path:
     return root
 
 
+def _write_down(root: Path, name: str, body: str) -> Path:
+    """The paired down script, in both dialects, beside the channel's upgrades."""
+    for dialect, table in (("sqlite", "repository"), ("postgres", "traust.repository")):
+        downgrades = root / dialect / "downgrades"
+        downgrades.mkdir(parents=True, exist_ok=True)
+        (downgrades / name).write_text(body.format(table=table), encoding="utf-8")
+    return root
+
+
 @pytest.fixture
 def channel(tmp_path: Path) -> Path:
     """A channel carrying one future additive upgrade, dialect-paired."""
@@ -148,6 +157,70 @@ def test_a_failed_stamp_leaves_no_stranded_empty_table(tmp_path: Path) -> None:
     )
     stamped = migrations.stamp_channel(conn, "sqlite", root=root)
     assert [upgrade.name for upgrade in stamped] == ["0001_add_note"]
+
+
+DOWN = "-- the paired rollback\nALTER TABLE {table} DROP COLUMN note;\n"
+
+
+def _columns(conn: sqlite3.Connection) -> list[str]:
+    return [row[1] for row in conn.execute("PRAGMA table_info(repository)").fetchall()]
+
+
+def test_a_downgrade_reverses_the_last_upgrade_and_its_stamp(tmp_path: Path) -> None:
+    """The channel runs backward: the head script's down runs whole, its stamp
+    goes with it, and the store can take the forward path again."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_down(root, "0001_add_note.sql", DOWN)
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)
+    assert "note" in _columns(conn)
+
+    rolled = migrations.run_downgrades(conn, "sqlite", root=root)
+
+    assert [upgrade.name for upgrade in rolled] == ["0001_add_note"]
+    assert "note" not in _columns(conn)  # the down restored the shape
+    assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 0
+    assert [u.name for u in migrations.run_upgrades(conn, "sqlite", root=root)] == [
+        "0001_add_note"
+    ]  # forward again works
+
+
+def test_downgrades_roll_back_head_first_and_validate_the_whole_range(tmp_path: Path) -> None:
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_channel(root, "0002_add_note2.sql", NOTE.replace("note", "note2"))
+    _write_down(root, "0002_add_note2.sql", DOWN.replace("note", "note2"))
+    # 0001 ships no down: rolling two back must refuse before anything runs
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)
+    assert {"note", "note2"} <= set(_columns(conn))
+
+    with pytest.raises(migrations.MigrationError, match="ships no down script"):
+        migrations.run_downgrades(conn, "sqlite", steps=2, root=root)
+
+    assert {"note", "note2"} <= set(_columns(conn))  # nothing ran: no partial rollback
+    assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 2
+    rolled = migrations.run_downgrades(conn, "sqlite", steps=1, root=root)  # head only
+    assert [upgrade.name for upgrade in rolled] == ["0002_add_note2"]
+    assert "note" in _columns(conn) and "note2" not in _columns(conn)
+
+
+def test_a_destructive_upgrade_never_rolls_back(tmp_path: Path) -> None:
+    destructive = (
+        "-- destructive: the public column is dead weight\n"
+        "ALTER TABLE {table} DROP COLUMN public;\n"
+    )
+    root = _write_channel(tmp_path, "0001_drop_public.sql", destructive)
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)  # applied, deliberately
+
+    with pytest.raises(migrations.MigrationError, match="cannot roll back"):
+        migrations.run_downgrades(conn, "sqlite", root=root)
+
+
+def test_a_downgrade_with_nothing_applied_is_a_no_op(tmp_path: Path) -> None:
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    assert migrations.run_downgrades(conn, "sqlite", root=root) == []
 
 
 def test_stamp_channel_treats_a_won_race_as_a_no_op(tmp_path: Path) -> None:
