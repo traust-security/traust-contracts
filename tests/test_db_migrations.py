@@ -322,6 +322,37 @@ def test_a_dead_connection_does_not_hide_the_downgrade_failure(tmp_path: Path) -
         migrations.run_downgrades(dying(), "sqlite", root=root)
 
 
+def test_a_comment_apostrophe_cannot_conceal_a_commit(tmp_path: Path) -> None:
+    """Comments are stripped before literals, so apostrophes in two -- lines
+    cannot pair up and swallow an intervening COMMIT from the scan."""
+    sneaky = (
+        "-- don't do this by hand\nCOMMIT;\n-- it's committed now\n"
+        "ALTER TABLE {table} DROP COLUMN note;\n"
+    )
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_down(root, "0001_add_note.sql", sneaky)
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)
+
+    with pytest.raises(migrations.MigrationError, match="carries its own transaction statement"):
+        migrations.run_downgrades(conn, "sqlite", root=root)
+    assert "note" in _columns(conn)  # nothing ran
+
+
+def test_a_down_that_does_nothing_is_refused(tmp_path: Path) -> None:
+    """A comment-only down would remove its upgrade's stamp while leaving the
+    schema changed - the runner refuses it rather than corrupting the channel."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_down(root, "0001_add_note.sql", "-- TODO: write the rollback\n")
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)
+
+    with pytest.raises(migrations.MigrationError, match="has no statements"):
+        migrations.run_downgrades(conn, "sqlite", root=root)
+    assert "note" in _columns(conn)  # the schema and the stamp both stand
+    assert conn.execute("SELECT count(*) FROM db_upgrade").fetchone()[0] == 1
+
+
 def test_stamp_channel_treats_a_won_race_as_a_no_op(tmp_path: Path) -> None:
     """Two openers plan the same stamps; the one whose insert loses to the
     other's commit rolls back, re-reads, and stamps nothing."""

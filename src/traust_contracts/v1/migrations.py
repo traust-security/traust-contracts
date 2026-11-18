@@ -99,13 +99,14 @@ class Upgrade:
 
 
 def _code(sql: str) -> str:
-    """Authored SQL with ``--`` lines, ``/* … */`` blocks and string literals
-    removed, for scans: a value's text is never a statement."""
+    """Authored SQL with comments and string literals removed, for scans: a
+    value's text is never a statement, and a comment's apostrophe never opens
+    a literal (comments go first, so ``-- don't`` cannot hide a COMMIT)."""
     without_blocks = re.sub(r"/\*.*?\*/", "", sql, flags=re.S)
-    without_strings = re.sub(r"'(?:[^']|'')*'", "''", without_blocks)
-    return "\n".join(
-        line for line in without_strings.splitlines() if not line.lstrip().startswith("--")
+    without_comments = "\n".join(
+        line for line in without_blocks.splitlines() if not line.lstrip().startswith("--")
     )
+    return re.sub(r"'(?:[^']|'')*'", "''", without_comments)
 
 
 def _destructive_reason(sql: str) -> str | None:
@@ -304,12 +305,11 @@ def run_upgrades(
                 )
                 continue  # a concurrent open applied it first
             log.error(
-                "db upgrade failed dialect=%s name=%s sha256=%s error_type=%s error=%s",
+                "db upgrade failed dialect=%s name=%s sha256=%s error_type=%s",
                 dialect,
                 upgrade.name,
                 upgrade.sha256,
-                type(error).__name__,
-                error,
+                type(error).__name__,  # the raw message can carry row data: type only
                 extra={
                     "operation": "db.upgrade",
                     "outcome": "failed",
@@ -393,7 +393,13 @@ def run_downgrades(
             raise MigrationError(
                 f"{down.name} carries its own transaction statement; the runner owns those"
             )
-        candidates.append((upgrade, tuple(bootstrap_statements(dialect, down))))
+        statements = tuple(bootstrap_statements(dialect, down))
+        if not statements:
+            raise MigrationError(
+                f"{down.name} has no statements: a down that does nothing would remove its "
+                "upgrade's stamp while leaving the schema changed"
+            )
+        candidates.append((upgrade, statements))
     started = time.perf_counter()
     try:
         # the whole range runs in one transaction: a concurrent open never
@@ -431,7 +437,7 @@ def run_downgrades(
             extra={"operation": "db.downgrade", "outcome": "failed"},
         )
         try:
-            raced = all(
+            raced = bool(candidates) and all(
                 applied_upgrades(conn, dialect).get(upgrade.name) is None
                 for upgrade, _ in candidates
             )
