@@ -75,6 +75,104 @@ def test_the_shipped_first_script_preserves_every_row() -> None:
     assert all(row[11] == 0 for row in after)  # gone_streak starts at 0
 
 
+def test_stamp_channel_brings_a_pre_channel_store_on_at_the_head() -> None:
+    """A store from before the channel - current shape, no stamps - is stamped
+    as having run everything shipped: nothing runs, nothing is re-run, and the
+    store is on the routine from the head."""
+    conn = _sqlite()  # the baseline, as a pre-channel store would have it
+    # the shape is already current: the column 0001 would add is there by hand of
+    # the bootstrap, exactly the store this exists for
+    migrations.run_upgrades(conn, "sqlite")  # a current store for reference
+    conn.execute("DROP TABLE db_upgrade")  # ...minus the channel's bookkeeping
+
+    stamped = migrations.stamp_channel(conn, "sqlite")
+
+    assert [upgrade.name for upgrade in stamped] == ["0001_repository_disposition"]
+    assert migrations.stamp_channel(conn, "sqlite") == []  # idempotent: known store
+    assert migrations.run_upgrades(conn, "sqlite") == []  # nothing pending, nothing runs
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
+    assert stamps == [("0001_repository_disposition", stamped[0].sha256)]
+
+
+def test_stamp_channel_refuses_drift_like_the_runner() -> None:
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite")
+    # a stamp whose script changed after it was recorded: fix forward, never re-stamp
+    conn.execute(
+        "UPDATE db_upgrade SET sha256 = ? WHERE name = '0001_repository_disposition'",
+        (("0") * 64,),
+    )
+    with pytest.raises(migrations.MigrationError, match="changed after"):
+        migrations.stamp_channel(conn, "sqlite")
+
+
+def test_stamp_channel_never_stamps_over_an_enrolled_behind_store(tmp_path: Path) -> None:
+    """A store on the channel with pending work is the runner's to advance,
+    never the stamping's to presume: stamping it would mark unrun scripts done."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)  # on the channel, at its head
+    _write_channel(root, "0002_add_note2.sql", NOTE.replace("note", "note2"))  # later ship
+
+    with pytest.raises(migrations.MigrationError, match="on the channel and behind"):
+        migrations.stamp_channel(conn, "sqlite", root=root)
+    # and the pending script is still pending: nothing was stamped over
+    assert [u.name for u in migrations.run_upgrades(conn, "sqlite", root=root, dry_run=True)] == [
+        "0002_add_note2"
+    ]
+
+
+def test_a_failed_stamp_leaves_no_stranded_empty_table(tmp_path: Path) -> None:
+    """A stamp that fails without a concurrent winner must not strand the
+    store behind an empty stamp table - the next open would read it as
+    enrolled and run scripts against an already-current shape."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    real = conn.execute
+
+    class failing:  # an insert error with no concurrent winner
+        def execute(self, sql: str) -> Any:
+            if sql.startswith("BEGIN") or sql in ("COMMIT", "ROLLBACK"):
+                return None
+            if sql.startswith("INSERT INTO db_upgrade"):
+                raise sqlite3.OperationalError("disk I/O error")
+            return real(sql)
+
+    with pytest.raises(sqlite3.OperationalError):
+        migrations.stamp_channel(failing(), "sqlite", root=root)
+
+    # the empty bookkeeping is gone: the store is still pre-channel, and a retry stamps
+    assert (
+        conn.execute("SELECT count(*) FROM sqlite_master WHERE name = 'db_upgrade'").fetchone()[0]
+        == 0
+    )
+    stamped = migrations.stamp_channel(conn, "sqlite", root=root)
+    assert [upgrade.name for upgrade in stamped] == ["0001_add_note"]
+
+
+def test_stamp_channel_treats_a_won_race_as_a_no_op(tmp_path: Path) -> None:
+    """Two openers plan the same stamps; the one whose insert loses to the
+    other's commit rolls back, re-reads, and stamps nothing."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    real = conn.execute
+
+    class raced:  # simulates the concurrent winner committing mid-transaction
+        def execute(self, sql: str) -> Any:
+            if sql.startswith("BEGIN") or sql in ("COMMIT", "ROLLBACK"):
+                return None  # no transaction of our own: the winner commits in autocommit
+            if sql.startswith("INSERT INTO db_upgrade"):
+                real(sql)  # the concurrent opener's commit lands first
+                raise sqlite3.IntegrityError("UNIQUE constraint failed: db_upgrade.name")
+            return real(sql)
+
+    stamped = migrations.stamp_channel(raced(), "sqlite", root=root)
+
+    assert stamped == []  # lost the race: the winner's stamps stand, ours are nothing
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
+    assert len(stamps) == 1 and stamps[0][0] == "0001_add_note"  # stamped exactly once
+
+
 def test_names_must_be_slugs_numbered_gaplessly_from_one(tmp_path: Path) -> None:
     with pytest.raises(migrations.MigrationError, match="NNNN_slug"):
         root = _write_channel(tmp_path / "a", "add_note.sql", "SELECT 1;")

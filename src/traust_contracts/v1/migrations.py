@@ -44,6 +44,7 @@ __all__ = [
     "applied_upgrades",
     "pending_upgrades",
     "run_upgrades",
+    "stamp_channel",
     "stamp_table_statements",
     "upgrade_files",
 ]
@@ -305,3 +306,79 @@ def run_upgrades(
         )
         ran.append(upgrade)
     return ran
+
+
+def stamp_channel(
+    conn: _Connection, dialect: Dialect, *, root: Path | None = None
+) -> list[Upgrade]:
+    """Mark every shipped script as applied, in one transaction: a store from
+    before the channel, presumed current, starts on it at the head.
+
+    The stamping is the channel's first act on such a store - the marker that it
+    is on the routine, at the start. Nothing is verified about the live shape: a
+    store someone changed by hand is that operator's to resolve when a later
+    script refuses what does not fit. A store already on the channel is never
+    stamped over: known and current is a no-op, known and behind is refused (run
+    the channel, never stamp over pending work), and drift is refused either
+    way. A concurrent open that wins the stamping makes this one a no-op.
+    Returns what it stamped - nothing when the channel already knows the store.
+    """
+    if not conn.execute(_EXISTS[dialect]).fetchall():
+        try:
+            for statement in stamp_table_statements(dialect):
+                conn.execute(statement)
+        except Exception:
+            if not conn.execute(_EXISTS[dialect]).fetchall():  # a concurrent open won the create
+                raise
+    applied = applied_upgrades(conn, dialect)
+    if applied:
+        remaining = pending_upgrades(dialect, applied, root=root)  # drift refused inside
+        if remaining:
+            raise MigrationError(
+                "the store is on the channel and behind ("
+                f"{', '.join(upgrade.name for upgrade in remaining)}): run the channel, "
+                "never stamp over its pending work"
+            )
+        log.debug(
+            "db channel stamp dialect=%s already known",
+            dialect,
+            extra={"operation": "db.channel.stamp", "outcome": "known"},
+        )
+        return []
+    to_stamp = pending_upgrades(dialect, {}, root=root)
+    if not to_stamp:
+        return []
+    try:
+        conn.execute(_BEGIN[dialect])
+        for upgrade in to_stamp:
+            conn.execute(
+                f"INSERT INTO {_STAMP_TABLE[dialect]} (name, sha256) "
+                f"VALUES ('{upgrade.name}', '{upgrade.sha256}')"
+            )
+        conn.execute("COMMIT")
+    except Exception:
+        with contextlib.suppress(Exception):
+            conn.execute("ROLLBACK")
+        stamped = applied_upgrades(conn, dialect)
+        if all(stamped.get(upgrade.name) == upgrade.sha256 for upgrade in to_stamp):
+            log.info(  # a concurrent open stamped the store first: nothing of ours to do
+                "db channel stamp raced away dialect=%s names=%s",
+                dialect,
+                [upgrade.name for upgrade in to_stamp],
+                extra={"operation": "db.channel.stamp", "outcome": "raced"},
+            )
+            return []
+        if not stamped:
+            # nothing committed and the stamp table is this attempt's empty
+            # bookkeeping: drop it, restoring the pre-channel state a retry
+            # expects - an empty table must never read as an enrolled store
+            conn.execute(f"DROP TABLE {_STAMP_TABLE[dialect]}")
+        raise
+    log.info(
+        "db channel stamped dialect=%s scripts=%d names=%s - presumed current, at the head",
+        dialect,
+        len(to_stamp),
+        [upgrade.name for upgrade in to_stamp],
+        extra={"operation": "db.channel.stamp", "outcome": "stamped", "count": len(to_stamp)},
+    )
+    return to_stamp
