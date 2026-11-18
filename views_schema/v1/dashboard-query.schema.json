@@ -1,0 +1,89 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.com/traust-contracts/views_schema/v1/dashboard-query.schema.json",
+ "title": "Dashboard metrics query",
+ "description": "The dashboard service's request: a subject, the repository filter that trims the answer to a caller's access (products and teams expand to repositories), and an allow-listed combination of measures and dimensions. One SQL statement answers it. An empty filter means the whole estate, which only a caller permitted to see everything sends.",
+ "type": "object",
+ "required": ["subject", "measures"],
+ "additionalProperties": false,
+ "properties": {
+  "subject": {
+   "enum": ["findings", "review_items", "work_items", "repositories"],
+   "description": "what the query counts; each subject carries its own dimensions and measures"
+  },
+  "repository_ids": {
+   "type": "array",
+   "items": {"type": "string", "format": "uuid"},
+   "maxItems": 10000,
+   "uniqueItems": true,
+   "description": "the access trim: only these repositories contribute. Empty with no other filter means the whole estate"
+  },
+  "product_ids": {
+   "type": "array",
+   "items": {"type": "string", "format": "uuid"},
+   "maxItems": 1000,
+   "uniqueItems": true,
+   "description": "expanded to repositories through the portfolio"
+  },
+  "team_ids": {
+   "type": "array",
+   "items": {"type": "string", "format": "uuid"},
+   "maxItems": 1000,
+   "uniqueItems": true,
+   "description": "expanded to repositories through ownership"
+  },
+  "measures": {
+   "type": "array",
+   "items": {
+    "enum": ["findings", "repositories", "cvss_sum", "oldest_open_age", "review_items", "work_items", "median_open_days"]
+   },
+   "minItems": 1,
+   "maxItems": 8,
+   "uniqueItems": true,
+   "description": "what is counted or summed"
+  },
+  "group_by": {
+   "type": "array",
+   "items": {
+    "enum": ["repository", "product", "team", "state", "severity", "category", "decided", "sla_status", "age_bucket", "first_seen_week", "changed_week", "reason", "status", "strategy"]
+   },
+   "maxItems": 3,
+   "uniqueItems": true,
+   "description": "the axes the answer is broken down by; at most three"
+  },
+  "where": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "array",
+    "items": {"type": "string"},
+    "minItems": 1,
+    "maxItems": 100
+   },
+   "maxProperties": 8,
+   "description": "dimension values the answer keeps; applied after the repository filter"
+  },
+  "order": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": ["by"],
+    "additionalProperties": false,
+    "properties": {
+     "by": {
+      "enum": ["findings", "repositories", "cvss_sum", "oldest_open_age", "review_items", "work_items", "median_open_days", "repository", "product", "team", "state", "severity", "category", "decided", "sla_status", "age_bucket", "first_seen_week", "changed_week", "reason", "status", "strategy"]
+     },
+     "desc": {"type": "boolean", "default": false}
+    }
+   },
+   "maxItems": 3,
+   "description": "the result order, measure or dimension first"
+  },
+  "limit": {
+   "type": "integer",
+   "minimum": 1,
+   "maximum": 1000,
+   "default": 50,
+   "description": "rows returned, capped by the server whatever is asked"
+  }
+ }
+}

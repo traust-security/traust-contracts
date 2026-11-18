@@ -1,0 +1,35 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.com/traust-contracts/views_schema/v1/dashboard-results.schema.json",
+ "title": "Dashboard metrics results",
+ "description": "The dashboard service's answer: one row per group, the measures computed within the repository filter. Nulls are states the data carries (no category, no severity, no score), never absences. Bounded by the query's limit and the server's row cap.",
+ "type": "object",
+ "required": ["subject", "rows"],
+ "additionalProperties": false,
+ "properties": {
+  "subject": {
+   "enum": ["findings", "review_items", "work_items", "repositories"]
+  },
+  "rows": {
+   "type": "array",
+   "maxItems": 1000,
+   "items": {
+    "type": "object",
+    "required": ["groups", "measures"],
+    "additionalProperties": false,
+    "properties": {
+     "groups": {
+      "type": "object",
+      "description": "one value per group_by dimension; a dimension with no value is null, not omitted",
+      "additionalProperties": {"type": ["string", "null"]}
+     },
+     "measures": {
+      "type": "object",
+      "description": "one number per requested measure; null when the measure cannot be computed (no scores to sum)",
+      "additionalProperties": {"type": ["number", "null"], "minimum": 0}
+     }
+    }
+   }
+  }
+ }
+}
