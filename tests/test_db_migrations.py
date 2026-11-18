@@ -106,6 +106,45 @@ def test_stamp_channel_refuses_drift_like_the_runner() -> None:
         migrations.stamp_channel(conn, "sqlite")
 
 
+def test_stamp_channel_never_stamps_over_an_enrolled_behind_store(tmp_path: Path) -> None:
+    """A store on the channel with pending work is the runner's to advance,
+    never the stamping's to presume: stamping it would mark unrun scripts done."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)  # on the channel, at its head
+    _write_channel(root, "0002_add_note2.sql", NOTE.replace("note", "note2"))  # later ship
+
+    with pytest.raises(migrations.MigrationError, match="on the channel and behind"):
+        migrations.stamp_channel(conn, "sqlite", root=root)
+    # and the pending script is still pending: nothing was stamped over
+    assert [u.name for u in migrations.run_upgrades(conn, "sqlite", root=root, dry_run=True)] == [
+        "0002_add_note2"
+    ]
+
+
+def test_stamp_channel_treats_a_won_race_as_a_no_op(tmp_path: Path) -> None:
+    """Two openers plan the same stamps; the one whose insert loses to the
+    other's commit rolls back, re-reads, and stamps nothing."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    real = conn.execute
+
+    class raced:  # simulates the concurrent winner committing mid-transaction
+        def execute(self, sql: str) -> Any:
+            if sql.startswith("BEGIN") or sql in ("COMMIT", "ROLLBACK"):
+                return None  # no transaction of our own: the winner commits in autocommit
+            if sql.startswith("INSERT INTO db_upgrade"):
+                real(sql)  # the concurrent opener's commit lands first
+                raise sqlite3.IntegrityError("UNIQUE constraint failed: db_upgrade.name")
+            return real(sql)
+
+    stamped = migrations.stamp_channel(raced(), "sqlite", root=root)
+
+    assert stamped == []  # lost the race: the winner's stamps stand, ours are nothing
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
+    assert len(stamps) == 1 and stamps[0][0] == "0001_add_note"  # stamped exactly once
+
+
 def test_names_must_be_slugs_numbered_gaplessly_from_one(tmp_path: Path) -> None:
     with pytest.raises(migrations.MigrationError, match="NNNN_slug"):
         root = _write_channel(tmp_path / "a", "add_note.sql", "SELECT 1;")
