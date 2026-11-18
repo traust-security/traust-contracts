@@ -44,6 +44,7 @@ __all__ = [
     "applied_upgrades",
     "pending_upgrades",
     "run_upgrades",
+    "stamp_channel",
     "stamp_table_statements",
     "upgrade_files",
 ]
@@ -305,3 +306,53 @@ def run_upgrades(
         )
         ran.append(upgrade)
     return ran
+
+
+def stamp_channel(
+    conn: _Connection, dialect: Dialect, *, root: Path | None = None
+) -> list[Upgrade]:
+    """Mark every shipped script as applied, in one transaction: a store from
+    before the channel, presumed current, starts on it at the head.
+
+    The stamping is the channel's first act on such a store - the marker that it
+    is on the routine, at the start. Nothing is verified about the live shape: a
+    store someone changed by hand is that operator's to resolve when a later
+    script refuses what does not fit. Drift is still refused: a stamp whose
+    script no longer ships, or whose hash changed, rejects the stamping. Returns
+    what it stamped - nothing when the channel already knows the store.
+    """
+    if not conn.execute(_EXISTS[dialect]).fetchall():
+        try:
+            for statement in stamp_table_statements(dialect):
+                conn.execute(statement)
+        except Exception:
+            if not conn.execute(_EXISTS[dialect]).fetchall():  # a concurrent open won the create
+                raise
+    to_stamp = pending_upgrades(dialect, applied_upgrades(conn, dialect), root=root)
+    if not to_stamp:
+        log.debug(
+            "db channel stamp dialect=%s already known",
+            dialect,
+            extra={"operation": "db.channel.stamp", "outcome": "known"},
+        )
+        return to_stamp
+    conn.execute(_BEGIN[dialect])
+    try:
+        for upgrade in to_stamp:
+            conn.execute(
+                f"INSERT INTO {_STAMP_TABLE[dialect]} (name, sha256) "
+                f"VALUES ('{upgrade.name}', '{upgrade.sha256}')"
+            )
+        conn.execute("COMMIT")
+    except Exception:
+        with contextlib.suppress(Exception):
+            conn.execute("ROLLBACK")
+        raise
+    log.info(
+        "db channel stamped dialect=%s scripts=%d names=%s - presumed current, at the head",
+        dialect,
+        len(to_stamp),
+        [upgrade.name for upgrade in to_stamp],
+        extra={"operation": "db.channel.stamp", "outcome": "stamped", "count": len(to_stamp)},
+    )
+    return to_stamp

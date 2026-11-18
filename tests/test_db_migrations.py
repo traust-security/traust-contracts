@@ -75,6 +75,37 @@ def test_the_shipped_first_script_preserves_every_row() -> None:
     assert all(row[11] == 0 for row in after)  # gone_streak starts at 0
 
 
+def test_stamp_channel_brings_a_pre_channel_store_on_at_the_head() -> None:
+    """A store from before the channel - current shape, no stamps - is stamped
+    as having run everything shipped: nothing runs, nothing is re-run, and the
+    store is on the routine from the head."""
+    conn = _sqlite()  # the baseline, as a pre-channel store would have it
+    # the shape is already current: the column 0001 would add is there by hand of
+    # the bootstrap, exactly the store this exists for
+    migrations.run_upgrades(conn, "sqlite")  # a current store for reference
+    conn.execute("DROP TABLE db_upgrade")  # ...minus the channel's bookkeeping
+
+    stamped = migrations.stamp_channel(conn, "sqlite")
+
+    assert [upgrade.name for upgrade in stamped] == ["0001_repository_disposition"]
+    assert migrations.stamp_channel(conn, "sqlite") == []  # idempotent: known store
+    assert migrations.run_upgrades(conn, "sqlite") == []  # nothing pending, nothing runs
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
+    assert stamps == [("0001_repository_disposition", stamped[0].sha256)]
+
+
+def test_stamp_channel_refuses_drift_like_the_runner() -> None:
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite")
+    # a stamp whose script changed after it was recorded: fix forward, never re-stamp
+    conn.execute(
+        "UPDATE db_upgrade SET sha256 = ? WHERE name = '0001_repository_disposition'",
+        (("0") * 64,),
+    )
+    with pytest.raises(migrations.MigrationError, match="changed after"):
+        migrations.stamp_channel(conn, "sqlite")
+
+
 def test_names_must_be_slugs_numbered_gaplessly_from_one(tmp_path: Path) -> None:
     with pytest.raises(migrations.MigrationError, match="NNNN_slug"):
         root = _write_channel(tmp_path / "a", "add_note.sql", "SELECT 1;")
