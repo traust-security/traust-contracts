@@ -131,11 +131,16 @@ def test_stamp_channel_brings_a_pre_channel_store_on_at_the_head() -> None:
 
     stamped = migrations.stamp_channel(conn, "sqlite")
 
-    assert [upgrade.name for upgrade in stamped] == ["0001_repository_disposition"]
+    # everything shipped, whatever the channel holds today — the test follows
+    # the channel rather than naming its entries (nothing applied = all pending)
+    shipped = [
+        (upgrade.name, upgrade.sha256) for upgrade in migrations.pending_upgrades("sqlite", {})
+    ]
+    assert [(upgrade.name, upgrade.sha256) for upgrade in stamped] == shipped
     assert migrations.stamp_channel(conn, "sqlite") == []  # idempotent: known store
     assert migrations.run_upgrades(conn, "sqlite") == []  # nothing pending, nothing runs
     stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
-    assert stamps == [("0001_repository_disposition", stamped[0].sha256)]
+    assert stamps == shipped
 
 
 def test_stamp_channel_refuses_drift_like_the_runner() -> None:
