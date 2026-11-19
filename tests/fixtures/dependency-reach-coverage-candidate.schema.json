@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/tests/fixtures/dependency-reach-coverage-candidate.schema.json",
+  "title": "Dependency reach with scan coverage (offline reader experiment)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reach", "coverage"],
+  "properties": {
+    "reach": {"$ref": "../../views_schema/v1/dependency-reach.schema.json"},
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["without_scan", "unresolved"],
+      "properties": {
+        "without_scan": {
+          "description": "Repositories in scope with no scan-backed manifest coverage (including document-only SBOMs).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "unresolved": {
+          "description": "Distinct scan-backed repositories per ecosystem with at least one unresolved manifest. Does not subtract observed packages.",
+          "type": "object",
+          "propertyNames": {"$ref": "../../artifacts_schema/v1/manifest-coverage.schema.json#/properties/unresolved/propertyNames"},
+          "additionalProperties": {"type": "integer", "minimum": 1}
+        }
+      }
+    }
+  }
+}
