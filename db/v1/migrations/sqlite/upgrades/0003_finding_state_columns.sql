@@ -83,6 +83,16 @@ CREATE INDEX IF NOT EXISTS idx_decision_finding_occurred
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_asset_state
     ON ops_run_order (asset, state, finished_at, repository_id);
 
+-- updated_at tracks the finding's own record, not its derived current answer: the touch
+-- fires only when one of the finding's own columns is set.
+DROP TRIGGER IF EXISTS finding_touch;
+
+CREATE TRIGGER finding_touch
+AFTER UPDATE OF repository_id, advisory_id, advisory_match, fingerprint_algo, fingerprint, kind, title ON finding FOR EACH ROW
+WHEN NEW.updated_at IS OLD.updated_at BEGIN
+  UPDATE finding SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE id = NEW.id;
+END;
+
 -- The finding's current answer is kept by triggers, so no writer can leave it behind: a
 -- decision (inserted, or its fold stamped) sets state and severity, an occurrence sets
 -- severity unless the latest decision rated it, the first category label sets category.
