@@ -213,6 +213,54 @@ def test_a_stamp_within_the_span_is_still_drift(tmp_path: Path) -> None:
         )
 
 
+def test_an_inline_comment_apostrophe_cannot_conceal_a_commit(tmp_path: Path) -> None:
+    """The scanner walks comments, blocks and literals in one pass: an
+    apostrophe in an inline -- comment never pairs with a later value's and
+    swallows an intervening COMMIT."""
+    sneaky = (
+        "SELECT 1; -- don't commit by hand\n"
+        "COMMIT;\n"
+        "INSERT INTO {table} (url, public) VALUES ('later', 1);\n"
+    )
+    root = _write_channel(tmp_path, "0001_sneaky.sql", sneaky)
+    conn = _sqlite()
+
+    with pytest.raises(migrations.MigrationError, match="carries its own transaction statement"):
+        migrations.run_upgrades(conn, "sqlite", root=root)
+
+
+def test_destructive_work_inside_a_literal_is_still_destructive(tmp_path: Path) -> None:
+    """Dynamic SQL is destructive work: EXECUTE '… DROP …' is flagged at plan
+    time even though the drop lives in a string literal."""
+    dynamic = "DO $$ BEGIN EXECUTE 'ALTER TABLE {table} DROP COLUMN public'; END $$;\n"
+    root = _write_channel(tmp_path, "0001_dynamic.sql", dynamic)
+
+    with pytest.raises(migrations.MigrationError, match="without a"):
+        migrations.pending_upgrades("sqlite", {}, root=root)
+
+
+def test_a_stamp_that_is_not_an_upgrades_name_refuses(tmp_path: Path) -> None:
+    """The stamp table is the channel's bookkeeping: a name that is not an
+    upgrade's refuses as such - never a ValueError, never silently ahead."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    sha = _sha256(root / "sqlite" / "upgrades" / "0001_add_note.sql")
+    for name in ("future", "0002"):
+        with pytest.raises(migrations.MigrationError, match="not an upgrade's name"):
+            migrations.pending_upgrades("sqlite", {name: sha}, root=root)
+
+
+def test_an_ahead_database_with_an_in_span_gap_refuses(tmp_path: Path) -> None:
+    """A newer contracts stamps every script it ships, so a database ahead of
+    this channel has every in-span script stamped too - a gap means its
+    history is inconsistent, and old scripts never run against it."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_channel(root, "0002_add_note2.sql", NOTE.replace("note", "note2"))
+    sha = _sha256(root / "sqlite" / "upgrades" / "0001_add_note.sql")
+
+    with pytest.raises(migrations.MigrationError, match="history is inconsistent"):
+        migrations.pending_upgrades("sqlite", {"0003_future": sha}, root=root)
+
+
 def test_stamp_channel_treats_a_won_race_as_a_no_op(tmp_path: Path) -> None:
     """Two openers plan the same stamps; the one whose insert loses to the
     other's commit rolls back, re-reads, and stamps nothing."""

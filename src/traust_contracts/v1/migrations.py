@@ -89,15 +89,60 @@ class Upgrade:
     destructive: str | None = None
 
 
-def _code(sql: str) -> str:
-    """Authored SQL with comments and string literals removed, for scans: a
-    value's text is never a statement, and a comment's apostrophe never opens
-    a literal (comments go first, so ``-- don't`` cannot hide a COMMIT)."""
-    without_blocks = re.sub(r"/\*.*?\*/", "", sql, flags=re.S)
-    without_comments = "\n".join(
-        line for line in without_blocks.splitlines() if not line.lstrip().startswith("--")
-    )
-    return re.sub(r"'(?:[^']|'')*'", "''", without_comments)
+def _scans(sql: str) -> tuple[str, str]:
+    """(code, code_without_literals): authored SQL with comments removed -
+    full-line and inline ``--``, and ``/* … */`` blocks - walked once so a
+    comment's apostrophe never opens a literal and a value's text is never a
+    statement. The literals-intact half feeds the destructive scan (dynamic
+    SQL - ``EXECUTE '… DROP …'`` - is destructive work too); the
+    literals-emptied half feeds the transaction scan."""
+    code: list[str] = []
+    without_literals: list[str] = []
+    in_line = in_block = in_string = False
+    i, length = 0, len(sql)
+    while i < length:
+        char = sql[i]
+        nxt = sql[i + 1] if i + 1 < length else ""
+        if in_line:
+            if char == "\n":
+                in_line = False
+                code.append(char)
+                without_literals.append(char)
+            i += 1
+        elif in_block:
+            if char == "*" and nxt == "/":
+                in_block = False
+                code.append(" ")
+                without_literals.append(" ")
+                i += 2
+            else:
+                i += 1
+        elif in_string:
+            code.append(char)
+            if char == "'":
+                without_literals.append(char)  # the closing quote: pairs stay balanced
+                if nxt == "'":  # the escaped '' of standard SQL
+                    code.append(nxt)
+                    i += 2
+                    continue
+                in_string = False
+            i += 1
+        elif char == "-" and nxt == "-":
+            in_line = True
+            i += 2
+        elif char == "/" and nxt == "*":
+            in_block = True
+            i += 2
+        elif char == "'":
+            in_string = True
+            code.append(char)
+            without_literals.append(char)
+            i += 1
+        else:
+            code.append(char)
+            without_literals.append(char)
+            i += 1
+    return "".join(code), "".join(without_literals)
 
 
 def _destructive_reason(sql: str) -> str | None:
@@ -171,10 +216,24 @@ def _upgrades_with_state(
     paths = upgrade_files(dialect, root=root)
     authored = {path.stem for path in paths}
     head = len(paths)  # gapless from 0001: the last script's number
+    ahead = False
     for name in sorted(set(applied) - authored):
+        if _NAME.match(name) is None:
+            raise MigrationError(
+                f"the database carries a stamp ({name}) that is not an upgrade's name: "
+                "its stamp table is not the channel's bookkeeping"
+            )
         if int(name[:4]) > head:
-            continue  # ahead of this channel: a newer contracts stamped it, not drift
+            ahead = True  # a newer contracts stamped it, not drift
+            continue
         raise MigrationError(f"the database ran upgrade {name}, which the channel no longer ships")
+    if ahead and not all(path.stem in applied for path in paths):
+        missing = ", ".join(path.stem for path in paths if path.stem not in applied)
+        raise MigrationError(
+            f"the database is ahead of this channel but is missing {missing}: a newer "
+            "contracts stamped it, so every script this channel ships should be stamped "
+            "too - its history is inconsistent"
+        )
     done: list[Upgrade] = []
     pending: list[Upgrade] = []
     for path in paths:
@@ -195,8 +254,8 @@ def _load_upgrade(dialect: Dialect, path: Path) -> Upgrade:
     statements, no transaction statements of its own, destructive SQL only
     with a declared reason."""
     sql = path.read_text(encoding="utf-8")
-    code = _code(sql)
-    if _TRANSACTION.search(code):
+    code, without_literals = _scans(sql)
+    if _TRANSACTION.search(without_literals):
         raise MigrationError(
             f"{path.name} carries its own transaction statement; the runner owns those"
         )
