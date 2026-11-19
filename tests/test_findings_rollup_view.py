@@ -68,6 +68,7 @@ def document() -> dict[str, Any]:
                 "title": "Unbounded input allocation",
                 "severity": "critical",
                 "cvss_score": "9.8",
+                "cvss_source": "nist",
                 "execution_proven": True,
                 "sla_due": "2026-11-15T00:00:00+02:00",
             }
@@ -369,3 +370,20 @@ def test_severity_keys_match_the_scanner_severity_registry() -> None:
     schema = json.loads(SCHEMA.read_text())["$defs"]
     assert list(schema["severity_counts"]["properties"]) == registry
     assert list(schema["category"]["properties"]["open_by_severity"]["properties"]) == registry
+
+
+@pytest.mark.parametrize("source", ["nist", "ghsa", "cna", "adp", "red-hat", "scanner", None])
+def test_the_cvss_source_is_an_authority_the_scanner_or_null(
+    validator: Draft202012Validator, document: dict[str, Any], source: str | None
+) -> None:
+    document["top"][0]["cvss_source"] = source
+    validator.validate(document)
+
+
+@pytest.mark.parametrize("source", ["osv", "NIST", ""])
+def test_an_unknown_cvss_source_is_rejected(
+    validator: Draft202012Validator, document: dict[str, Any], source: str
+) -> None:
+    document["top"][0]["cvss_source"] = source
+    with pytest.raises(ValidationError):
+        validator.validate(document)

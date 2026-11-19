@@ -82,6 +82,7 @@ def document() -> dict[str, Any]:
                 "title": "Debug endpoint behind network policy",
                 "severity": "critical",
                 "cvss_score": "9.5",
+                "cvss_source": "nist",
                 "accepted_at": "2026-10-07T12:00:00+02:00",
                 "accepted_by": "human:analyst@example.com",
                 "rationale": "compensating network policy",
@@ -431,3 +432,20 @@ def test_accepted_severities_match_the_severity_registry() -> None:
     registry = json.loads((ROOT / "enums/v1/severity.json").read_text())["values"]
     accepted = json.loads(SCHEMA.read_text())["$defs"]["accepted_risk"]
     assert accepted["properties"]["severity"]["enum"] == [*registry, None]
+
+
+@pytest.mark.parametrize("source", ["nist", "ghsa", "cna", "adp", "red-hat", "scanner", None])
+def test_the_cvss_source_is_an_authority_the_scanner_or_null(
+    validator: Draft202012Validator, document: dict[str, Any], source: str | None
+) -> None:
+    document["accepted"][0]["cvss_source"] = source
+    validator.validate(document)
+
+
+@pytest.mark.parametrize("source", ["osv", "NIST", ""])
+def test_an_unknown_cvss_source_is_rejected(
+    validator: Draft202012Validator, document: dict[str, Any], source: str
+) -> None:
+    document["accepted"][0]["cvss_source"] = source
+    with pytest.raises(ValidationError):
+        validator.validate(document)

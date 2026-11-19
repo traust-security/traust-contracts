@@ -122,6 +122,7 @@
         "title",
         "severity",
         "cvss_score",
+        "cvss_source",
         "execution_proven",
         "sla_due"
       ],
@@ -140,6 +141,7 @@
           "not": {"type": "string", "pattern": "[^0-9.]"},
           "description": "CVSS base score from 0 to 10 as an exact decimal string. Core emits the shortest fixed-point form, the same from every storage backend (for example \"9.8\", \"10\", \"0\"); the pattern also admits trailing zeros, so compare as decimals. Null when the finding is unscored."
         },
+        "cvss_source": {"type": ["string", "null"], "enum": ["nist", "ghsa", "cna", "adp", "red-hat", "scanner", null], "description": "Who stated `cvss_score`: the selected authority (traust-core's precedence), or the scanner that reported it; null when unscored."},
         "execution_proven": {"type": "boolean"},
         "sla_due": {
           "type": ["string", "null"],

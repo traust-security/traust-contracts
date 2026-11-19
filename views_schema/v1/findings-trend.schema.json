@@ -218,6 +218,7 @@
         "title",
         "severity",
         "cvss_score",
+        "cvss_source",
         "accepted_at",
         "accepted_by",
         "rationale"
@@ -236,6 +237,7 @@
           "description": "Effective severity; null when the finding is unrated."
         },
         "cvss_score": {"$ref": "#/$defs/cvss_score"},
+        "cvss_source": {"type": ["string", "null"], "enum": ["nist", "ghsa", "cna", "adp", "red-hat", "scanner", null], "description": "Who stated `cvss_score`: the selected authority (traust-core's precedence), or the scanner that reported it; null when unscored."},
         "accepted_at": {
           "type": ["string", "null"],
           "format": "date-time",
