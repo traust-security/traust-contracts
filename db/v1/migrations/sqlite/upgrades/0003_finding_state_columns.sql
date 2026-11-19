@@ -58,8 +58,24 @@ ALTER TABLE decision
 ALTER TABLE decision
     ADD COLUMN folded_policy_version TEXT;
 
+-- The finding's current answer, stamped by the write doors (state and severity on each
+-- decision, severity on each occurrence, the first category label): dashboards read one
+-- indexed row per finding instead of the latest decision, occurrence and label per read.
 ALTER TABLE finding
-    ADD COLUMN first_seen TEXT;
+    ADD COLUMN current_state TEXT CHECK (
+        current_state IS NULL OR current_state IN ('open', 'hardening', 'accepted', 'resolved', 'false_positive')
+    );
+
+ALTER TABLE finding
+    ADD COLUMN current_severity TEXT CHECK (
+        current_severity IS NULL OR current_severity IN ('critical', 'high', 'medium', 'low', 'informational')
+    );
+
+ALTER TABLE finding
+    ADD COLUMN category TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_finding_repository_current
+    ON finding (repository_id, current_state, current_severity);
 
 CREATE INDEX IF NOT EXISTS idx_decision_finding_occurred
     ON decision (finding_id, created_at DESC);

@@ -71,13 +71,42 @@
           "type": "string",
           "description": "Raw untrusted finding title."
         },
-        "first_seen": {
-          "description": "The earliest occurrence time (min over the finding's reports): the First Seen column, stored once instead of aggregated per read. Null until backfilled.",
+        "current_state": {
+          "description": "The finding's folded state, stamped by the decision write door from the latest decision. Null until a decision is recorded (open by rule).",
           "type": [
             "string",
             "null"
           ],
-          "format": "date-time"
+          "enum": [
+            "open",
+            "hardening",
+            "accepted",
+            "resolved",
+            "false_positive",
+            null
+          ]
+        },
+        "current_severity": {
+          "description": "The finding's effective severity, stamped by the decision and occurrence write doors: the folded severity, else the latest occurrence's band. Null when unrated.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational",
+            null
+          ]
+        },
+        "category": {
+          "description": "The finding's first category label, stamped when it is recorded.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },

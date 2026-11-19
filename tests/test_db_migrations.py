@@ -91,8 +91,12 @@ def test_the_shipped_state_script_adds_the_projection_columns() -> None:
         " VALUES (?, 'sha256', 'a1', 't')",
         (repo,),
     )
-    finding = conn.execute("SELECT id, first_seen FROM finding").fetchall()
-    assert finding[0][1] is None  # first_seen starts NULL: the backfill fills it
+    finding = conn.execute(
+        "SELECT id, current_state, current_severity, category FROM finding"
+    ).fetchall()
+    assert finding[0][1:] == (None, None, None)  # NULL until the write doors stamp them
+    with pytest.raises(sqlite3.IntegrityError):  # the stamped vocabulary is checked
+        conn.execute("UPDATE finding SET current_state = 'bogus'")
 
     # the state vocabulary is checked; the columns are optional (NULL until stamped)
     with pytest.raises(sqlite3.IntegrityError):
