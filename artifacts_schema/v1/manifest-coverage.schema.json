@@ -48,9 +48,9 @@
       "pattern": "^(?![A-Za-z]:)(?![\\s\\S]*(?:^|/)\\.{1,2}(?:/|$))[^/\\\\\u0000]+(?:/[^/\\\\\u0000]+)*$"
     },
     "reason": {
-      "description": "no-lockfile: a manifest whose versions only a lockfile pins, with none beside it or above it in the tree. unpinned: a manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which it drops.",
+      "description": "no-lockfile: a manifest whose versions only a lockfile pins, with none beside it or above it in the tree. unpinned: a manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which it drops. unsupported-manifest: the tool does not catalog the declarations in this manifest, even when pinned.",
       "type": "string",
-      "enum": ["no-lockfile", "unpinned"]
+      "enum": ["no-lockfile", "unpinned", "unsupported-manifest"]
     }
   }
 }
