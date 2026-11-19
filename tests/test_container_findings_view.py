@@ -374,6 +374,11 @@ def test_an_authority_selected_score_is_valid(
         ("band", "severe"),
         ("conflict", "yes"),
         ("effective_severity", None),  # an authority band is a severity
+        ("effective_severity", "low"),  # it counts at the selected band, nothing else
+        ("selected_score", None),  # a statement with no score is never selected
+        ("selected_band", None),
+        ("selected_source", "scanner"),  # the scanner's statement is the scanner basis
+        ("authority_scores", []),  # the selected statement is one of them
     ],
 )
 def test_an_authority_score_out_of_contract_is_rejected(
@@ -388,6 +393,10 @@ def test_an_authority_score_out_of_contract_is_rejected(
         cvss["conflict"] = invalid
     elif field == "effective_severity":
         _object(document, "finding_view")["effective_severity"] = invalid
+    elif field.startswith("selected_"):
+        cvss["selected"][field.removeprefix("selected_")] = invalid
+    elif field == "authority_scores":
+        cvss["authority_scores"] = invalid
     else:
         cvss["authority_scores"][0][field] = invalid
     with pytest.raises(ValidationError):

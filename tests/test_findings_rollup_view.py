@@ -225,6 +225,7 @@ def test_cvss_score_is_an_exact_decimal_string_from_0_to_10(
     validator: Draft202012Validator, document: dict[str, Any], score: str | None
 ) -> None:
     document["top"][0]["cvss_score"] = score
+    document["top"][0]["cvss_source"] = None if score is None else "nist"
     validator.validate(document)
 
 
@@ -268,7 +269,6 @@ def test_hardening_categories_list_only_counted_categories(
     ("path", "value"),
     [
         (("as_of",), None),
-        (("top", 0, "cvss_score"), None),
         (("top", 0, "sla_due"), None),
         (("categories", 0, "key"), None),
         (("attack_scenarios", 0, "threat"), "Request smuggling"),
@@ -372,12 +372,28 @@ def test_severity_keys_match_the_scanner_severity_registry() -> None:
     assert list(schema["category"]["properties"]["open_by_severity"]["properties"]) == registry
 
 
-@pytest.mark.parametrize("source", ["nist", "ghsa", "cna", "adp", "red-hat", "scanner", None])
-def test_the_cvss_source_is_an_authority_the_scanner_or_null(
-    validator: Draft202012Validator, document: dict[str, Any], source: str | None
+@pytest.mark.parametrize("source", ["nist", "ghsa", "cna", "adp", "red-hat", "scanner"])
+def test_the_cvss_source_is_an_authority_or_the_scanner(
+    validator: Draft202012Validator, document: dict[str, Any], source: str
 ) -> None:
     document["top"][0]["cvss_source"] = source
     validator.validate(document)
+
+
+def test_an_unscored_finding_names_no_source(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    document["top"][0].update(cvss_score=None, cvss_source=None)
+    validator.validate(document)
+
+
+@pytest.mark.parametrize(("score", "source"), [("9.8", None), (None, "nist")])
+def test_a_score_and_its_source_come_together(
+    validator: Draft202012Validator, document: dict[str, Any], score: str | None, source: str | None
+) -> None:
+    document["top"][0].update(cvss_score=score, cvss_source=source)
+    with pytest.raises(ValidationError):
+        validator.validate(document)
 
 
 @pytest.mark.parametrize("source", ["osv", "NIST", ""])

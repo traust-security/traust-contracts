@@ -636,15 +636,148 @@
             "properties": {
               "cvss": {
                 "properties": {
+                  "authority_scores": {
+                    "minItems": 1
+                  },
                   "selected": {
-                    "type": "object"
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "not": {
+                          "const": "scanner"
+                        }
+                      }
+                    }
                   }
                 }
               },
               "effective_severity": {
                 "type": "string"
               }
-            }
+            },
+            "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "critical"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "critical"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "high"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "high"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "medium"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "medium"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "low"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "low"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "informational"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "informational"
+                      }
+                    }
+                  }
+                }
+            ],
+            "description": "An authority basis names an authority's kept statement and counts at its band; that the statement is one of `authority_scores` is Core's to keep (a schema can't compare them)."
           }
         }
       ]
@@ -986,22 +1119,20 @@
           "description": "The vector as the source states it."
         },
         "score": {
-          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/top_finding/properties/cvss_score"
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/top_finding/properties/cvss_score",
+          "type": "string",
+          "description": "Never null: a statement with no score (a 4.0 vector stated alone) is never selected."
         },
         "band": {
-          "type": [
-            "string",
-            "null"
-          ],
+          "type": "string",
           "enum": [
             "critical",
             "high",
             "medium",
             "low",
-            "informational",
-            null
+            "informational"
           ],
-          "description": "FIRST's qualitative rating of the score (\"None\" reading informational); null when unscored."
+          "description": "FIRST's qualitative rating of the score (\"None\" reading informational)."
         },
         "scored_by": {
           "type": [

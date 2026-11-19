@@ -495,9 +495,12 @@ advisory-backed finding the block also carries every authority's kept statement
 (`authority_scores`: source, version, vector, score, band, scorer, document, when fetched), the
 one `selected` by traust-core's precedence (NIST, the GitHub-reviewed advisory, the CNA, an ADP,
 Red Hat, then the scanner; 3.x before 4.0; `reason: precedence`), and `conflict` when two
-authorities' same-version 3.x bands differ. A basis of `authority` means the effective severity is
-the selected statement's band, so it requires that statement and a severity. The findings rollup's
-top findings and the trend's accepted register name their score's source (`cvss_source`). Enums Core
+authorities' same-version 3.x bands differ. A selected statement always has a score and band. A
+basis of `authority` means the effective severity equals the selected statement's band, so it
+requires that statement (an authority's, never the scanner's) and at least one kept statement;
+that the selected one is among them is Core's to keep, since a schema can't compare the two. The
+findings rollup's top findings and the trend's accepted register name their score's source
+(`cvss_source`), null exactly when the score is. Enums Core
 types are tied to their registries by test; what Core keeps raw (a decision's validity,
 resolution, reason and channel, which may hold historical values) stays raw.
 
