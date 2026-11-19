@@ -7,6 +7,10 @@ relational contract for the one-owner data model).
 
 ## Before adding anything to the data model
 
+Placement first — where each kind of thing lives, and the delete test — is
+[AGENTS.md](AGENTS.md); the questions below gate the change itself.
+
+
 Six questions gate every change to this repo's schemas, enums and DDL. If a
 change can't answer all six, it isn't ready — reviewers will ask, so answer
 them in the PR description:
