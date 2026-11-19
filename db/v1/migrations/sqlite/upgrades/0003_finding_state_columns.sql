@@ -82,3 +82,58 @@ CREATE INDEX IF NOT EXISTS idx_decision_finding_occurred
 
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_asset_state
     ON ops_run_order (asset, state, finished_at, repository_id);
+
+-- The finding's current answer is kept by triggers, so no writer can leave it behind: a
+-- decision (inserted, or its fold stamped) sets state and severity, an occurrence sets
+-- severity unless the latest decision rated it, the first category label sets category.
+CREATE TRIGGER IF NOT EXISTS finding_current_decision_insert
+AFTER INSERT ON decision FOR EACH ROW
+BEGIN
+  UPDATE finding SET
+    current_state = NEW.folded_state,
+    current_severity = coalesce(NEW.folded_severity, (
+      SELECT nullif(o.severity, 'unrated') FROM occurrence o
+      WHERE o.finding_id = NEW.finding_id
+      ORDER BY o.created_at DESC, o.id DESC LIMIT 1))
+  WHERE id = NEW.finding_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS finding_current_decision_stamp
+AFTER UPDATE OF folded_state, folded_severity ON decision FOR EACH ROW
+BEGIN
+  UPDATE finding SET
+    current_state = NEW.folded_state,
+    current_severity = coalesce(NEW.folded_severity, (
+      SELECT nullif(o.severity, 'unrated') FROM occurrence o
+      WHERE o.finding_id = NEW.finding_id
+      ORDER BY o.created_at DESC, o.id DESC LIMIT 1))
+  WHERE id = NEW.finding_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS finding_current_occurrence
+AFTER INSERT ON occurrence FOR EACH ROW
+BEGIN
+  UPDATE finding SET current_severity = coalesce((
+      SELECT d.folded_severity FROM decision d
+      WHERE d.finding_id = NEW.finding_id
+      ORDER BY d.created_at DESC, d.id DESC LIMIT 1),
+    nullif(NEW.severity, 'unrated'))
+  WHERE id = NEW.finding_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS finding_current_label
+AFTER INSERT ON finding_label FOR EACH ROW WHEN NEW.taxonomy = 'category'
+BEGIN
+  UPDATE finding SET category = NEW.label WHERE id = NEW.finding_id AND category IS NULL;
+END;
+
+-- Existing rows: severity and category from what is recorded; state arrives with the data
+-- channel's fold stamp (the decision trigger fires on it).
+UPDATE finding SET current_severity = (
+  SELECT nullif(o.severity, 'unrated') FROM occurrence o
+  WHERE o.finding_id = finding.id ORDER BY o.created_at DESC, o.id DESC LIMIT 1);
+
+UPDATE finding SET category = (
+  SELECT l.label FROM finding_label l
+  WHERE l.finding_id = finding.id AND l.taxonomy = 'category'
+  ORDER BY l.created_at, l.id LIMIT 1);

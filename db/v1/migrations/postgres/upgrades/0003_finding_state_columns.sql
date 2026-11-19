@@ -79,3 +79,74 @@ CREATE INDEX IF NOT EXISTS idx_decision_finding_occurred
 
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_asset_state
     ON traust_ops.run_order (asset, state, finished_at, repository_id);
+
+-- The finding's current answer is kept by triggers, so no writer can leave it behind: a
+-- decision (inserted, or its fold stamped) sets state and severity, an occurrence sets
+-- severity unless the latest decision rated it, the first category label sets category.
+CREATE OR REPLACE FUNCTION traust.finding_current_from_decision() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    UPDATE traust.finding SET
+        current_state = NEW.folded_state,
+        current_severity = coalesce(NEW.folded_severity, (
+            SELECT nullif(o.severity, 'unrated') FROM traust.occurrence o
+            WHERE o.finding_id = NEW.finding_id
+            ORDER BY o.created_at DESC, o.id DESC LIMIT 1))
+    WHERE id = NEW.finding_id;
+    RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS finding_current_decision ON traust.decision;
+
+CREATE TRIGGER finding_current_decision
+AFTER INSERT OR UPDATE OF folded_state, folded_severity ON traust.decision
+FOR EACH ROW EXECUTE FUNCTION traust.finding_current_from_decision();
+
+CREATE OR REPLACE FUNCTION traust.finding_current_from_occurrence() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    UPDATE traust.finding SET current_severity = coalesce((
+            SELECT d.folded_severity FROM traust.decision d
+            WHERE d.finding_id = NEW.finding_id
+            ORDER BY d.created_at DESC, d.id DESC LIMIT 1),
+        nullif(NEW.severity, 'unrated'))
+    WHERE id = NEW.finding_id;
+    RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS finding_current_occurrence ON traust.occurrence;
+
+CREATE TRIGGER finding_current_occurrence
+AFTER INSERT ON traust.occurrence
+FOR EACH ROW EXECUTE FUNCTION traust.finding_current_from_occurrence();
+
+CREATE OR REPLACE FUNCTION traust.finding_current_from_label() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    UPDATE traust.finding SET category = NEW.label
+    WHERE id = NEW.finding_id AND category IS NULL;
+    RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS finding_current_label ON traust.finding_label;
+
+CREATE TRIGGER finding_current_label
+AFTER INSERT ON traust.finding_label
+FOR EACH ROW WHEN (NEW.taxonomy = 'category')
+EXECUTE FUNCTION traust.finding_current_from_label();
+
+-- Existing rows: severity and category from what is recorded; state arrives with the data
+-- channel's fold stamp (the decision trigger fires on it).
+UPDATE traust.finding f SET current_severity = o.severity
+FROM (
+    SELECT DISTINCT ON (finding_id) finding_id, nullif(severity, 'unrated') AS severity
+    FROM traust.occurrence ORDER BY finding_id, created_at DESC, id DESC
+) o
+WHERE o.finding_id = f.id;
+
+UPDATE traust.finding f SET category = c.label
+FROM (
+    SELECT DISTINCT ON (finding_id) finding_id, label FROM traust.finding_label
+    WHERE taxonomy = 'category' ORDER BY finding_id, created_at, id
+) c
+WHERE c.finding_id = f.id;
