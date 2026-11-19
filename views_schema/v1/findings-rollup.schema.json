@@ -132,7 +132,7 @@
           "if": {"properties": {"cvss_score": {"type": "null"}}},
           "then": {"properties": {"cvss_source": {"type": "null"}}},
           "else": {"properties": {"cvss_source": {"type": "string"}}},
-          "description": "A score always names who stated it, and an unscored finding names no one."
+          "$comment": "A score always names who stated it, and an unscored finding names no one."
         }
       ],
       "properties": {
