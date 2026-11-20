@@ -11,11 +11,13 @@ import sqlite3
 import time
 import uuid
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
 from conftest import bootstrap_namespaces_sqlite
 
+from traust_contracts.v1 import migrations
 from traust_contracts.v1.ledger import sql as ledger_sql
 from traust_contracts.v1.ops import sql as ops_sql
 from traust_contracts.v1.sql import bootstrap_statements
@@ -522,6 +524,52 @@ def test_occurrence_and_location_rules(db: Db) -> None:
     db.rejects("location", occurrence_id=oid, path="a.go")  # whole file twice
     db.rejects("location", occurrence_id=oid, path="b.go", line_start=5, line_end=3)
     db.rejects("location", occurrence_id=oid, path="b.go", line_start=5)
+
+
+def test_lease_generation_upgrade_preserves_orders_without_issuing_claims(
+    db: Db, tmp_path: Path
+) -> None:
+    # Open the previous release's database, including its real 0001 hash stamp.
+    previous = migrations.upgrade_files(db.engine)[0]
+    upgrades = tmp_path / db.engine / "upgrades"
+    upgrades.mkdir(parents=True)
+    (upgrades / previous.name).write_bytes(previous.read_bytes())
+    migrations.run_upgrades(db.conn, db.engine, root=tmp_path)
+
+    order = {"asset": "diff_scan", "priority": 1, "requested_by": "skill:router"}
+    db.insert("ops.run_order", state="queued", **order)
+    db.insert(
+        "ops.run_order",
+        state="leased",
+        lease_holder="w1",
+        lease_expires_at=LATER,
+        started_at=NOW,
+        **order,
+    )
+    db.insert("ops.run_order", state="succeeded", started_at=NOW, finished_at=LATER, **order)
+    table = db.t("ops.run_order")
+    before = db.run(f"SELECT * FROM {table} ORDER BY id")
+
+    applied = migrations.run_upgrades(db.conn, db.engine)
+    assert [u.name for u in applied] == ["0002_run_order_lease_generation"]
+    # Includes the in-flight lease: no token was handed to its worker. Preserve
+    # its holder, expiry and timestamps; zero cannot authorize a fenced write.
+    assert db.run(f"SELECT * FROM {table} ORDER BY id") == [(*row, 0, None) for row in before]
+    assert migrations.run_upgrades(db.conn, db.engine) == []
+
+    new = db.insert("ops.run_order", state="queued", **order)
+    lease = f"SELECT lease_generation, completed_by FROM {table} WHERE id = ?"
+    assert db.run(lease, (new,)) == [(0, None)]
+    completed = db.insert(
+        "ops.run_order",
+        state="succeeded",
+        lease_generation=1,
+        completed_by="w2",
+        **order,
+    )
+    assert db.run(lease, (completed,)) == [(1, "w2")]
+    for invalid in (None, -1, "not-an-integer", "1.5"):
+        db.rejects("ops.run_order", state="queued", lease_generation=invalid, **order)
 
 
 def test_run_order_routing_and_lease_rules(db: Db) -> None:
