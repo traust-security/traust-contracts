@@ -546,7 +546,10 @@
               "cvss": {
                 "properties": {
                   "basis": {
-                    "const": "computed"
+                    "enum": [
+                      "computed",
+                      "authority"
+                    ]
                   }
                 }
               }
@@ -602,7 +605,8 @@
                         "enum": [
                           "computed",
                           "scanner",
-                          "judgement"
+                          "judgement",
+                          "authority"
                         ]
                       }
                     }
@@ -610,6 +614,170 @@
                 }
               }
             ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cvss": {
+                "type": "object",
+                "properties": {
+                  "basis": {
+                    "const": "authority"
+                  }
+                },
+                "required": [
+                  "basis"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "cvss": {
+                "properties": {
+                  "authority_scores": {
+                    "minItems": 1
+                  },
+                  "selected": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "not": {
+                          "const": "scanner"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "effective_severity": {
+                "type": "string"
+              }
+            },
+            "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "critical"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "critical"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "high"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "high"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "medium"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "medium"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "low"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "low"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "cvss": {
+                        "properties": {
+                          "selected": {
+                            "properties": {
+                              "band": {
+                                "const": "informational"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "effective_severity": {
+                        "const": "informational"
+                      }
+                    }
+                  }
+                }
+            ],
+            "description": "An authority basis names an authority's kept statement and counts at its band; that the statement is one of `authority_scores` is Core's to keep (a schema can't compare them)."
           }
         }
       ]
@@ -767,7 +935,7 @@
     },
     "finding_cvss": {
       "type": "object",
-      "description": "A finding's CVSS as consumers render it: the occurrence's score and vector, the severity the vector computes (FIRST's qualitative rating), and which source won the effective severity.",
+      "description": "A finding's CVSS as consumers render it: the occurrence's score and vector, the severity the vector computes (FIRST's qualitative rating), which source won the effective severity, and, for an advisory-backed finding, every authority's statement, the one selected, and whether same-version 3.x authority bands disagree.",
       "properties": {
         "score": {
           "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/top_finding/properties/cvss_score"
@@ -800,16 +968,210 @@
             "computed",
             "scanner",
             "judgement",
-            "unrated"
+            "unrated",
+            "authority"
           ],
-          "description": "Which source won the effective severity."
+          "description": "Which source won the effective severity: `authority` is the selected authority statement's band."
+        },
+        "authority_scores": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cvss_statement"
+          },
+          "description": "Every authority's kept statement for the finding's advisory and its aliases, in ranking order; empty for a finding with no advisory."
+        },
+        "selected": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/selected_cvss"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The statement selected by precedence; null when no source has a score."
+        },
+        "conflict": {
+          "type": "boolean",
+          "description": "True when two authorities' 3.x statements of the same version fall in different bands."
         }
       },
       "required": [
         "score",
         "vector",
         "severity",
-        "basis"
+        "basis",
+        "authority_scores",
+        "selected",
+        "conflict"
+      ],
+      "additionalProperties": false
+    },
+    "cvss_statement": {
+      "type": "object",
+      "description": "One source's CVSS statement, as Core kept it: a stated score agrees with its vector (FIRST's formula), else it isn't kept.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "nist",
+            "ghsa",
+            "cna",
+            "adp",
+            "red-hat",
+            "scanner"
+          ],
+          "description": "Who stated it, in ranking order: NIST (NVD Primary), the GitHub-reviewed advisory, the CNA, an ADP, Red Hat, or the scanner that reported the finding."
+        },
+        "version": {
+          "type": "string",
+          "enum": [
+            "3.0",
+            "3.1",
+            "4.0"
+          ],
+          "description": "The CVSS version the vector states."
+        },
+        "vector": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The vector as the source states it."
+        },
+        "score": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/top_finding/properties/cvss_score"
+        },
+        "band": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational",
+            null
+          ],
+          "description": "FIRST's qualitative rating of the score (\"None\" reading informational); null when unscored."
+        },
+        "scored_by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The organisation the source names as the scorer (a CNA or ADP short name, `nvd@nist.gov`); null when it names none."
+        },
+        "document": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The kept document it was read from (`nvd:CVE-…`, `cve-list:CVE-…`, `osv:GHSA-…`, `rh-cve:CVE-…`), or the occurrence for the scanner's."
+        },
+        "acquired_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "When that document's content was first fetched; null for the scanner's."
+        }
+      },
+      "required": [
+        "source",
+        "version",
+        "vector",
+        "score",
+        "band",
+        "scored_by",
+        "document",
+        "acquired_at"
+      ],
+      "additionalProperties": false
+    },
+    "selected_cvss": {
+      "type": "object",
+      "description": "The authority statement the finding's score and effective severity follow.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "nist",
+            "ghsa",
+            "cna",
+            "adp",
+            "red-hat",
+            "scanner"
+          ],
+          "description": "Who stated it, in ranking order: NIST (NVD Primary), the GitHub-reviewed advisory, the CNA, an ADP, Red Hat, or the scanner that reported the finding."
+        },
+        "version": {
+          "type": "string",
+          "enum": [
+            "3.0",
+            "3.1",
+            "4.0"
+          ],
+          "description": "The CVSS version the vector states."
+        },
+        "vector": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The vector as the source states it."
+        },
+        "score": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/top_finding/properties/cvss_score",
+          "type": "string",
+          "description": "Never null: a statement with no score (a 4.0 vector stated alone) is never selected."
+        },
+        "band": {
+          "type": "string",
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational"
+          ],
+          "description": "FIRST's qualitative rating of the score (\"None\" reading informational)."
+        },
+        "scored_by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The organisation the source names as the scorer (a CNA or ADP short name, `nvd@nist.gov`); null when it names none."
+        },
+        "document": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The kept document it was read from (`nvd:CVE-…`, `cve-list:CVE-…`, `osv:GHSA-…`, `rh-cve:CVE-…`), or the occurrence for the scanner's."
+        },
+        "acquired_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "When that document's content was first fetched; null for the scanner's."
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "precedence"
+          ],
+          "description": "Why it was selected: `precedence`, the first source in ranking order with a 3.x score (a 4.0 score only when no source has 3.x)."
+        }
+      },
+      "required": [
+        "source",
+        "version",
+        "vector",
+        "score",
+        "band",
+        "scored_by",
+        "document",
+        "acquired_at",
+        "reason"
       ],
       "additionalProperties": false
     }

@@ -218,11 +218,20 @@
         "title",
         "severity",
         "cvss_score",
+        "cvss_source",
         "accepted_at",
         "accepted_by",
         "rationale"
       ],
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"cvss_score": {"type": "null"}}},
+          "then": {"properties": {"cvss_source": {"type": "null"}}},
+          "else": {"properties": {"cvss_source": {"type": "string"}}},
+          "$comment": "A score always names who stated it, and an unscored finding names no one."
+        }
+      ],
       "properties": {
         "finding_id": {"type": "string", "format": "uuid"},
         "repository_url": {"type": "string", "description": "Raw registered URL, preserved as data."},
@@ -236,6 +245,7 @@
           "description": "Effective severity; null when the finding is unrated."
         },
         "cvss_score": {"$ref": "#/$defs/cvss_score"},
+        "cvss_source": {"type": ["string", "null"], "enum": ["nist", "ghsa", "cna", "adp", "red-hat", "scanner", null], "description": "Who stated `cvss_score`: the selected authority (traust-core's precedence), or the scanner that reported it; null when unscored."},
         "accepted_at": {
           "type": ["string", "null"],
           "format": "date-time",
