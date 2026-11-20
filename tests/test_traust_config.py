@@ -247,6 +247,7 @@ def test_relative_locations_resolve_against_the_home(tmp_path: Path) -> None:
             "locations": {
                 "workspace": "ws",
                 "analysis_results": "s3://b/ar",
+                "opengrep_adopter_rules": "rules/adopter",
                 "mirror_cache": "mirrors",
             }
         },
@@ -254,6 +255,7 @@ def test_relative_locations_resolve_against_the_home(tmp_path: Path) -> None:
     locations = load_context(config_home=home).traust.locations
     assert locations.workspace == str((home / "ws").resolve())
     assert locations.analysis_results == "s3://b/ar"
+    assert locations.opengrep_adopter_rules == str((home / "rules/adopter").resolve())
     assert locations.mirror_cache == str((home / "mirrors").resolve())
 
 
