@@ -70,6 +70,43 @@
         "title": {
           "type": "string",
           "description": "Raw untrusted finding title."
+        },
+        "current_state": {
+          "description": "The finding's state, stamped by core's write doors from the fold: open (identified) until a judgment says otherwise.",
+          "type": "string",
+          "enum": [
+            "open",
+            "hardening",
+            "accepted",
+            "resolved",
+            "false_positive"
+          ]
+        },
+        "current_severity": {
+          "description": "The finding's effective severity, stamped by core's write doors from the fold (effective_severity). Null when unrated.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational",
+            null
+          ]
+        },
+        "category": {
+          "description": "The finding's first category label, copied by a trigger when it is recorded.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "current_decided": {
+          "description": "Whether a judgment stands on the finding, stamped by core's write doors from the fold.",
+          "type": "boolean"
         }
       }
     },
