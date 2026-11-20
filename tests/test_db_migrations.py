@@ -22,6 +22,12 @@ from traust_contracts.v1.ops import sql as ops_sql
 from traust_contracts.v1.storage import sql as storage_sql
 
 MODULES = (storage_sql, ops_sql, ledger_sql)
+SHIPPED = [
+    "0001_repository_disposition",
+    "0002_finding_state_columns",
+    "0003_run_order_input",
+    "0004_run_order_lease_generation",
+]
 NOTE = "-- a future additive upgrade\nALTER TABLE {table} ADD COLUMN note TEXT;\n"
 
 
@@ -53,18 +59,10 @@ def channel(tmp_path: Path) -> Path:
 def test_a_fresh_bootstrap_applies_the_shipped_channel_whole() -> None:
     conn = _sqlite()
     applied = migrations.run_upgrades(conn, "sqlite")
-    assert [u.name for u in applied] == [
-        "0001_repository_disposition",
-        "0002_finding_state_columns",
-        "0003_run_order_input",
-    ]
+    assert [u.name for u in applied] == SHIPPED
     assert migrations.run_upgrades(conn, "sqlite") == []
-    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
-    assert [name for name, _ in stamps] == [
-        "0001_repository_disposition",
-        "0002_finding_state_columns",
-        "0003_run_order_input",
-    ]
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade ORDER BY name").fetchall()
+    assert stamps == [(path.stem, _sha256(path)) for path in migrations.upgrade_files("sqlite")]
     columns = [row[1] for row in conn.execute("PRAGMA table_info(repository)").fetchall()]
     assert {"disposition", "gone_streak"} <= set(columns)
 
@@ -139,23 +137,17 @@ def test_stamp_channel_brings_a_pre_channel_store_on_at_the_head() -> None:
     as having run everything shipped: nothing runs, nothing is re-run, and the
     store is on the routine from the head."""
     conn = _sqlite()  # the baseline, as a pre-channel store would have it
-    # the shape is already current: the column 0001 would add is there by hand of
-    # the bootstrap, exactly the store this exists for
+    # Model a store whose schema is known to be current but whose stamps are absent.
     migrations.run_upgrades(conn, "sqlite")  # a current store for reference
     conn.execute("DROP TABLE db_upgrade")  # ...minus the channel's bookkeeping
 
     stamped = migrations.stamp_channel(conn, "sqlite")
 
-    # everything shipped, whatever the channel holds today — the test follows
-    # the channel rather than naming its entries (nothing applied = all pending)
-    shipped = [
-        (upgrade.name, upgrade.sha256) for upgrade in migrations.pending_upgrades("sqlite", {})
-    ]
-    assert [(upgrade.name, upgrade.sha256) for upgrade in stamped] == shipped
+    assert [upgrade.name for upgrade in stamped] == SHIPPED
     assert migrations.stamp_channel(conn, "sqlite") == []  # idempotent: known store
     assert migrations.run_upgrades(conn, "sqlite") == []  # nothing pending, nothing runs
-    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
-    assert stamps == shipped
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade ORDER BY name").fetchall()
+    assert stamps == [(u.name, u.sha256) for u in stamped]
 
 
 def test_stamp_channel_refuses_drift_like_the_runner() -> None:
@@ -595,19 +587,13 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
 
     try:
         applied = migrations.run_upgrades(conn, "postgres")  # fresh: the shipped channel
-        assert [u.name for u in applied] == [
-            "0001_repository_disposition",
-            "0002_finding_state_columns",
-            "0003_run_order_input",
-        ]
-        stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
-        assert [name for name, _ in stamps] == [
-            "0001_repository_disposition",
-            "0002_finding_state_columns",
-            "0003_run_order_input",
+        assert [u.name for u in applied] == SHIPPED
+        stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade ORDER BY name").fetchall()
+        assert stamps == [
+            (path.stem, _sha256(path)) for path in migrations.upgrade_files("postgres")
         ]
 
-        channel = _write_channel(tmp_path, "0004_add_note.sql", NOTE)
+        channel = _write_channel(tmp_path, "0005_add_note.sql", NOTE)
         for dialect in ("postgres", "sqlite"):  # the fixture channel carries the shipped scripts
             for path in migrations.upgrade_files(dialect):
                 target = channel / dialect / "upgrades" / path.name
@@ -617,14 +603,14 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
         before = conn.execute("SELECT * FROM traust.repository").fetchall()
 
         applied = migrations.run_upgrades(conn, "postgres", root=channel)
-        assert [u.name for u in applied] == ["0004_add_note"]
+        assert [u.name for u in applied] == ["0005_add_note"]
 
         after = conn.execute("SELECT * FROM traust.repository").fetchall()
         assert [row[:-1] for row in after] == before
         assert all(row[-1] is None for row in after)
-        script = channel / "postgres" / "upgrades" / "0004_add_note.sql"
+        script = channel / "postgres" / "upgrades" / "0005_add_note.sql"
         stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
-        assert ("0004_add_note", _sha256(script)) in stamps
+        assert ("0005_add_note", _sha256(script)) in stamps
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
     finally:
