@@ -57,6 +57,7 @@ def test_a_fresh_bootstrap_applies_the_shipped_channel_whole() -> None:
         "0001_repository_disposition",
         "0002_query_statistics",
         "0003_finding_state_columns",
+        "0004_run_order_input",
     ]
     assert migrations.run_upgrades(conn, "sqlite") == []
     stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
@@ -64,9 +65,21 @@ def test_a_fresh_bootstrap_applies_the_shipped_channel_whole() -> None:
         "0001_repository_disposition",
         "0002_query_statistics",
         "0003_finding_state_columns",
+        "0004_run_order_input",
     ]
     columns = [row[1] for row in conn.execute("PRAGMA table_info(repository)").fetchall()]
     assert {"disposition", "gone_streak"} <= set(columns)
+
+
+def test_an_order_carries_its_inputs_as_one_document() -> None:
+    """run_order gains one generic column for its asset's input document, indexed with the
+    order's age so an asset's latest order for the same inputs is one lookup."""
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite")
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(ops_run_order)").fetchall()]
+    assert "input_artifact_id" in columns
+    indexes = [row[1] for row in conn.execute("PRAGMA index_list(ops_run_order)").fetchall()]
+    assert "idx_ops_run_order_input" in indexes
 
 
 def test_the_shipped_state_script_adds_the_projection_columns() -> None:
@@ -588,15 +601,17 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
             "0001_repository_disposition",
             "0002_query_statistics",
             "0003_finding_state_columns",
+            "0004_run_order_input",
         ]
         stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
         assert [name for name, _ in stamps] == [
             "0001_repository_disposition",
             "0002_query_statistics",
             "0003_finding_state_columns",
+            "0004_run_order_input",
         ]
 
-        channel = _write_channel(tmp_path, "0004_add_note.sql", NOTE)
+        channel = _write_channel(tmp_path, "0005_add_note.sql", NOTE)
         for dialect in ("postgres", "sqlite"):  # the fixture channel carries the shipped scripts
             for path in migrations.upgrade_files(dialect):
                 target = channel / dialect / "upgrades" / path.name
@@ -606,14 +621,14 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
         before = conn.execute("SELECT * FROM traust.repository").fetchall()
 
         applied = migrations.run_upgrades(conn, "postgres", root=channel)
-        assert [u.name for u in applied] == ["0004_add_note"]
+        assert [u.name for u in applied] == ["0005_add_note"]
 
         after = conn.execute("SELECT * FROM traust.repository").fetchall()
         assert [row[:-1] for row in after] == before
         assert all(row[-1] is None for row in after)
-        script = channel / "postgres" / "upgrades" / "0004_add_note.sql"
+        script = channel / "postgres" / "upgrades" / "0005_add_note.sql"
         stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
-        assert ("0004_add_note", _sha256(script)) in stamps
+        assert ("0005_add_note", _sha256(script)) in stamps
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
     finally:
