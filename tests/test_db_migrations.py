@@ -92,9 +92,9 @@ def test_the_shipped_state_script_adds_the_projection_columns() -> None:
         (repo,),
     )
     finding = conn.execute(
-        "SELECT id, current_state, current_severity, category FROM finding"
+        "SELECT id, current_state, current_severity, current_decided, category FROM finding"
     ).fetchall()
-    assert finding[0][1:] == (None, None, None)  # NULL until the write doors stamp them
+    assert finding[0][1:] == ("open", None, 0, None)  # identified: open, undecided, unrated
     with pytest.raises(sqlite3.IntegrityError):  # the stamped vocabulary is checked
         conn.execute("UPDATE finding SET current_state = 'bogus'")
 

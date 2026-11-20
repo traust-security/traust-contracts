@@ -55,18 +55,22 @@ ALTER TABLE traust.decision
 ALTER TABLE traust.decision
     ADD COLUMN folded_policy_version TEXT;
 
--- The finding's current answer, stamped by the write doors (state and severity on each
--- decision, severity on each occurrence, the first category label): dashboards read one
--- indexed row per finding instead of the latest decision, occurrence and label per read.
+-- The finding's current answer: state, effective severity and decided, stamped by core's
+-- write doors from the fold (finding_state, effective_severity) on every finding, decision
+-- and occurrence write; the first category label, copied by a trigger. A new finding is
+-- identified - open, undecided - until a judgment says otherwise; NULL severity is unrated.
 ALTER TABLE traust.finding
-    ADD COLUMN current_state TEXT CHECK (
-        current_state IS NULL OR current_state IN ('open', 'hardening', 'accepted', 'resolved', 'false_positive')
+    ADD COLUMN current_state TEXT NOT NULL DEFAULT 'open' CHECK (
+        current_state IN ('open', 'hardening', 'accepted', 'resolved', 'false_positive')
     );
 
 ALTER TABLE traust.finding
     ADD COLUMN current_severity TEXT CHECK (
         current_severity IS NULL OR current_severity IN ('critical', 'high', 'medium', 'low', 'informational')
     );
+
+ALTER TABLE traust.finding
+    ADD COLUMN current_decided BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE traust.finding
     ADD COLUMN category TEXT;
@@ -88,46 +92,7 @@ CREATE TRIGGER finding_touch
 BEFORE UPDATE OF repository_id, advisory_id, advisory_match, fingerprint_algo, fingerprint, kind, title ON traust.finding
 FOR EACH ROW EXECUTE FUNCTION traust.touch_updated_at();
 
--- The finding's current answer is kept by triggers, so no writer can leave it behind: a
--- decision (inserted, or its fold stamped) sets state and severity, an occurrence sets
--- severity unless the latest decision rated it, the first category label sets category.
-CREATE OR REPLACE FUNCTION traust.finding_current_from_decision() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-    UPDATE traust.finding SET
-        current_state = NEW.folded_state,
-        current_severity = coalesce(NEW.folded_severity, (
-            SELECT nullif(o.severity, 'unrated') FROM traust.occurrence o
-            WHERE o.finding_id = NEW.finding_id
-            ORDER BY o.created_at DESC, o.id DESC LIMIT 1))
-    WHERE id = NEW.finding_id;
-    RETURN NULL;
-END $$;
-
-DROP TRIGGER IF EXISTS finding_current_decision ON traust.decision;
-
-CREATE TRIGGER finding_current_decision
-AFTER INSERT OR UPDATE OF folded_state, folded_severity ON traust.decision
-FOR EACH ROW EXECUTE FUNCTION traust.finding_current_from_decision();
-
-CREATE OR REPLACE FUNCTION traust.finding_current_from_occurrence() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-    UPDATE traust.finding SET current_severity = coalesce((
-            SELECT d.folded_severity FROM traust.decision d
-            WHERE d.finding_id = NEW.finding_id
-            ORDER BY d.created_at DESC, d.id DESC LIMIT 1),
-        nullif(NEW.severity, 'unrated'))
-    WHERE id = NEW.finding_id;
-    RETURN NULL;
-END $$;
-
-DROP TRIGGER IF EXISTS finding_current_occurrence ON traust.occurrence;
-
-CREATE TRIGGER finding_current_occurrence
-AFTER INSERT ON traust.occurrence
-FOR EACH ROW EXECUTE FUNCTION traust.finding_current_from_occurrence();
-
+-- The first category label is a copy, not a rule: a trigger keeps it.
 CREATE OR REPLACE FUNCTION traust.finding_current_from_label() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -143,15 +108,8 @@ AFTER INSERT ON traust.finding_label
 FOR EACH ROW WHEN (NEW.taxonomy = 'category')
 EXECUTE FUNCTION traust.finding_current_from_label();
 
--- Existing rows: severity and category from what is recorded; state arrives with the data
--- channel's fold stamp (the decision trigger fires on it).
-UPDATE traust.finding f SET current_severity = o.severity
-FROM (
-    SELECT DISTINCT ON (finding_id) finding_id, nullif(severity, 'unrated') AS severity
-    FROM traust.occurrence ORDER BY finding_id, created_at DESC, id DESC
-) o
-WHERE o.finding_id = f.id;
-
+-- Existing rows: the first category label; state, severity and decided arrive with core's
+-- data channel, which restamps every finding from the fold.
 UPDATE traust.finding f SET category = c.label
 FROM (
     SELECT DISTINCT ON (finding_id) finding_id, label FROM traust.finding_label

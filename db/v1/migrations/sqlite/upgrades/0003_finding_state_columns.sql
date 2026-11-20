@@ -58,18 +58,22 @@ ALTER TABLE decision
 ALTER TABLE decision
     ADD COLUMN folded_policy_version TEXT;
 
--- The finding's current answer, stamped by the write doors (state and severity on each
--- decision, severity on each occurrence, the first category label): dashboards read one
--- indexed row per finding instead of the latest decision, occurrence and label per read.
+-- The finding's current answer: state, effective severity and decided, stamped by core's
+-- write doors from the fold (finding_state, effective_severity) on every finding, decision
+-- and occurrence write; the first category label, copied by a trigger. A new finding is
+-- identified - open, undecided - until a judgment says otherwise; NULL severity is unrated.
 ALTER TABLE finding
-    ADD COLUMN current_state TEXT CHECK (
-        current_state IS NULL OR current_state IN ('open', 'hardening', 'accepted', 'resolved', 'false_positive')
+    ADD COLUMN current_state TEXT NOT NULL DEFAULT 'open' CHECK (
+        current_state IN ('open', 'hardening', 'accepted', 'resolved', 'false_positive')
     );
 
 ALTER TABLE finding
     ADD COLUMN current_severity TEXT CHECK (
         current_severity IS NULL OR current_severity IN ('critical', 'high', 'medium', 'low', 'informational')
     );
+
+ALTER TABLE finding
+    ADD COLUMN current_decided BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE finding
     ADD COLUMN category TEXT;
@@ -93,56 +97,15 @@ WHEN NEW.updated_at IS OLD.updated_at BEGIN
   UPDATE finding SET updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ','now')) WHERE id = NEW.id;
 END;
 
--- The finding's current answer is kept by triggers, so no writer can leave it behind: a
--- decision (inserted, or its fold stamped) sets state and severity, an occurrence sets
--- severity unless the latest decision rated it, the first category label sets category.
-CREATE TRIGGER IF NOT EXISTS finding_current_decision_insert
-AFTER INSERT ON decision FOR EACH ROW
-BEGIN
-  UPDATE finding SET
-    current_state = NEW.folded_state,
-    current_severity = coalesce(NEW.folded_severity, (
-      SELECT nullif(o.severity, 'unrated') FROM occurrence o
-      WHERE o.finding_id = NEW.finding_id
-      ORDER BY o.created_at DESC, o.id DESC LIMIT 1))
-  WHERE id = NEW.finding_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS finding_current_decision_stamp
-AFTER UPDATE OF folded_state, folded_severity ON decision FOR EACH ROW
-BEGIN
-  UPDATE finding SET
-    current_state = NEW.folded_state,
-    current_severity = coalesce(NEW.folded_severity, (
-      SELECT nullif(o.severity, 'unrated') FROM occurrence o
-      WHERE o.finding_id = NEW.finding_id
-      ORDER BY o.created_at DESC, o.id DESC LIMIT 1))
-  WHERE id = NEW.finding_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS finding_current_occurrence
-AFTER INSERT ON occurrence FOR EACH ROW
-BEGIN
-  UPDATE finding SET current_severity = coalesce((
-      SELECT d.folded_severity FROM decision d
-      WHERE d.finding_id = NEW.finding_id
-      ORDER BY d.created_at DESC, d.id DESC LIMIT 1),
-    nullif(NEW.severity, 'unrated'))
-  WHERE id = NEW.finding_id;
-END;
-
+-- The first category label is a copy, not a rule: a trigger keeps it.
 CREATE TRIGGER IF NOT EXISTS finding_current_label
 AFTER INSERT ON finding_label FOR EACH ROW WHEN NEW.taxonomy = 'category'
 BEGIN
   UPDATE finding SET category = NEW.label WHERE id = NEW.finding_id AND category IS NULL;
 END;
 
--- Existing rows: severity and category from what is recorded; state arrives with the data
--- channel's fold stamp (the decision trigger fires on it).
-UPDATE finding SET current_severity = (
-  SELECT nullif(o.severity, 'unrated') FROM occurrence o
-  WHERE o.finding_id = finding.id ORDER BY o.created_at DESC, o.id DESC LIMIT 1);
-
+-- Existing rows: the first category label; state, severity and decided arrive with core's
+-- data channel, which restamps every finding from the fold.
 UPDATE finding SET category = (
   SELECT l.label FROM finding_label l
   WHERE l.finding_id = finding.id AND l.taxonomy = 'category'
