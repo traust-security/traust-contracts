@@ -79,6 +79,11 @@
         "skill": {"$ref": "session-task.schema.json#/$defs/name"},
         "mode": {"$ref": "session-task.schema.json#/$defs/name"},
         "executor_session": {"type": ["string", "null"], "minLength": 1},
+        "lease_generation": {
+          "description": "Claim that staged this session. Historical entries without a recorded generation remain readable.",
+          "type": "integer",
+          "minimum": 1
+        },
         "models": {"$ref": "session-task.schema.json#/$defs/models"},
         "task_sha256": {"$ref": "#/$defs/sha256"},
         "inputs": {

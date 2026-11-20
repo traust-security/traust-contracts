@@ -9,6 +9,11 @@
   "properties": {
     "schema_version": {"const": "1"},
     "run_id": {"type": ["string", "null"], "format": "uuid"},
+    "lease_generation": {
+      "description": "Generation returned by the claim that staged this task; not the order's current generation looked up later.",
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
     "skill": {"$ref": "#/$defs/name"},
     "mode": {"$ref": "#/$defs/name"},
     "args": {"type": "array", "items": {"type": "string"}},
@@ -24,6 +29,12 @@
       }
     }
   },
+  "if": {"properties": {"run_id": {"type": "string"}}},
+  "then": {
+    "required": ["lease_generation"],
+    "properties": {"lease_generation": {"type": "integer"}}
+  },
+  "else": {"properties": {"lease_generation": {"type": "null"}}},
   "$defs": {
     "name": {
       "type": "string",
