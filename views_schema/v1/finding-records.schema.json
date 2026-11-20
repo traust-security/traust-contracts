@@ -423,6 +423,7 @@
         "occurrence",
         "disposition",
         "effective_severity",
+        "cvss",
         "sla_due",
         "first_reported_at",
         "last_reported_at",
@@ -471,6 +472,16 @@
           ],
           "description": "The severity it counts at; null when unrated."
         },
+        "cvss": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/finding_cvss"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "sla_due": {
           "type": [
             "string",
@@ -518,7 +529,127 @@
             "$ref": "#/$defs/label"
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cvss": {
+                "type": "object",
+                "properties": {
+                  "basis": {
+                    "const": "computed"
+                  }
+                },
+                "required": [
+                  "basis"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "cvss": {
+                "properties": {
+                  "severity": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "severity"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cvss": {
+                "type": "object",
+                "properties": {
+                  "severity": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "severity"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "cvss": {
+                "properties": {
+                  "basis": {
+                    "const": "computed"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cvss": {
+                "type": "object",
+                "properties": {
+                  "basis": {
+                    "const": "unrated"
+                  }
+                },
+                "required": [
+                  "basis"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "effective_severity": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "effective_severity": {
+                "type": "string"
+              }
+            }
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "cvss": {
+                    "type": "null"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "cvss": {
+                    "properties": {
+                      "basis": {
+                        "enum": [
+                          "computed",
+                          "scanner",
+                          "judgement"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     "decision": {
       "description": "One judgement on a finding; corrections are new decisions.",
@@ -670,6 +801,54 @@
           "format": "date-time"
         }
       }
+    },
+    "finding_cvss": {
+      "type": "object",
+      "description": "A finding's CVSS as consumers render it: the occurrence's score and vector, the severity the vector computes (FIRST's qualitative rating), and which source won the effective severity.",
+      "properties": {
+        "score": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/findings-rollup.schema.json#/$defs/top_finding/properties/cvss_score"
+        },
+        "vector": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Raw; null when unscored."
+        },
+        "severity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational",
+            null
+          ],
+          "description": "The severity the vector computes; null when the vector doesn't parse."
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "computed",
+            "scanner",
+            "judgement",
+            "unrated"
+          ],
+          "description": "Which source won the effective severity."
+        }
+      },
+      "required": [
+        "score",
+        "vector",
+        "severity",
+        "basis"
+      ],
+      "additionalProperties": false
     }
   }
 }
