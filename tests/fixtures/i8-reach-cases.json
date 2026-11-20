@@ -1,0 +1,27 @@
+{
+  "never-scanned": {
+    "reach": {"repositories": 1, "unmeasured": 1, "ecosystems": [], "shared": []},
+    "coverage": {"without_scan": 1, "unresolved": {}}
+  },
+  "document-only": {
+    "reach": {"repositories": 1, "unmeasured": 0, "ecosystems": [], "shared": []},
+    "coverage": {"without_scan": 1, "unresolved": {}}
+  },
+  "measured-empty": {
+    "reach": {"repositories": 1, "unmeasured": 0, "ecosystems": [], "shared": []},
+    "coverage": {"without_scan": 0, "unresolved": {}}
+  },
+  "partial-empty": {
+    "reach": {"repositories": 1, "unmeasured": 0, "ecosystems": [], "shared": []},
+    "coverage": {"without_scan": 0, "unresolved": {"npm": 1}}
+  },
+  "partial-positive": {
+    "reach": {
+      "repositories": 1,
+      "unmeasured": 0,
+      "ecosystems": [{"ecosystem": "npm", "repositories": 1, "packages": 1}],
+      "shared": [{"ecosystem": "npm", "name": "left-pad", "repositories": 1}]
+    },
+    "coverage": {"without_scan": 0, "unresolved": {"npm": 1}}
+  }
+}

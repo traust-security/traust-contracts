@@ -470,6 +470,19 @@ intake, not re-checked here. One row per ecosystem and per (ecosystem, name) pac
 Core's grouping (JSON Schema cannot check a field unique across rows; Core's tests pin it).
 Every serialized field is required; lists are never null.
 
+The I8 reader experiment is **not** a new view. The strict `dependency-reach` wire
+document stays unchanged. A test-only `dependency-reach-coverage-candidate` envelope
+embeds that exact document (`reach`, by schema reference) beside `coverage`.
+`without_scan` includes repositories without a scan-backed SBOM, even document-only
+imports; `unresolved` counts each scan-backed repository once per unresolved ecosystem.
+A gap limits conclusions about missing packages; it never cancels a positive holder.
+`tests/test_dependency_reach_coverage_candidate.py` exercises both strict readers;
+set `TRAUST_I8_CASES` to the Core REST test's `i8-reach-cases.json` to replay its responses.
+
+The separate `unsupported-manifest` producer reason still requires explicit contracts and
+consumer pin review before use. A historical empty coverage map is not evidence that
+Docker `FROM` was checked: re-scan unchanged heads rather than reinterpret old artifacts.
+
 `views_schema/v1/validation-fuzz.schema.json` is the contract for Core's validation-fuzz view:
 each target's latest recorded fuzz run as of `as_of`, its crashers ranked by CVSS then
 proposed severity, the surfaces it left unfuzzed, and each repository's validated findings
