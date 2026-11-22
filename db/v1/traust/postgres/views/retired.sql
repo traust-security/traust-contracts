@@ -1,4 +1,4 @@
--- Disposition views retired 2026-10-28: traust-core's findings service folds the
+-- Disposition views retired: traust-core's findings service folds the
 -- decisions (one rule). Dropped here so existing databases lose them too.
 DROP VIEW IF EXISTS traust.finding_clock;
 DROP VIEW IF EXISTS traust.finding_status;
