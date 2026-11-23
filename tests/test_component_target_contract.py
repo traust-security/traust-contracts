@@ -136,6 +136,7 @@ def test_report_accepts_valid_versioned_purls(purl: str) -> None:
         {"commit": "F2E4863DE60E6A20E827A0AA3C524FFB3AE96AD4"},
         {"module_path": ""},
         {"release_ref": ""},
+        {"release_ref": None},
         {"verification": {"strategy": "dir_name_guess", "manifest_paths": ["pom.xml"]}},
         {"verification": {"strategy": "shared_release", "manifest_paths": []}},
         {"verification": {"strategy": "shared_release", "manifest_paths": [""]}},
@@ -159,6 +160,58 @@ def test_report_rejects_invalid_component_target(patch: dict[str, Any]) -> None:
         jsonschema.validate(doc, schema)
     with pytest.raises(pydantic.ValidationError):
         Report.model_validate(doc)
+
+
+def test_report_rejects_explicit_null_target() -> None:
+    schema = _load_schema("report.schema.json")
+    doc = _base_report()
+    doc["metadata"]["target"] = None
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(doc, schema)
+    with pytest.raises(pydantic.ValidationError):
+        Report.model_validate(doc)
+
+
+def test_component_target_omitted_release_ref_round_trips_and_is_immutable() -> None:
+    schema = _load_schema("report.schema.json")
+    doc = _base_report()
+    target = _valid_target()
+    target.pop("release_ref")
+    doc["metadata"]["target"] = target
+    jsonschema.validate(doc, schema)
+    parsed = Report.model_validate(doc)
+    assert parsed.metadata.target is not None
+    assert parsed.metadata.target.release_ref is None
+    assert isinstance(parsed.metadata.target.verification.manifest_paths, tuple)
+    serialized = parsed.to_dict()
+    assert "release_ref" not in serialized["metadata"]["target"]
+    jsonschema.validate(serialized, schema)
+    with pytest.raises(pydantic.ValidationError):
+        parsed.metadata.target.repository = "https://github.com/other/repo"  # type: ignore[misc]
+    with pytest.raises(pydantic.ValidationError):
+        parsed.metadata.target.verification.manifest_paths = ("",)  # type: ignore[misc]
+    assert not hasattr(parsed.metadata.target.verification.manifest_paths, "append")
+
+
+def test_current_major_aliases_export_component_target_symbols() -> None:
+    from traust_contracts.enums import ComponentTargetStrategy as AliasStrategy
+    from traust_contracts.models import (
+        ComponentTarget as AliasTarget,
+    )
+    from traust_contracts.models import (
+        ComponentTargetVerification as AliasVerification,
+    )
+    from traust_contracts.v1.enums import ComponentTargetStrategy as V1Strategy
+    from traust_contracts.v1.models import (
+        ComponentTarget as V1Target,
+    )
+    from traust_contracts.v1.models import (
+        ComponentTargetVerification as V1Verification,
+    )
+
+    assert AliasStrategy is V1Strategy
+    assert AliasTarget is V1Target
+    assert AliasVerification is V1Verification
 
 
 @pytest.mark.parametrize(

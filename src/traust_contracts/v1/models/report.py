@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from traust_contracts.v1.enums import ComponentTargetStrategy, RefKind, Severity
 from traust_contracts.v1.models._base import ContractModel
@@ -26,14 +26,14 @@ COMPONENT_COMMIT_PATTERN = r"^[0-9a-f]{40}$"
 
 
 class ComponentTargetVerification(ContractModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     strategy: ComponentTargetStrategy
-    manifest_paths: Annotated[list[Annotated[str, Field(min_length=1)]], Field(min_length=1)]
+    manifest_paths: Annotated[tuple[Annotated[str, Field(min_length=1)], ...], Field(min_length=1)]
 
 
 class ComponentTarget(ContractModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     purl: Annotated[str, Field(pattern=COMPONENT_PURL_PATTERN)]
     repository: Annotated[str, Field(min_length=1)]
@@ -41,6 +41,13 @@ class ComponentTarget(ContractModel):
     module_path: Annotated[str, Field(min_length=1)]
     release_ref: Annotated[str, Field(min_length=1)] | None = None
     verification: ComponentTargetVerification
+
+    @field_validator("release_ref", mode="before")
+    @classmethod
+    def _reject_explicit_null_release_ref(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("release_ref must be a non-empty string when present, not null")
+        return value
 
 
 class ReportMetadata(ContractModel):
@@ -59,6 +66,13 @@ class ReportMetadata(ContractModel):
     additional: dict[str, Any] | None = None
     audit_profile: str | None = None
     target: ComponentTarget | None = None
+
+    @field_validator("target", mode="before")
+    @classmethod
+    def _reject_explicit_null_target(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("metadata.target must be an object when present, not null")
+        return value
 
     @model_validator(mode="after")
     def _check_target_consistency(self) -> ReportMetadata:
