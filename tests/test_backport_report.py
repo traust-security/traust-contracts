@@ -335,3 +335,12 @@ class TestVerificationHintIdentifiesTheBackport:
         assert errors(report), "the schema requires one identity"
         with pytest.raises(ValidationError):
             BackportReport.from_dict(report)
+
+
+def test_a_hint_cannot_carry_an_empty_branch_list() -> None:
+    # to_dict() drops None but keeps [], and the schema requires minItems: 1 —
+    # so accepting [] meant the model could serialize an invalid artifact.
+    from traust_contracts.v1.models.backport import VerificationHint
+
+    with pytest.raises(ValidationError):
+        VerificationHint(branches=[])

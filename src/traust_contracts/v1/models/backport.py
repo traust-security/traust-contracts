@@ -168,8 +168,9 @@ class VerificationHint(ContractModel):
 
     original_audit_report: RelativePath | None = None
     repository: str | None = Field(default=None, pattern=_REPO_URL)
-    #: None rather than [] so `to_dict()` drops an empty list the schema rejects.
-    branches: list[VerificationTarget] | None = None
+    #: None rather than [] so `to_dict()` drops an empty list the schema rejects;
+    #: an explicitly supplied list must have an item (schema minItems: 1).
+    branches: list[VerificationTarget] | None = Field(default=None, min_length=1)
 
 
 class BackportSummary(ContractModel):
