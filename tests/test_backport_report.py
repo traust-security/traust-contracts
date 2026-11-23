@@ -311,3 +311,27 @@ class TestRelativePathsAcrossPlatforms:
 
     def test_a_normal_relative_path_still_validates(self) -> None:
         assert errors(document()) == []
+
+
+class TestVerificationHintIdentifiesTheBackport:
+    """Pre-filled verification inputs must name the backport that landed.
+
+    The schema validated the shape of a hinted commit, not its identity; a
+    hint pointing at a different commit left a valid report whose verification
+    inputs would check the wrong thing.
+    """
+
+    def test_a_hinted_commit_must_match_the_branch_row(self) -> None:
+        report = document()
+        report["verification_hint"]["branches"][0]["backport_commit"] = "c" * 40
+        with pytest.raises(ValidationError):
+            BackportReport.from_dict(report)
+
+    def test_a_hint_must_carry_one_identity(self) -> None:
+        report = document()
+        branch = report["verification_hint"]["branches"][0]
+        branch.pop("backport_commit", None)
+        branch.pop("backport_branch", None)
+        assert errors(report), "the schema requires one identity"
+        with pytest.raises(ValidationError):
+            BackportReport.from_dict(report)

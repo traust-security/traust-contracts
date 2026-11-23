@@ -235,12 +235,36 @@ class BackportReport(ContractModel):
             raise ValueError(f"summary disagrees with target_branches: {mismatched}")
         if self.verification_hint and self.verification_hint.branches:
             by_branch = {entry.branch: entry for entry in self.target_branches}
-            stray = [
-                target.target_branch
-                for target in self.verification_hint.branches
-                if target.target_branch not in by_branch
-                or by_branch[target.target_branch].status is not BackportStatus.SUCCEEDED
-            ]
+            stray: list[str] = []
+            unidentified: list[str] = []
+            mismatched: list[str] = []
+            for target in self.verification_hint.branches:
+                row = by_branch.get(target.target_branch)
+                if row is None or row.status is not BackportStatus.SUCCEEDED:
+                    stray.append(target.target_branch)
+                    continue
+                if not (target.backport_commit or target.backport_branch):
+                    unidentified.append(target.target_branch)
+                    continue
+                if target.backport_commit and target.backport_commit != row.backport_commit:
+                    mismatched.append(
+                        f"{target.target_branch}: hint {target.backport_commit} "
+                        f"!= landed {row.backport_commit}"
+                    )
+                elif target.backport_branch and target.backport_branch != row.backport_branch:
+                    mismatched.append(
+                        f"{target.target_branch}: hint {target.backport_branch} "
+                        f"!= landed {row.backport_branch}"
+                    )
             if stray:
                 raise ValueError(f"verification_hint names branches that did not succeed: {stray}")
+            if unidentified:
+                raise ValueError(
+                    "verification_hint must identify the backport it verifies "
+                    f"(backport_commit or backport_branch): {unidentified}"
+                )
+            if mismatched:
+                raise ValueError(
+                    f"verification_hint disagrees with the landed backport: {mismatched}"
+                )
         return self
