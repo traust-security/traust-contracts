@@ -369,3 +369,40 @@ class TestSerializationRechecksInvariants:
     def test_an_untouched_report_still_serializes(self) -> None:
         report = BackportReport.from_dict(document())
         assert report.to_dict()["summary"]["total"] == len(report.target_branches)
+
+
+def _validator_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("contract_validate", REPO_ROOT / "validate.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestContentGate:
+    """`traust <artifact> validate` must catch what the schema cannot.
+
+    Schema validation alone accepts a summary that disagrees with its own
+    branches and two entries for one branch; the CLI is where the repo
+    enforces cross-field truth.
+    """
+
+    def test_a_wrong_total_is_rejected_by_the_gate(self, tmp_path: Path) -> None:
+        report = document()
+        report["summary"]["succeeded"] += 1
+        path = tmp_path / "report.json"
+        path.write_text(json.dumps(report))
+        assert _validator_module().validate_artifact("backport-report", path) is False
+
+    def test_a_duplicated_branch_is_rejected_by_the_gate(self, tmp_path: Path) -> None:
+        report = document()
+        report["target_branches"].append(copy.deepcopy(report["target_branches"][0]))
+        path = tmp_path / "report.json"
+        path.write_text(json.dumps(report))
+        assert _validator_module().validate_artifact("backport-report", path) is False
+
+    def test_the_fixture_passes_the_gate(self, tmp_path: Path) -> None:
+        path = tmp_path / "report.json"
+        path.write_text(json.dumps(FIXTURE))
+        assert _validator_module().validate_artifact("backport-report", path) is True

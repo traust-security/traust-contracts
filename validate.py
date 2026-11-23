@@ -103,6 +103,32 @@ def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:
                     f"{artifact_path}: patterns[{i}]: vulnerable ({vulnerable}) "
                     f"exceeds tested ({tested})"
                 )
+    if basename == "backport-report":
+        # JSON Schema cannot express the arithmetic or per-property
+        # uniqueness, and a report whose summary disagrees with its own
+        # branches is what a producer bug or a tampered artifact looks like.
+        branches = artifact.get("target_branches") or []
+        summary = artifact.get("summary") or {}
+        counts = {"succeeded": 0, "failed": 0, "skipped": 0}
+        seen: dict[str, int] = {}
+        for entry in branches:
+            name = entry.get("branch")
+            seen[name] = seen.get(name, 0) + 1
+            if entry.get("status") in counts:
+                counts[entry["status"]] += 1
+        expected = {"total": len(branches), **counts}
+        wrong = {
+            key: {"declared": summary.get(key), "branches": value}
+            for key, value in expected.items()
+            if summary.get(key) != value
+        }
+        if wrong:
+            valid = False
+            print(f"{artifact_path}: summary disagrees with target_branches: {wrong}")
+        duplicated = sorted(name for name, runs in seen.items() if runs > 1)
+        if duplicated:
+            valid = False
+            print(f"{artifact_path}: target_branches repeats a branch: {duplicated}")
     if basename == "repo-liveness":
         for key, entry in artifact.get("repositories", {}).items():
             if entry.get("repository_id") != key:
