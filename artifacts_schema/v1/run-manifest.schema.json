@@ -68,6 +68,12 @@
       "type": "object",
       "propertyNames": {"$ref": "#/$defs/degraded_key"},
       "additionalProperties": {"type": "integer", "minimum": 1}
+    },
+    "outputs": {
+      "description": "Artifacts the run produced that belong to no assessment (a report's file): what the order wrote, read one order at a time. An assessment's documents are found through the assessment, never here.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "format": "uuid"}
     }
   },
   "$defs": {

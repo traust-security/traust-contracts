@@ -9,6 +9,14 @@ make setup
 
 Installs deps (`uv sync`) and enables git hooks. One time per clone.
 
+## Where things live
+
+Each directory has one job, and every file must be load-bearing — the delete
+test: something fails when the file is removed. API request/response shapes
+belong in traust-core (pydantic → OpenAPI → the SDK), never here; a vocabulary
+nothing loads is decoration. The placement rules and the six questions gating
+data-model changes are in [AGENTS.md](AGENTS.md).
+
 ## Commit messages
 
 Conventional commits required. Format: `type(scope): subject`
