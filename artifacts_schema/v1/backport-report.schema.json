@@ -56,7 +56,7 @@
     "relative_path": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?!/)(?!.*\\.\\.)",
+      "pattern": "^(?!/)(?!.*\\\\)(?!.*\\.\\.)(?![A-Za-z]:)",
       "description": "A workspace-relative path. Not absolute and never containing '..': consumers open these, and a path from an artifact must not escape the workspace it is resolved in."
     },
     "repo_url": {

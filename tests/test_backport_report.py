@@ -285,3 +285,29 @@ class TestModelEnforcesSchemaConstraints:
 
     def test_a_schema_valid_document_still_loads(self) -> None:
         BackportReport.from_dict(FIXTURE)
+
+
+class TestRelativePathsAcrossPlatforms:
+    """A POSIX-only rule lets a Windows consumer escape the workspace.
+
+    `\\Windows\\Temp\\payload` and `C:\\outside\\file` are not absolute to a
+    POSIX reader but are to a Windows one; both must be rejected because the
+    same artifact is read on either platform.
+    """
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "\\Windows\\Temp\\payload",
+            "C:\\outside\\file",
+            "C:/outside/file",
+            "runs\\backslash.patch",
+        ],
+    )
+    def test_windows_escapes_are_rejected(self, value: str) -> None:
+        report = document()
+        report["target_branches"][0]["patch_path"] = value
+        assert errors(report), "a Windows-rooted or backslash path must not validate"
+
+    def test_a_normal_relative_path_still_validates(self) -> None:
+        assert errors(document()) == []
