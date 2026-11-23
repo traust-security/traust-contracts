@@ -344,3 +344,28 @@ def test_a_hint_cannot_carry_an_empty_branch_list() -> None:
 
     with pytest.raises(ValidationError):
         VerificationHint(branches=[])
+
+
+class TestSerializationRechecksInvariants:
+    """In-place edits bypass the report-level after-validator.
+
+    Assigning a nested summary field validates the child; appending to
+    target_branches assigns nothing at all. to_dict() must not emit counts or
+    branch associations that no longer match.
+    """
+
+    def test_a_mutated_summary_cannot_be_serialized(self) -> None:
+        report = BackportReport.from_dict(document())
+        report.summary.succeeded += 1
+        with pytest.raises(ValueError):
+            report.to_dict()
+
+    def test_a_duplicated_branch_cannot_be_serialized(self) -> None:
+        report = BackportReport.from_dict(document())
+        report.target_branches.append(copy.deepcopy(report.target_branches[0]))
+        with pytest.raises(ValueError):
+            report.to_dict()
+
+    def test_an_untouched_report_still_serializes(self) -> None:
+        report = BackportReport.from_dict(document())
+        assert report.to_dict()["summary"]["total"] == len(report.target_branches)

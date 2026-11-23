@@ -207,6 +207,17 @@ class BackportReport(ContractModel):
             raise ValueError("title must name the artifact (backport/remediat/patch/fix)")
         return value
 
+    def to_dict(self) -> dict[str, Any]:
+        """Re-check the cross-field invariants before serializing.
+
+        Mutating ``target_branches`` in place or assigning a nested summary
+        field validates the child model, not this one, so the after-validator
+        does not run again. Serialization is the last point where a stale
+        summary or a duplicated branch can still be caught.
+        """
+        self._summary_is_derived_from_branches()
+        return super().to_dict()
+
     @model_validator(mode="after")
     def _summary_is_derived_from_branches(self) -> Self:
         """The arithmetic JSON Schema cannot express.
