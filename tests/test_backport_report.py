@@ -254,3 +254,34 @@ def test_the_hint_speaks_the_verification_contracts_language() -> None:
     hint_commit = hint["branches"]["items"]["properties"]["backport_commit"]
     resolved = SCHEMA["$defs"][hint_commit["$ref"].rsplit("/", 1)[-1]]
     assert resolved["pattern"] == metadata["properties"]["patched_commit"]["pattern"]
+
+
+class TestModelEnforcesSchemaConstraints:
+    """A model-only consumer must not accept what the schema rejects.
+
+    `BackportReport.from_dict()` is a documented entry point; without these
+    constraints a schema-invalid document (ext:: clone target, option-like
+    ref, traversal path, abbreviated SHA) reached code acting on the fields.
+    """
+
+    @pytest.mark.parametrize(
+        "mutate",
+        [
+            lambda d: d["metadata"].update(repository="ext::sh -c id"),
+            lambda d: d["source_fix"].update(branch="--upload-pack=evil"),
+            lambda d: d["metadata"].update(harness_version="0.1"),
+            lambda d: d["source_fix"].update(commit="abc123"),
+            lambda d: d["source_fix"].update(cwes=["79"]),
+            lambda d: d["target_branches"][0].update(patch_path="/etc/passwd"),
+            lambda d: d["target_branches"][0].update(patch_sha256="deadbeef"),
+            lambda d: d["target_branches"][0].update(backport_commit="b" * 39),
+        ],
+    )
+    def test_each_dangerous_value_is_rejected(self, mutate) -> None:
+        report = document()
+        mutate(report)
+        with pytest.raises(ValidationError):
+            BackportReport.from_dict(report)
+
+    def test_a_schema_valid_document_still_loads(self) -> None:
+        BackportReport.from_dict(FIXTURE)

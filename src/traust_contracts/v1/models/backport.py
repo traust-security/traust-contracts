@@ -2,13 +2,42 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from enum import StrEnum
-from typing import Any, Self
+from pathlib import Path
+from typing import Annotated, Any, Self
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import AfterValidator, ConfigDict, Field, field_validator, model_validator
 
 from traust_contracts.v1.models._base import ContractModel
+
+_GIT_REF = r"^[A-Za-z0-9._/][A-Za-z0-9._/-]{0,199}$"
+_REPO_URL = r"^(https://|ssh://)"
+_SHORT_SHA = r"^[0-9a-f]{7,40}$"
+_FULL_SHA = r"^[0-9a-f]{40}$"
+_CWE = r"^CWE-\d{1,5}$"
+_SHA256 = r"^[a-f0-9]{64}$"
+_HARNESS_VERSION = r"^\d+\.\d+\.\d+(-[0-9a-f]{7,40})?$"
+_TITLE = re.compile(r"(backport|remediat|patch|fix)", re.I)
+
+
+def _relative_path(value: str) -> str:
+    """Mirror the schema's relative_path: never absolute, never traversal.
+
+    Rejects a leading '/', a backslash (a Windows separator in a POSIX reader),
+    a drive letter, and any '..' component.
+    """
+    if value.startswith("/") or "\\" in value:
+        raise ValueError("path must be workspace-relative (no leading / or backslash)")
+    if len(value) > 1 and value[1] == ":" and value[0].isalpha():
+        raise ValueError("path must not be drive-qualified")
+    if ".." in Path(value).parts:
+        raise ValueError("path must not contain '..'")
+    return value
+
+
+RelativePath = Annotated[str, AfterValidator(_relative_path)]
 
 
 class BackportStatus(StrEnum):
@@ -42,8 +71,8 @@ class BackportMetadata(ContractModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     date: str
-    harness_version: str
-    repository: str
+    harness_version: str = Field(pattern=_HARNESS_VERSION)
+    repository: str = Field(pattern=_REPO_URL)
     logical_product: str | None = None
     language: str | None = None
     operator: str | None = None
@@ -54,12 +83,20 @@ class BackportMetadata(ContractModel):
 class SourceFix(ContractModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    commit: str
-    branch: str
-    fork_url: str | None = None
-    remediation_path: str | None = None
+    commit: str = Field(pattern=_SHORT_SHA)
+    branch: str = Field(pattern=_GIT_REF)
+    fork_url: str | None = Field(default=None, pattern=_REPO_URL)
+    remediation_path: RelativePath | None = None
     finding_refs: list[str] = Field(default_factory=list)
     cwes: list[str] = Field(default_factory=list)
+
+    @field_validator("cwes")
+    @classmethod
+    def _cwes_are_ids(cls, values: list[str]) -> list[str]:
+        bad = [v for v in values if not re.fullmatch(_CWE, v)]
+        if bad:
+            raise ValueError(f"cwes must be CWE-NNN: {bad}")
+        return values
 
 
 class Check(ContractModel):
@@ -71,14 +108,14 @@ class Check(ContractModel):
     outcome: CheckOutcome
     command: str | None = None
     duration_seconds: float | None = None
-    log_path: str | None = None
+    log_path: RelativePath | None = None
     summary: str | None = None
 
 
 class BranchResult(ContractModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    branch: str
+    branch: str = Field(pattern=_GIT_REF)
     status: BackportStatus
     stop_reason: BackportStopReason | None = None
     phase_reached: str | None = None
@@ -87,11 +124,11 @@ class BranchResult(ContractModel):
     duration_seconds: float | None = None
     tokens_used: int | None = None
     has_patch: bool | None = None
-    patch_path: str | None = None
-    patch_sha256: str | None = None
+    patch_path: RelativePath | None = None
+    patch_sha256: str | None = Field(default=None, pattern=_SHA256)
     patch_files_changed: int | None = None
-    backport_commit: str | None = None
-    backport_branch: str | None = None
+    backport_commit: str | None = Field(default=None, pattern=_FULL_SHA)
+    backport_branch: str | None = Field(default=None, pattern=_GIT_REF)
     error: str | None = None
 
     @model_validator(mode="after")
@@ -119,9 +156,9 @@ class BranchResult(ContractModel):
 class VerificationTarget(ContractModel):
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    target_branch: str
-    backport_commit: str | None = None
-    backport_branch: str | None = None
+    target_branch: str = Field(pattern=_GIT_REF)
+    backport_commit: str | None = Field(default=None, pattern=_FULL_SHA)
+    backport_branch: str | None = Field(default=None, pattern=_GIT_REF)
 
 
 class VerificationHint(ContractModel):
@@ -129,8 +166,8 @@ class VerificationHint(ContractModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    original_audit_report: str | None = None
-    repository: str | None = None
+    original_audit_report: RelativePath | None = None
+    repository: str | None = Field(default=None, pattern=_REPO_URL)
     #: None rather than [] so `to_dict()` drops an empty list the schema rejects.
     branches: list[VerificationTarget] | None = None
 
@@ -153,7 +190,7 @@ class BackportReport(ContractModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    title: str
+    title: str = Field(min_length=5)
     metadata: BackportMetadata
     source_fix: SourceFix
     target_branches: list[BranchResult]
@@ -161,6 +198,13 @@ class BackportReport(ContractModel):
     notes: str | None = None
     verification_hint: VerificationHint | None = None
     footer: str | None = None
+
+    @field_validator("title")
+    @classmethod
+    def _title_names_the_artifact(cls, value: str) -> str:
+        if not _TITLE.search(value):
+            raise ValueError("title must name the artifact (backport/remediat/patch/fix)")
+        return value
 
     @model_validator(mode="after")
     def _summary_is_derived_from_branches(self) -> Self:
