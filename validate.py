@@ -117,10 +117,13 @@ def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:
             if entry.get("status") in counts:
                 counts[entry["status"]] += 1
         expected = {"total": len(branches), **counts}
+        # `skipped` is optional in the schema (a report with none omits it);
+        # treat an absent value as zero, like the model does.
+        declared = {key: summary.get(key, 0) for key in expected}
         wrong = {
-            key: {"declared": summary.get(key), "branches": value}
+            key: {"declared": declared[key], "branches": value}
             for key, value in expected.items()
-            if summary.get(key) != value
+            if declared[key] != value
         }
         if wrong:
             valid = False

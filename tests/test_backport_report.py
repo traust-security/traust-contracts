@@ -406,3 +406,16 @@ class TestContentGate:
         path = tmp_path / "report.json"
         path.write_text(json.dumps(FIXTURE))
         assert _validator_module().validate_artifact("backport-report", path) is True
+
+
+def test_a_report_without_a_skipped_count_passes_the_gate(tmp_path: Path) -> None:
+    # `skipped` is optional in the schema, and the storage sample omits it; a
+    # gate that requires it marks a valid report invalid.
+    payload, _ = sample("backport-report")
+    report = json.loads(payload)
+    assert "skipped" not in report["summary"]
+    path = tmp_path / "report.json"
+    path.write_text(json.dumps(report))
+    module = _validator_module()
+    assert [e.message for e in Draft202012Validator(SCHEMA).iter_errors(report)] == []
+    assert module.validate_artifact("backport-report", path) is True
