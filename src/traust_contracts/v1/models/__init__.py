@@ -24,7 +24,12 @@ from traust_contracts.v1.models.layer import (
 from traust_contracts.v1.models.metrics import MetricsRecord
 from traust_contracts.v1.models.refuted_register import RefutedEntry, RefutedRegister
 from traust_contracts.v1.models.remediation import Remediation
-from traust_contracts.v1.models.report import NegativeResult, Report
+from traust_contracts.v1.models.report import (
+    ComponentTarget,
+    ComponentTargetVerification,
+    NegativeResult,
+    Report,
+)
 from traust_contracts.v1.models.scan_result import (
     ScanFinding,
     ScanMetadata,
@@ -46,6 +51,8 @@ __all__ = [
     "AdapterSummary",
     "ComplianceAssessment",
     "ComplianceScope",
+    "ComponentTarget",
+    "ComponentTargetVerification",
     "DependencyProvenance",
     "Disposition",
     "EvidenceBlock",

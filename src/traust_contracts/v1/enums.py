@@ -242,3 +242,11 @@ class EventValidity(StrEnum):
     CORRECTED = "corrected"
     HARDENING = "hardening"
     NOT_AFFECTED = "not_affected"
+
+
+class ComponentTargetStrategy(StrEnum):
+    """Deterministic resolution strategy for a component PURL target."""
+
+    SHARED_RELEASE = "shared_release"
+    PACKAGE_RELEASE = "package_release"
+    WORKSPACE_PACKAGE = "workspace_package"

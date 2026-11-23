@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
-from traust_contracts.v1.enums import RefKind, Severity
+from traust_contracts.v1.enums import ComponentTargetStrategy, RefKind, Severity
 from traust_contracts.v1.models._base import ContractModel
 from traust_contracts.v1.models.finding import Finding
 from traust_contracts.v1.timestamps import IsoTimestamp
@@ -17,6 +17,30 @@ class LocBreakdown(ContractModel):
     by_language: dict[str, int] | None = None
     tool: str | None = None
     excludes: list[str] | None = None
+
+
+COMPONENT_PURL_PATTERN = (
+    r"^pkg:[a-z][a-z0-9.+-]*/(@[^?#@/]+/)?([^?#@/]+/)*[^?#@/]+@[^?#@]+(\?[^#]*)?(#.*)?$"
+)
+COMPONENT_COMMIT_PATTERN = r"^[0-9a-f]{40}$"
+
+
+class ComponentTargetVerification(ContractModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    strategy: ComponentTargetStrategy
+    manifest_paths: Annotated[list[Annotated[str, Field(min_length=1)]], Field(min_length=1)]
+
+
+class ComponentTarget(ContractModel):
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    purl: Annotated[str, Field(pattern=COMPONENT_PURL_PATTERN)]
+    repository: Annotated[str, Field(min_length=1)]
+    commit: Annotated[str, Field(pattern=COMPONENT_COMMIT_PATTERN)]
+    module_path: Annotated[str, Field(min_length=1)]
+    release_ref: Annotated[str, Field(min_length=1)] | None = None
+    verification: ComponentTargetVerification
 
 
 class ReportMetadata(ContractModel):
@@ -34,6 +58,31 @@ class ReportMetadata(ContractModel):
     tools: list[str] = Field(default_factory=list)
     additional: dict[str, Any] | None = None
     audit_profile: str | None = None
+    target: ComponentTarget | None = None
+
+    @model_validator(mode="after")
+    def _check_target_consistency(self) -> ReportMetadata:
+        if self.target is None:
+            return self
+        if (
+            self.commit
+            and self.commit.strip()
+            and self.target.commit != self.commit.strip().lower()
+        ):
+            raise ValueError(
+                f"metadata.target.commit ({self.target.commit}) does not match "
+                f"metadata.commit ({self.commit})"
+            )
+        if (
+            self.repository
+            and self.repository.strip()
+            and self.target.repository.strip().rstrip("/") != self.repository.strip().rstrip("/")
+        ):
+            raise ValueError(
+                f"metadata.target.repository ({self.target.repository}) does not match "
+                f"metadata.repository ({self.repository})"
+            )
+        return self
 
 
 class SeverityCounts(ContractModel):
