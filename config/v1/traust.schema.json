@@ -580,6 +580,11 @@
           "type": "string",
           "description": "The opengrep rule pack directory. Overrides the bundled default."
         },
+        "opengrep_adopter_rules": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional local directory for vetted additive Opengrep rules. Relative paths resolve against the config home. No default."
+        },
         "product_definitions": {
           "type": "string",
           "description": "Endpoint of the product/ownership registry; absent: not fetched."
