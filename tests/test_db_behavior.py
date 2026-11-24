@@ -1216,6 +1216,29 @@ def test_assessment_and_run_order_target_purl_upgrades(db: Db) -> None:
         f"SELECT target_purl, target_sha, target_module_path FROM {orders} WHERE id = ?",
         (order_id,),
     ) == [(purl, sha, "spring-beans")]
+    sha256_order_id = db.insert(
+        "ops.run_order",
+        asset="sci_scan",
+        state="queued",
+        priority=1,
+        requested_by="h",
+        repository_id=rid,
+        target_purl=purl,
+        target_sha="b" * 64,
+        target_module_path=".",
+    )
+    assert db.run(
+        f"SELECT target_purl, target_sha, target_module_path FROM {orders} WHERE id = ?",
+        (sha256_order_id,),
+    ) == [(purl, "b" * 64, ".")]
+    if db.engine == "sqlite":
+        idx_cols = [
+            row[2]
+            for row in db.conn.execute(
+                "PRAGMA index_info(idx_ops_run_order_target_purl)"
+            ).fetchall()
+        ]
+        assert idx_cols == ["repository_id", "target_purl", "target_sha", "state"]
     for bad_target in (
         {"target_purl": ""},
         {"target_purl": purl},
@@ -1223,6 +1246,11 @@ def test_assessment_and_run_order_target_purl_upgrades(db: Db) -> None:
         {"target_module_path": "spring-beans"},
         {"target_purl": purl, "target_sha": sha},
         {"target_purl": purl, "target_sha": "abc123", "target_module_path": "spring-beans"},
+        {"target_purl": purl, "target_sha": "a" * 39, "target_module_path": "spring-beans"},
+        {"target_purl": purl, "target_sha": "a" * 41, "target_module_path": "spring-beans"},
+        {"target_purl": purl, "target_sha": "a" * 63, "target_module_path": "spring-beans"},
+        {"target_purl": purl, "target_sha": "a" * 65, "target_module_path": "spring-beans"},
+        {"target_purl": purl, "target_sha": "B" * 64, "target_module_path": "spring-beans"},
         {"target_purl": purl, "target_sha": "A" * 40, "target_module_path": "spring-beans"},
         {"target_purl": purl, "target_sha": sha, "target_module_path": ""},
     ):

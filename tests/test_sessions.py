@@ -142,6 +142,35 @@ def test_manifest_records_success_failure_and_multiple_sessions() -> None:
     validate("run-manifest", {"artifact": "run-manifest"})
 
 
+def test_manifest_validates_component_target_cross_schema_ref() -> None:
+    component_target = {
+        "purl": "pkg:maven/org.springframework/spring-beans@7.1.0",
+        "repository": "https://github.com/spring-projects/spring-framework",
+        "commit": "f2e4863de60e6a20e827a0aa3c524ffb3ae96ad4",
+        "module_path": "spring-beans",
+        "release_ref": "v7.1.0",
+        "verification": {
+            "strategy": "shared_release",
+            "manifest_paths": ["pom.xml", "spring-beans/pom.xml"],
+        },
+    }
+    validate("run-manifest", {"artifact": "run-manifest", "component_target": component_target})
+    with pytest.raises(ValidationError):
+        validate(
+            "run-manifest",
+            {
+                "artifact": "run-manifest",
+                "component_target": {
+                    **component_target,
+                    "verification": {
+                        "strategy": "external_provenance",
+                        "manifest_paths": ["pom.xml"],
+                    },
+                },
+            },
+        )
+
+
 @pytest.mark.parametrize(
     "field,value",
     [

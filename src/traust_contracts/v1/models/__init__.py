@@ -26,6 +26,7 @@ from traust_contracts.v1.models.refuted_register import RefutedEntry, RefutedReg
 from traust_contracts.v1.models.remediation import Remediation
 from traust_contracts.v1.models.report import (
     ComponentTarget,
+    ComponentTargetProvenance,
     ComponentTargetVerification,
     NegativeResult,
     Report,
@@ -52,6 +53,7 @@ __all__ = [
     "ComplianceAssessment",
     "ComplianceScope",
     "ComponentTarget",
+    "ComponentTargetProvenance",
     "ComponentTargetVerification",
     "DependencyProvenance",
     "Disposition",

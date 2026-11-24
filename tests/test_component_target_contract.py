@@ -9,9 +9,10 @@ from typing import Any
 import jsonschema
 import pydantic
 import pytest
+from referencing import Registry, Resource
 
 from traust_contracts.paths import enum_dir, schema_dir
-from traust_contracts.v1.models import ComponentTarget, Report
+from traust_contracts.v1.models import ComponentTarget, ComponentTargetProvenance, Report
 
 
 def _load_schema(name: str) -> dict[str, Any]:
@@ -92,6 +93,77 @@ def test_report_accepts_component_target_and_round_trips(strategy: str) -> None:
     assert isinstance(parsed.metadata.target, ComponentTarget)
     assert parsed.metadata.target.verification.strategy == strategy
 
+    assert parsed.metadata.target.verification.provenance is None
+
+
+@pytest.mark.parametrize("manifest_version", [None, "7.1.0"])
+def test_report_accepts_external_provenance_and_sha256_root_target(
+    manifest_version: str | None,
+) -> None:
+    schema = _load_schema("report.schema.json")
+    sha256_commit = "b" * 64
+    doc = _base_report()
+    doc["metadata"]["commit"] = sha256_commit
+    provenance: dict[str, Any] = {
+        "source": "https://slsa.dev/provenance/v1",
+        "ref": "attestation:build-42",
+        "digest": "sha256:" + ("c" * 64),
+    }
+    if manifest_version is not None:
+        provenance["manifest_version"] = manifest_version
+    target = _valid_target("external_provenance")
+    target["commit"] = sha256_commit
+    target["module_path"] = "."
+    target["verification"]["provenance"] = provenance
+    doc["metadata"]["target"] = target
+    jsonschema.validate(doc, schema)
+    canonical_validator = jsonschema.Draft202012Validator(schema).evolve(
+        schema={"$ref": "#/$defs/canonical_write"}
+    )
+    canonical_validator.validate(doc)
+    parsed = Report.model_validate(doc)
+    assert parsed.metadata.target is not None
+    assert parsed.metadata.target.commit == sha256_commit
+    assert parsed.metadata.target.module_path == "."
+    assert parsed.metadata.target.verification.strategy == "external_provenance"
+    prov = parsed.metadata.target.verification.provenance
+    assert isinstance(prov, ComponentTargetProvenance)
+    assert prov.manifest_version == manifest_version
+    with pytest.raises(pydantic.ValidationError):
+        prov.digest = "tampered"  # type: ignore[misc]
+    serialized = parsed.to_dict()
+    if manifest_version is None:
+        assert (
+            "manifest_version" not in serialized["metadata"]["target"]["verification"]["provenance"]
+        )
+    jsonschema.validate(serialized, schema)
+
+
+def test_run_manifest_schema_validates_component_target_via_registry() -> None:
+    schemas = [
+        json.loads(p.read_text(encoding="utf-8")) for p in schema_dir().glob("*.schema.json")
+    ]
+    registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas)
+    manifest_schema = _load_schema("run-manifest.schema.json")
+    validator = jsonschema.Draft202012Validator(
+        manifest_schema,
+        registry=registry,
+        format_checker=jsonschema.FormatChecker(),
+    )
+    validator.validate({"artifact": "run-manifest", "component_target": _valid_target()})
+    ext_target = _valid_target("external_provenance")
+    ext_target["commit"] = "d" * 64
+    ext_target["module_path"] = "."
+    ext_target["verification"]["provenance"] = {
+        "source": "https://in-toto.io/Statement/v1",
+        "ref": "bundle:release-7.1.0",
+        "digest": "sha256:" + ("e" * 64),
+    }
+    validator.validate({"artifact": "run-manifest", "component_target": ext_target})
+    bad_target = _valid_target("external_provenance")
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate({"artifact": "run-manifest", "component_target": bad_target})
+
 
 def test_report_without_target_stays_valid() -> None:
     schema = _load_schema("report.schema.json")
@@ -134,12 +206,89 @@ def test_report_accepts_valid_versioned_purls(purl: str) -> None:
         {"repository": ""},
         {"commit": "f2e4863"},
         {"commit": "F2E4863DE60E6A20E827A0AA3C524FFB3AE96AD4"},
+        {"commit": "a" * 39},
+        {"commit": "a" * 41},
+        {"commit": "a" * 63},
+        {"commit": "a" * 65},
+        {"commit": "B" * 64},
         {"module_path": ""},
         {"release_ref": ""},
         {"release_ref": None},
         {"verification": {"strategy": "dir_name_guess", "manifest_paths": ["pom.xml"]}},
         {"verification": {"strategy": "shared_release", "manifest_paths": []}},
         {"verification": {"strategy": "shared_release", "manifest_paths": [""]}},
+        {"verification": {"strategy": "external_provenance", "manifest_paths": ["pom.xml"]}},
+        {
+            "verification": {
+                "strategy": "external_provenance",
+                "manifest_paths": ["pom.xml"],
+                "provenance": None,
+            }
+        },
+        {
+            "verification": {
+                "strategy": "external_provenance",
+                "manifest_paths": ["pom.xml"],
+                "provenance": {"source": "slsa", "ref": "att-1"},
+            }
+        },
+        {
+            "verification": {
+                "strategy": "external_provenance",
+                "manifest_paths": ["pom.xml"],
+                "provenance": {"source": "", "ref": "att-1", "digest": "sha256:1"},
+            }
+        },
+        {
+            "verification": {
+                "strategy": "external_provenance",
+                "manifest_paths": ["pom.xml"],
+                "provenance": {
+                    "source": "slsa",
+                    "ref": "att-1",
+                    "digest": "sha256:1",
+                    "manifest_version": None,
+                },
+            }
+        },
+        {
+            "verification": {
+                "strategy": "external_provenance",
+                "manifest_paths": ["pom.xml"],
+                "provenance": {
+                    "source": "slsa",
+                    "ref": "att-1",
+                    "digest": "sha256:1",
+                    "manifest_version": "",
+                },
+            }
+        },
+        {
+            "verification": {
+                "strategy": "external_provenance",
+                "manifest_paths": ["pom.xml"],
+                "provenance": {
+                    "source": "slsa",
+                    "ref": "att-1",
+                    "digest": "sha256:1",
+                    "extra": True,
+                },
+            }
+        },
+        {
+            "verification": {
+                "strategy": "shared_release",
+                "manifest_paths": ["pom.xml"],
+                "provenance": {"source": "slsa", "ref": "att-1", "digest": "sha256:1"},
+            }
+        },
+        {
+            "verification": {
+                "strategy": "shared_release",
+                "manifest_paths": ["pom.xml"],
+                "provenance": None,
+            }
+        },
         {
             "verification": {
                 "strategy": "shared_release",
@@ -155,6 +304,8 @@ def test_report_rejects_invalid_component_target(patch: dict[str, Any]) -> None:
     doc = _base_report()
     target = copy.deepcopy(_valid_target())
     target.update(patch)
+    if "commit" in patch and isinstance(patch["commit"], str):
+        doc["metadata"]["commit"] = patch["commit"]
     doc["metadata"]["target"] = target
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(doc, schema)
@@ -199,6 +350,9 @@ def test_current_major_aliases_export_component_target_symbols() -> None:
         ComponentTarget as AliasTarget,
     )
     from traust_contracts.models import (
+        ComponentTargetProvenance as AliasProvenance,
+    )
+    from traust_contracts.models import (
         ComponentTargetVerification as AliasVerification,
     )
     from traust_contracts.v1.enums import ComponentTargetStrategy as V1Strategy
@@ -206,11 +360,15 @@ def test_current_major_aliases_export_component_target_symbols() -> None:
         ComponentTarget as V1Target,
     )
     from traust_contracts.v1.models import (
+        ComponentTargetProvenance as V1Provenance,
+    )
+    from traust_contracts.v1.models import (
         ComponentTargetVerification as V1Verification,
     )
 
     assert AliasStrategy is V1Strategy
     assert AliasTarget is V1Target
+    assert AliasProvenance is V1Provenance
     assert AliasVerification is V1Verification
 
 

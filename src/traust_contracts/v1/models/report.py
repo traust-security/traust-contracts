@@ -22,7 +22,23 @@ class LocBreakdown(ContractModel):
 COMPONENT_PURL_PATTERN = (
     r"^pkg:[a-z][a-z0-9.+-]*/(@[^?#@/]+/)?([^?#@/]+/)*[^?#@/]+@[^?#@]+(\?[^#]*)?(#.*)?$"
 )
-COMPONENT_COMMIT_PATTERN = r"^[0-9a-f]{40}$"
+COMPONENT_COMMIT_PATTERN = r"^([0-9a-f]{40}|[0-9a-f]{64})$"
+
+
+class ComponentTargetProvenance(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source: Annotated[str, Field(min_length=1)]
+    ref: Annotated[str, Field(min_length=1)]
+    digest: Annotated[str, Field(min_length=1)]
+    manifest_version: Annotated[str, Field(min_length=1)] | None = None
+
+    @field_validator("manifest_version", mode="before")
+    @classmethod
+    def _reject_explicit_null_manifest_version(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("manifest_version must be a non-empty string when present, not null")
+        return value
 
 
 class ComponentTargetVerification(ContractModel):
@@ -30,6 +46,28 @@ class ComponentTargetVerification(ContractModel):
 
     strategy: ComponentTargetStrategy
     manifest_paths: Annotated[tuple[Annotated[str, Field(min_length=1)], ...], Field(min_length=1)]
+    provenance: ComponentTargetProvenance | None = None
+
+    @field_validator("provenance", mode="before")
+    @classmethod
+    def _reject_explicit_null_provenance(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("provenance must be an object when present, not null")
+        return value
+
+    @model_validator(mode="after")
+    def _check_provenance_strategy_consistency(self) -> ComponentTargetVerification:
+        is_external = self.strategy == ComponentTargetStrategy.EXTERNAL_PROVENANCE
+        has_provenance = self.provenance is not None
+        if is_external and not has_provenance:
+            raise ValueError(
+                "verification.provenance is required when strategy is 'external_provenance'"
+            )
+        if not is_external and has_provenance:
+            raise ValueError(
+                f"verification.provenance must be omitted when strategy is '{self.strategy}'"
+            )
+        return self
 
 
 class ComponentTarget(ContractModel):

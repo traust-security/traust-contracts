@@ -250,3 +250,4 @@ class ComponentTargetStrategy(StrEnum):
     SHARED_RELEASE = "shared_release"
     PACKAGE_RELEASE = "package_release"
     WORKSPACE_PACKAGE = "workspace_package"
+    EXTERNAL_PROVENANCE = "external_provenance"

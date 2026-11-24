@@ -13,7 +13,8 @@ ALTER TABLE ops_run_order
 
 ALTER TABLE ops_run_order
     ADD COLUMN target_sha TEXT CHECK (
-        length(target_sha) = 40 AND target_sha NOT GLOB '*[^0-9a-f]*'
+        (length(target_sha) = 40 OR length(target_sha) = 64)
+        AND target_sha NOT GLOB '*[^0-9a-f]*'
     );
 
 ALTER TABLE ops_run_order
@@ -24,5 +25,5 @@ ALTER TABLE ops_run_order
     );
 
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_target_purl
-    ON ops_run_order (repository_id, target_purl, state)
+    ON ops_run_order (repository_id, target_purl, target_sha, state)
     WHERE target_purl IS NOT NULL;
