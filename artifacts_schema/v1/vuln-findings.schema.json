@@ -47,6 +47,13 @@
         "$ref": "#/$defs/known_finding"
       }
     },
+    "not_affected": {
+      "type": "array",
+      "description": "Advisory matches the audit identified and eliminated as not affected (validity `not_affected`: the issue exists but does not apply to this repository, version or deployment), each with the dependency evidence and a rationale. A narrative paper trail rendered with the report; never ingested as findings.",
+      "items": {
+        "$ref": "#/$defs/not_affected_entry"
+      }
+    },
     "review_surface_coverage": {
       "$ref": "report.schema.json#/$defs/scan_review_surface_coverage",
       "description": "Review-surface coverage of the scanned code (the whole tree, or the diff for a --diff scan): one entry per surface. A surface the diff does not touch is out_of_scope. The cumulative builder merges this record into the repo's cumulative report (*-findings-current.json)."
@@ -86,6 +93,99 @@
     }
   ],
   "$defs": {
+    "not_affected_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "description": "Impact-analysis: out of range or not in the dependency graph.",
+          "properties": {
+            "dependency": {
+              "required": [
+                "classification",
+                "impact_artifact"
+              ],
+              "properties": {
+                "classification": {
+                  "anyOf": [
+                    {
+                      "const": "version_not_in_range"
+                    },
+                    {
+                      "const": "not_imported"
+                    }
+                  ]
+                },
+                "impact_artifact": {
+                  "type": "string",
+                  "pattern": "\\S"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "A vendor not-affected statement or fixed NVR, cited in reference; the dependency never says affected.",
+          "required": [
+            "reference"
+          ],
+          "properties": {
+            "dependency": {
+              "not": {
+                "required": [
+                  "classification"
+                ],
+                "properties": {
+                  "classification": {
+                    "anyOf": [
+                      {
+                        "const": "affected"
+                      },
+                      {
+                        "const": "likely_affected"
+                      },
+                      {
+                        "const": "inconclusive"
+                      },
+                      {
+                        "const": "not_observed"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "reference": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          }
+        }
+      ],
+      "description": "One scanner-matched advisory eliminated as not affected, and why: by an impact-analysis row (version_not_in_range or not_imported) or a vendor statement cited in reference. govulncheck's not_observed is evidence for triage, never an elimination route here.",
+      "required": [
+        "dependency",
+        "rationale"
+      ],
+      "properties": {
+        "dependency": {
+          "$ref": "report.schema.json#/$defs/finding/properties/dependency",
+          "description": "The match, in the finding.dependency shape: advisory, module, ecosystem, installed_version, and the classification and impact_artifact that eliminate it."
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Where a vendor not-affected statement or fixed NVR is recorded, when that is the evidence instead of dependency.impact_artifact.",
+          "pattern": "\\S"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why the evidence eliminates the match, in prose.",
+          "pattern": "\\S"
+        }
+      }
+    },
     "severity_level": {
       "type": "string",
       "enum": [
