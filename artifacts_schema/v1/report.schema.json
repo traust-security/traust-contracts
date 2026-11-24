@@ -56,6 +56,13 @@
     "dependency_audit": {
       "$ref": "#/$defs/dependency_audit"
     },
+    "not_affected": {
+      "type": "array",
+      "description": "Advisory matches the audit identified and eliminated as not affected (validity `not_affected`: the issue exists but does not apply to this repository, version or deployment), each with the dependency evidence and a rationale. A narrative paper trail rendered with the report; never ingested as findings.",
+      "items": {
+        "$ref": "#/$defs/not_affected_entry"
+      }
+    },
     "negative_results": {
       "type": "array",
       "items": {
@@ -112,6 +119,31 @@
     }
   },
   "$defs": {
+    "not_affected_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One scanner-matched advisory eliminated as not affected, and why.",
+      "required": [
+        "dependency",
+        "rationale"
+      ],
+      "properties": {
+        "dependency": {
+          "$ref": "#/$defs/finding/properties/dependency",
+          "description": "The match, in the finding.dependency shape: advisory, module, ecosystem, installed_version, and the classification and evidence_level that eliminate it."
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Where a vendor not-affected statement or fixed NVR is recorded, when that is the evidence instead of dependency.impact_artifact."
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why the evidence eliminates the match, in prose."
+        }
+      }
+    },
     "severity_level": {
       "type": "string",
       "enum": [

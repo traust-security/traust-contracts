@@ -134,6 +134,14 @@ class DependencyAudit(ContractModel):
     entries: list[DependencyAuditEntry] = Field(default_factory=list)
 
 
+class NotAffectedEntry(ContractModel):
+    """One scanner-matched advisory the audit eliminated as not affected, and why."""
+
+    dependency: dict[str, Any]
+    rationale: str
+    reference: str | None = None
+
+
 class PeachInterface(ContractModel):
     omit_unset_empty_fields = frozenset({"hardening_gaps", "finding_ids"})
 
@@ -182,5 +190,6 @@ class Report(ContractModel):
     scanner_correlation: ScannerCorrelation | None = None
     asvs_coverage: list[AsvsChapter] | None = None
     dependency_audit: DependencyAudit | None = None
+    not_affected: list[NotAffectedEntry] | None = None
     peach_isolation_review: PeachIsolationReview | None = None
     review_surface_coverage: dict[str, ReviewSurfaceEntry] | None = None

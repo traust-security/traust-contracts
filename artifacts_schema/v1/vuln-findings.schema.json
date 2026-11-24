@@ -47,6 +47,13 @@
         "$ref": "#/$defs/known_finding"
       }
     },
+    "not_affected": {
+      "type": "array",
+      "description": "Advisory matches the audit identified and eliminated as not affected (validity `not_affected`: the issue exists but does not apply to this repository, version or deployment), each with the dependency evidence and a rationale. A narrative paper trail rendered with the report; never ingested as findings.",
+      "items": {
+        "$ref": "#/$defs/not_affected_entry"
+      }
+    },
     "review_surface_coverage": {
       "$ref": "report.schema.json#/$defs/scan_review_surface_coverage",
       "description": "Review-surface coverage of the scanned code (the whole tree, or the diff for a --diff scan): one entry per surface. A surface the diff does not touch is out_of_scope. The cumulative builder merges this record into the repo's cumulative report (*-findings-current.json)."
@@ -86,6 +93,31 @@
     }
   ],
   "$defs": {
+    "not_affected_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "One scanner-matched advisory eliminated as not affected, and why.",
+      "required": [
+        "dependency",
+        "rationale"
+      ],
+      "properties": {
+        "dependency": {
+          "$ref": "report.schema.json#/$defs/finding/properties/dependency",
+          "description": "The match, in the finding.dependency shape: advisory, module, ecosystem, installed_version, and the classification and evidence_level that eliminate it."
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Where a vendor not-affected statement or fixed NVR is recorded, when that is the evidence instead of dependency.impact_artifact."
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why the evidence eliminates the match, in prose."
+        }
+      }
+    },
     "severity_level": {
       "type": "string",
       "enum": [
