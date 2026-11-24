@@ -24,6 +24,7 @@ import json
 import pathlib
 
 import jsonschema
+import pytest
 
 from traust_contracts.models import Layer, Report
 
@@ -227,3 +228,59 @@ def test_vuln_findings_declares_a_not_affected_section() -> None:
     assert schema["properties"]["not_affected"]["items"] == {"$ref": "#/$defs/not_affected_entry"}
     dep = schema["$defs"]["not_affected_entry"]["properties"]["dependency"]["$ref"]
     assert dep == "report.schema.json#/$defs/finding/properties/dependency"
+
+
+def _report_with(entry: dict) -> dict:
+    return {**REPORT, "not_affected": [entry]}
+
+
+def _entry(**dependency_overrides) -> dict:
+    entry = json.loads(json.dumps(REPORT["not_affected"][0]))
+    for key, value in dependency_overrides.items():
+        if value is None:
+            entry["dependency"].pop(key, None)
+        else:
+            entry["dependency"][key] = value
+    return entry
+
+
+def test_not_affected_accepts_each_elimination_route() -> None:
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    unreachable = _entry(classification="not_observed", evidence_level="symbol")
+    vendor = {
+        **_entry(classification=None, evidence_level=None, impact_artifact=None),
+        "reference": "RHSA-2024:0001",
+    }
+    for entry in (_entry(), _entry(classification="not_imported"), unreachable, vendor):
+        assert validator.is_valid(_report_with(entry)), entry
+        Report.from_dict(_report_with(entry))
+
+
+def test_not_affected_rejects_an_entry_with_no_elimination_evidence() -> None:
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    bad = {
+        "no classification": _entry(classification=None),
+        "affected": _entry(classification="affected"),
+        "likely_affected": _entry(classification="likely_affected"),
+        "not_observed below symbol": _entry(
+            classification="not_observed", evidence_level="manifest"
+        ),
+        "no impact artifact": _entry(impact_artifact=None),
+        "vendor reference but affected": {**_entry(classification="affected"), "reference": "X"},
+    }
+    for name, entry in bad.items():
+        assert not validator.is_valid(_report_with(entry)), name
+        with pytest.raises(ValueError):
+            Report.from_dict(_report_with(entry))
+
+
+def test_not_affected_model_rejects_what_the_schema_rejects() -> None:
+    for entry in (
+        {**_entry(), "rationale": ""},
+        {**_entry(), "reference": ""},
+        {"dependency": {"module": "x"}, "rationale": "r"},
+    ):
+        with pytest.raises(ValueError):
+            Report.from_dict(_report_with(entry))
