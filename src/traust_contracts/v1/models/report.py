@@ -140,8 +140,9 @@ _NEVER_ELIMINATED = frozenset({"affected", "likely_affected", "inconclusive", "n
 
 class NotAffectedEntry(ContractModel):
     """One scanner-matched advisory the audit eliminated as not affected, and why: by an
-    impact-analysis row (out of range, not imported, or unreachable at symbol level) or by a
-    vendor statement cited in `reference`. report.schema.json#/$defs/not_affected_entry."""
+    impact-analysis row (out of range, or not imported) or by a vendor statement cited in
+    `reference`. govulncheck's not_observed never eliminates (it is evidence for triage).
+    report.schema.json#/$defs/not_affected_entry."""
 
     dependency: DependencyProvenance
     rationale: str = Field(min_length=1, pattern=r"\S")
@@ -153,16 +154,15 @@ class NotAffectedEntry(ContractModel):
         classification = None if dep.classification is None else str(dep.classification)
         by_impact = bool(dep.impact_artifact and dep.impact_artifact.strip()) and (
             classification in _ELIMINATING
-            or (classification == "not_observed" and dep.evidence_level == "symbol")
         )
         by_vendor = bool(self.reference and self.reference.strip()) and (
             classification not in _NEVER_ELIMINATED
         )
         if not (by_impact or by_vendor):
             raise ValueError(
-                "a not_affected entry needs impact evidence (version_not_in_range, "
-                "not_imported, or not_observed at evidence_level symbol, with impact_artifact) "
-                "or a vendor reference with no affected classification"
+                "a not_affected entry needs impact evidence (version_not_in_range or "
+                "not_imported, with impact_artifact) or a vendor reference with no affected "
+                "classification"
             )
         return self
 

@@ -247,12 +247,11 @@ def _entry(**dependency_overrides) -> dict:
 def test_not_affected_accepts_each_elimination_route() -> None:
     schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
     validator = jsonschema.Draft202012Validator(schema)
-    unreachable = _entry(classification="not_observed", evidence_level="symbol")
     vendor = {
         **_entry(classification=None, evidence_level=None, impact_artifact=None),
         "reference": "RHSA-2024:0001",
     }
-    for entry in (_entry(), _entry(classification="not_imported"), unreachable, vendor):
+    for entry in (_entry(), _entry(classification="not_imported"), vendor):
         assert validator.is_valid(_report_with(entry)), entry
         Report.from_dict(_report_with(entry))
 
@@ -266,6 +265,10 @@ def test_not_affected_rejects_an_entry_with_no_elimination_evidence() -> None:
         "likely_affected": _entry(classification="likely_affected"),
         "not_observed below symbol": _entry(
             classification="not_observed", evidence_level="manifest"
+        ),
+        # govulncheck's "no call path" is evidence for triage, never an elimination (D8a)
+        "not_observed at symbol level": _entry(
+            classification="not_observed", evidence_level="symbol"
         ),
         "no impact artifact": _entry(impact_artifact=None),
         "vendor reference but affected": {**_entry(classification="affected"), "reference": "X"},
@@ -292,7 +295,6 @@ def test_not_affected_rejects_a_blank_impact_artifact() -> None:
     routes = (
         {"classification": "version_not_in_range"},
         {"classification": "not_imported"},
-        {"classification": "not_observed", "evidence_level": "symbol"},
     )
     for route in routes:
         for blank in ("", "   "):

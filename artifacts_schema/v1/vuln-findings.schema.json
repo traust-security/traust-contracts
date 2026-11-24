@@ -125,30 +125,6 @@
           }
         },
         {
-          "description": "Impact-analysis: the vulnerable symbol is unreachable, at symbol level.",
-          "properties": {
-            "dependency": {
-              "required": [
-                "classification",
-                "evidence_level",
-                "impact_artifact"
-              ],
-              "properties": {
-                "classification": {
-                  "const": "not_observed"
-                },
-                "evidence_level": {
-                  "const": "symbol"
-                },
-                "impact_artifact": {
-                  "type": "string",
-                  "pattern": "\\S"
-                }
-              }
-            }
-          }
-        },
-        {
           "description": "A vendor not-affected statement or fixed NVR, cited in reference; the dependency never says affected.",
           "required": [
             "reference"
@@ -186,7 +162,7 @@
           }
         }
       ],
-      "description": "One scanner-matched advisory eliminated as not affected, and why.",
+      "description": "One scanner-matched advisory eliminated as not affected, and why: by an impact-analysis row (version_not_in_range or not_imported) or a vendor statement cited in reference. govulncheck's not_observed is evidence for triage, never an elimination route here.",
       "required": [
         "dependency",
         "rationale"
@@ -194,7 +170,7 @@
       "properties": {
         "dependency": {
           "$ref": "report.schema.json#/$defs/finding/properties/dependency",
-          "description": "The match, in the finding.dependency shape: advisory, module, ecosystem, installed_version, and the classification and evidence_level that eliminate it."
+          "description": "The match, in the finding.dependency shape: advisory, module, ecosystem, installed_version, and the classification and impact_artifact that eliminate it."
         },
         "reference": {
           "type": "string",
