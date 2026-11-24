@@ -151,7 +151,7 @@ class NotAffectedEntry(ContractModel):
     def _eliminated_by_evidence(self) -> NotAffectedEntry:
         dep = self.dependency
         classification = None if dep.classification is None else str(dep.classification)
-        by_impact = dep.impact_artifact is not None and (
+        by_impact = bool(dep.impact_artifact and dep.impact_artifact.strip()) and (
             classification in _ELIMINATING
             or (classification == "not_observed" and dep.evidence_level == "symbol")
         )

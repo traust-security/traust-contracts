@@ -284,3 +284,31 @@ def test_not_affected_model_rejects_what_the_schema_rejects() -> None:
     ):
         with pytest.raises(ValueError):
             Report.from_dict(_report_with(entry))
+
+
+def test_not_affected_rejects_a_blank_impact_artifact() -> None:
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    routes = (
+        {"classification": "version_not_in_range"},
+        {"classification": "not_imported"},
+        {"classification": "not_observed", "evidence_level": "symbol"},
+    )
+    for route in routes:
+        for blank in ("", "   "):
+            entry = _entry(**route, impact_artifact=blank)
+            assert not validator.is_valid(_report_with(entry)), (route, blank)
+            with pytest.raises(ValueError):
+                Report.from_dict(_report_with(entry))
+
+
+def test_vuln_findings_keeps_not_affected_on_a_typed_round_trip() -> None:
+    from storage_samples import sample
+
+    from traust_contracts.v1.models.scan_result import ScanResult
+
+    raw, _ = sample("vuln-findings")
+    document = json.loads(raw)
+    document["not_affected"] = [json.loads(json.dumps(REPORT["not_affected"][0]))]
+    out = ScanResult.from_dict(document).to_dict()
+    assert out["not_affected"] == document["not_affected"]

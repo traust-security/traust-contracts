@@ -97,71 +97,91 @@
       "type": "object",
       "additionalProperties": false,
       "anyOf": [
-          {
-            "description": "Impact-analysis: out of range or not in the dependency graph.",
-            "properties": {
-              "dependency": {
-                "required": [
-                  "classification",
-                  "impact_artifact"
-                ],
-                "properties": {
-                  "classification": {
-                "anyOf": [
-                  { "const": "version_not_in_range" },
-                  { "const": "not_imported" }
-                ]
-              }
+        {
+          "description": "Impact-analysis: out of range or not in the dependency graph.",
+          "properties": {
+            "dependency": {
+              "required": [
+                "classification",
+                "impact_artifact"
+              ],
+              "properties": {
+                "classification": {
+                  "anyOf": [
+                    {
+                      "const": "version_not_in_range"
+                    },
+                    {
+                      "const": "not_imported"
+                    }
+                  ]
+                },
+                "impact_artifact": {
+                  "type": "string",
+                  "pattern": "\\S"
                 }
               }
             }
-          },
-          {
-            "description": "Impact-analysis: the vulnerable symbol is unreachable, at symbol level.",
-            "properties": {
-              "dependency": {
-                "required": [
-                  "classification",
-                  "evidence_level",
-                  "impact_artifact"
-                ],
-                "properties": {
-                  "classification": {
-                    "const": "not_observed"
-                  },
-                  "evidence_level": {
-                    "const": "symbol"
-                  }
+          }
+        },
+        {
+          "description": "Impact-analysis: the vulnerable symbol is unreachable, at symbol level.",
+          "properties": {
+            "dependency": {
+              "required": [
+                "classification",
+                "evidence_level",
+                "impact_artifact"
+              ],
+              "properties": {
+                "classification": {
+                  "const": "not_observed"
+                },
+                "evidence_level": {
+                  "const": "symbol"
+                },
+                "impact_artifact": {
+                  "type": "string",
+                  "pattern": "\\S"
                 }
               }
             }
-          },
-          {
-            "description": "A vendor not-affected statement or fixed NVR, cited in reference; the dependency never says affected.",
-            "required": [
-              "reference"
-            ],
-            "properties": {
-              "dependency": {
-                "not": {
-                  "required": [
-                    "classification"
-                  ],
-                  "properties": {
-                    "classification": {
+          }
+        },
+        {
+          "description": "A vendor not-affected statement or fixed NVR, cited in reference; the dependency never says affected.",
+          "required": [
+            "reference"
+          ],
+          "properties": {
+            "dependency": {
+              "not": {
+                "required": [
+                  "classification"
+                ],
+                "properties": {
+                  "classification": {
                     "anyOf": [
-                      { "const": "affected" },
-                      { "const": "likely_affected" },
-                      { "const": "inconclusive" },
-                      { "const": "not_observed" }
+                      {
+                        "const": "affected"
+                      },
+                      {
+                        "const": "likely_affected"
+                      },
+                      {
+                        "const": "inconclusive"
+                      },
+                      {
+                        "const": "not_observed"
+                      }
                     ]
-                  }
                   }
                 }
               }
             }
           }
-        ],
+        }
+      ],
       "description": "One scanner-matched advisory eliminated as not affected, and why.",
       "required": [
         "dependency",
