@@ -163,6 +163,11 @@ def test_logging_outputs_are_nonempty_known_and_unique(outputs: list[str]) -> No
         _validate({"logging": {"outputs": outputs}})
 
 
+@pytest.mark.parametrize("committer", ["traust-remediation", "sci-remediation"])
+def test_a_machine_committer_is_accepted(committer: str) -> None:
+    _validate({"remediation": {"committer": committer}})
+
+
 @pytest.mark.parametrize(
     "document",
     [
@@ -182,6 +187,9 @@ def test_logging_outputs_are_nonempty_known_and_unique(outputs: list[str]) -> No
         {"remediation": {"fix_branch_prefix": "a/b"}},
         {"remediation": {"patch_prefix": "patch prefix"}},
         {"remediation": {"patch_prefix": "-patch"}},
+        {"remediation": {"committer": "Shaun Smith"}},
+        {"remediation": {"committer": "-remediation"}},
+        {"remediation": {"committer": "a.b-remediation"}},
         {"overrides": {"model_registry": "./m.yaml"}},
         {"overrides": {"external_tools": "./tools.yaml"}},
         {"overrides": {"safe_exec_profiles": "./profiles.yaml"}},
@@ -206,6 +214,9 @@ def test_logging_outputs_are_nonempty_known_and_unique(outputs: list[str]) -> No
         "fix-branch-prefix",
         "patch-prefix",
         "patch-prefix-leading-hyphen",
+        "committer-a-person",
+        "committer-no-name",
+        "committer-not-a-machine-name",
         "override-unknown-file",
         "tool-pins-are-not-configurable",
         "safe-exec-is-not-configurable",
