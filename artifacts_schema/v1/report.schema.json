@@ -204,6 +204,10 @@
                   }
                 }
               }
+            },
+            "reference": {
+              "type": "string",
+              "pattern": "\\S"
             }
           }
         }
@@ -221,12 +225,14 @@
         "reference": {
           "type": "string",
           "minLength": 1,
-          "description": "Where a vendor not-affected statement or fixed NVR is recorded, when that is the evidence instead of dependency.impact_artifact."
+          "description": "Where a vendor not-affected statement or fixed NVR is recorded, when that is the evidence instead of dependency.impact_artifact.",
+          "pattern": "\\S"
         },
         "rationale": {
           "type": "string",
           "minLength": 1,
-          "description": "Why the evidence eliminates the match, in prose."
+          "description": "Why the evidence eliminates the match, in prose.",
+          "pattern": "\\S"
         }
       }
     },

@@ -144,8 +144,8 @@ class NotAffectedEntry(ContractModel):
     vendor statement cited in `reference`. report.schema.json#/$defs/not_affected_entry."""
 
     dependency: DependencyProvenance
-    rationale: str = Field(min_length=1)
-    reference: str | None = Field(default=None, min_length=1)
+    rationale: str = Field(min_length=1, pattern=r"\S")
+    reference: str | None = Field(default=None, min_length=1, pattern=r"\S")
 
     @model_validator(mode="after")
     def _eliminated_by_evidence(self) -> NotAffectedEntry:
@@ -155,7 +155,9 @@ class NotAffectedEntry(ContractModel):
             classification in _ELIMINATING
             or (classification == "not_observed" and dep.evidence_level == "symbol")
         )
-        by_vendor = self.reference is not None and classification not in _NEVER_ELIMINATED
+        by_vendor = bool(self.reference and self.reference.strip()) and (
+            classification not in _NEVER_ELIMINATED
+        )
         if not (by_impact or by_vendor):
             raise ValueError(
                 "a not_affected entry needs impact evidence (version_not_in_range, "

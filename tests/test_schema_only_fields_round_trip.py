@@ -312,3 +312,20 @@ def test_vuln_findings_keeps_not_affected_on_a_typed_round_trip() -> None:
     document["not_affected"] = [json.loads(json.dumps(REPORT["not_affected"][0]))]
     out = ScanResult.from_dict(document).to_dict()
     assert out["not_affected"] == document["not_affected"]
+
+
+def test_not_affected_rejects_a_blank_vendor_reference_or_rationale() -> None:
+    from storage_samples import sample
+
+    from traust_contracts.v1.models.scan_result import ScanResult
+
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    vendor = _entry(classification=None, evidence_level=None, impact_artifact=None)
+    raw, _ = sample("vuln-findings")
+    for bad in ({**vendor, "reference": "   "}, {**_entry(), "rationale": "  "}):
+        assert not validator.is_valid(_report_with(bad)), bad
+        with pytest.raises(ValueError):
+            Report.from_dict(_report_with(bad))
+        with pytest.raises(ValueError):
+            ScanResult.from_dict({**json.loads(raw), "not_affected": [bad]})
