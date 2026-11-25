@@ -10,7 +10,7 @@
   "definitions": {
     "no-lockfile": "A manifest whose versions only a lockfile pins, with none beside it or above it in the tree.",
     "unpinned": "A manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which the tool drops.",
-    "unsupported-manifest": "The tool does not catalog the declarations in this manifest, even when pinned. Emitted by traust-core's containerfile manifest scanner (src/traust_core/v1/providers/syft.py, traust-core#527) for external FROM and COPY --from bases."
+    "unsupported-manifest": "The tool does not catalog the declarations in this manifest, even when pinned. traust-core's containerfile manifest scanner emits it for external FROM and COPY --from bases."
   },
   "used_in_schemas": [
     "manifest-coverage.schema.json"
