@@ -284,7 +284,7 @@
         },
         "cvss": {
           "$ref": "report.schema.json#/$defs/finding/properties/cvss",
-          "description": "For an advisory-backed finding: the selected authority's vector and the CVSS calculator's score for it (traust reporting rate-cvss), the same block as a report finding's."
+          "description": "The finding's CVSS vector, the same block as a report finding's: metrics chosen by FIRST's definitions, or for an advisory-backed finding the selected authority's vector verbatim. traust-core computes the score at intake."
         },
         "dependency": {
           "$ref": "report.schema.json#/$defs/finding/properties/dependency",
