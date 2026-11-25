@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from traust_contracts.v1.enums import (
     Assurance,
@@ -34,7 +34,15 @@ class CVSS(ContractModel):
     at intake (the data model's `cvss_score`) and refuses a stated score that differs."""
 
     vector: str
-    score: float | None = None
+    score: float | None = Field(default=None, ge=0.0, le=10.0)
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def _no_null_score(cls, value: object) -> object:
+        # The schema's score is a number: absent is allowed, an explicit null is not.
+        if value is None:
+            raise ValueError("score is a number when present; omit it rather than null")
+        return value
 
 
 class SeverityOverride(ContractModel):
