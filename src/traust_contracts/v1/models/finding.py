@@ -30,8 +30,11 @@ class EvidenceBlock(ContractModel):
 
 
 class CVSS(ContractModel):
-    score: float
+    """A CVSS vector and, optionally, its score. traust-core computes the score from the vector
+    at intake (the data model's `cvss_score`) and refuses a stated score that differs."""
+
     vector: str
+    score: float | None = None
 
 
 class SeverityOverride(ContractModel):

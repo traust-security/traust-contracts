@@ -59,8 +59,20 @@ def test_the_fields_reuse_the_report_finding_shapes() -> None:
     finding["dependency"]["classification"] = "fixed"
     assert _errors(document), "a classification outside impact-classification validated"
     finding["dependency"]["classification"] = "likely_affected"
-    finding["cvss"] = {"vector": "CVSS:3.1/AV:N"}
-    assert _errors(document), "a cvss block without a score validated"
+    finding["cvss"] = {"score": 7.5}
+    assert _errors(document), "a cvss block without a vector validated"
+    finding["cvss"] = {"vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N", "band": "high"}
+    assert _errors(document), "a cvss block with an unknown key validated"
+
+
+def test_a_vector_alone_is_a_complete_cvss_block() -> None:
+    """traust-core computes the score from the vector at intake (data model: cvss_score is
+    computed from cvss_vector), so a producer may send the vector without a score."""
+    document = _document()
+    finding = document["findings"][0]
+    finding.update(copy.deepcopy(ADVISORY))
+    finding["cvss"] = {"vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"}
+    assert _errors(document) == []
 
 
 def test_findings_without_the_fields_stay_valid() -> None:
