@@ -282,6 +282,14 @@
           "description": "The review subagent's working id (F-<focus>-<n>), kept for traceability.",
           "type": "string"
         },
+        "cvss": {
+          "$ref": "report.schema.json#/$defs/finding/properties/cvss",
+          "description": "For an advisory-backed finding: the selected authority's vector and the CVSS calculator's score for it (traust reporting rate-cvss), the same block as a report finding's."
+        },
+        "dependency": {
+          "$ref": "report.schema.json#/$defs/finding/properties/dependency",
+          "description": "For an advisory-backed finding: the advisory, module, ecosystem, installed version and impact-analysis evidence, the same block as a report finding's finding.dependency."
+        },
         "file": {
           "type": "string",
           "minLength": 1
