@@ -66,6 +66,7 @@ def _validate_cli(tmp_path: Path, raw: str) -> subprocess.CompletedProcess[str]:
             "pypi": {"shared/manifest": "unpinned"},
             "nuget": {"shared/manifest": "no-lockfile"},
         },
+        {"docker": {"Dockerfile": "unsupported-manifest"}},
     ],
 )
 def test_bound_complete_and_multi_ecosystem_reads_validate(

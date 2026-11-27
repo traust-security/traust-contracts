@@ -24,6 +24,7 @@ import json
 import pathlib
 
 import jsonschema
+import pytest
 
 from traust_contracts.models import Layer, Report
 
@@ -115,6 +116,20 @@ REPORT = {
         "prose": "No vulnerable dependencies were found in the lockfile.",
         "entries": [],
     },
+    "not_affected": [
+        {
+            "dependency": {
+                "advisory": "CVE-2024-0001",
+                "module": "golang.org/x/net",
+                "ecosystem": "go",
+                "installed_version": "v0.33.0",
+                "classification": "version_not_in_range",
+                "evidence_level": "manifest",
+                "impact_artifact": "impact row: widget@abcdef0, go, golang.org/x/net, v0.33.0",
+            },
+            "rationale": "The installed version is at or past the fix in every source's range.",
+        }
+    ],
     "peach_isolation_review": {"applicable": False, "rationale": "Single-tenant component."},
     "review_surface_coverage": {
         "credential-acceptance": {"status": "not_applicable", "note": "No credentials accepted."},
@@ -155,13 +170,14 @@ def test_layer_signature_metadata_round_trips() -> None:
 
 
 def test_report_optional_sections_round_trip() -> None:
-    """asvs_coverage, dependency_audit, peach_isolation_review and
-    review_surface_coverage survive the typed round-trip."""
+    """asvs_coverage, dependency_audit, not_affected, peach_isolation_review
+    and review_surface_coverage survive the typed round-trip."""
     _valid(REPORT, "report.schema.json")
     out = Report.from_dict(REPORT).to_dict()
     for field in (
         "asvs_coverage",
         "dependency_audit",
+        "not_affected",
         "peach_isolation_review",
         "review_surface_coverage",
     ):
@@ -186,3 +202,132 @@ def test_layer_metadata_date_time_fields_are_validated() -> None:
             created="banana",
             harness_version="0.40.0",
         )
+
+
+def test_not_affected_entry_requires_its_dependency_and_rationale() -> None:
+    """A not-affected entry without its dependency evidence or rationale is no paper trail."""
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    entry = dict(REPORT["not_affected"][0])
+    for field in ("dependency", "rationale"):
+        broken = {**REPORT, "not_affected": [{k: v for k, v in entry.items() if k != field}]}
+        assert not validator.is_valid(broken), f"an entry without {field} validated"
+
+
+def test_not_affected_entry_uses_the_contract_classification() -> None:
+    """The dependency block's classification is the impact-classification enum."""
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    entry = json.loads(json.dumps(REPORT["not_affected"][0]))
+    entry["dependency"]["classification"] = "fixed"
+    assert not validator.is_valid({**REPORT, "not_affected": [entry]})
+
+
+def test_vuln_findings_declares_a_not_affected_section() -> None:
+    schema = json.loads((SCHEMA_DIR / "vuln-findings.schema.json").read_text())
+    assert schema["properties"]["not_affected"]["items"] == {"$ref": "#/$defs/not_affected_entry"}
+    dep = schema["$defs"]["not_affected_entry"]["properties"]["dependency"]["$ref"]
+    assert dep == "report.schema.json#/$defs/finding/properties/dependency"
+
+
+def _report_with(entry: dict) -> dict:
+    return {**REPORT, "not_affected": [entry]}
+
+
+def _entry(**dependency_overrides) -> dict:
+    entry = json.loads(json.dumps(REPORT["not_affected"][0]))
+    for key, value in dependency_overrides.items():
+        if value is None:
+            entry["dependency"].pop(key, None)
+        else:
+            entry["dependency"][key] = value
+    return entry
+
+
+def test_not_affected_accepts_each_elimination_route() -> None:
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    vendor = {
+        **_entry(classification=None, evidence_level=None, impact_artifact=None),
+        "reference": "RHSA-2024:0001",
+    }
+    for entry in (_entry(), _entry(classification="not_imported"), vendor):
+        assert validator.is_valid(_report_with(entry)), entry
+        Report.from_dict(_report_with(entry))
+
+
+def test_not_affected_rejects_an_entry_with_no_elimination_evidence() -> None:
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    bad = {
+        "no classification": _entry(classification=None),
+        "affected": _entry(classification="affected"),
+        "likely_affected": _entry(classification="likely_affected"),
+        "not_observed below symbol": _entry(
+            classification="not_observed", evidence_level="manifest"
+        ),
+        # govulncheck's "no call path" is evidence for triage, never an elimination (D8a)
+        "not_observed at symbol level": _entry(
+            classification="not_observed", evidence_level="symbol"
+        ),
+        "no impact artifact": _entry(impact_artifact=None),
+        "vendor reference but affected": {**_entry(classification="affected"), "reference": "X"},
+    }
+    for name, entry in bad.items():
+        assert not validator.is_valid(_report_with(entry)), name
+        with pytest.raises(ValueError):
+            Report.from_dict(_report_with(entry))
+
+
+def test_not_affected_model_rejects_what_the_schema_rejects() -> None:
+    for entry in (
+        {**_entry(), "rationale": ""},
+        {**_entry(), "reference": ""},
+        {"dependency": {"module": "x"}, "rationale": "r"},
+    ):
+        with pytest.raises(ValueError):
+            Report.from_dict(_report_with(entry))
+
+
+def test_not_affected_rejects_a_blank_impact_artifact() -> None:
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    routes = (
+        {"classification": "version_not_in_range"},
+        {"classification": "not_imported"},
+    )
+    for route in routes:
+        for blank in ("", "   "):
+            entry = _entry(**route, impact_artifact=blank)
+            assert not validator.is_valid(_report_with(entry)), (route, blank)
+            with pytest.raises(ValueError):
+                Report.from_dict(_report_with(entry))
+
+
+def test_vuln_findings_keeps_not_affected_on_a_typed_round_trip() -> None:
+    from storage_samples import sample
+
+    from traust_contracts.v1.models.scan_result import ScanResult
+
+    raw, _ = sample("vuln-findings")
+    document = json.loads(raw)
+    document["not_affected"] = [json.loads(json.dumps(REPORT["not_affected"][0]))]
+    out = ScanResult.from_dict(document).to_dict()
+    assert out["not_affected"] == document["not_affected"]
+
+
+def test_not_affected_rejects_a_blank_vendor_reference_or_rationale() -> None:
+    from storage_samples import sample
+
+    from traust_contracts.v1.models.scan_result import ScanResult
+
+    schema = json.loads((SCHEMA_DIR / "report.schema.json").read_text())
+    validator = jsonschema.Draft202012Validator(schema)
+    vendor = _entry(classification=None, evidence_level=None, impact_artifact=None)
+    raw, _ = sample("vuln-findings")
+    for bad in ({**vendor, "reference": "   "}, {**_entry(), "rationale": "  "}):
+        assert not validator.is_valid(_report_with(bad)), bad
+        with pytest.raises(ValueError):
+            Report.from_dict(_report_with(bad))
+        with pytest.raises(ValueError):
+            ScanResult.from_dict({**json.loads(raw), "not_affected": [bad]})

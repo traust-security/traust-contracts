@@ -658,8 +658,14 @@ state share one artifact.
 
 `artifacts_schema/v1/session-task.schema.json` declares a runner's staged input files,
 resolved models and one schema-named output. All paths are relative to the task directory;
-`run_id` is the order UUID, or null for a manual session. The executor's identity, measured
-usage and optional error use `artifacts_schema/v1/session-result.schema.json`.
+`run_id` is the order UUID, or null for a manual session. An ordered task must
+include the positive `lease_generation` issued to the claim that staged it, so the
+task digest binds its output to that claim. Do not fill in a missing generation
+from the current order: restage older ordered tasks under a new claim. Manual
+tasks omit `lease_generation` or set it to null. The executor's identity,
+measured usage and optional error use `artifacts_schema/v1/session-result.schema.json`.
+New run-manifest session entries record the staging generation. Historical
+entries without it remain readable but do not prove ownership of a claim.
 
 The run manifest's optional `sessions` list records runner-computed task and input digests,
 input sizes, and the declared output's digest and recorded artifact UUID. Missing output has

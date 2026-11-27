@@ -12,7 +12,7 @@ ROOT = Path(__file__).parents[1] / "artifacts_schema/v1"
 ORDER = "00000000-0000-4000-8000-000000000001"
 TASK = {
     "schema_version": "1",
-    "run_id": ORDER,
+    "run_id": None,
     "skill": "dependency-watch",
     "mode": "below-range",
     "args": [],
@@ -39,9 +39,29 @@ def validate(name: str, doc: dict) -> None:
     Draft202012Validator(schema, registry=registry, format_checker=FormatChecker()).validate(doc)
 
 
-@pytest.mark.parametrize("run_id", [ORDER, None])
-def test_ordered_and_manual_tasks_validate(run_id: str | None) -> None:
-    validate("session-task", {**TASK, "run_id": run_id})
+@pytest.mark.parametrize(
+    "binding", [{"run_id": ORDER, "lease_generation": 1}, {"lease_generation": None}, {}]
+)
+def test_ordered_and_manual_tasks_validate(binding: dict) -> None:
+    validate("session-task", {**TASK, **binding})
+
+
+@pytest.mark.parametrize(
+    "binding",
+    [
+        {"run_id": ORDER},
+        {"run_id": ORDER, "lease_generation": None},
+        {"run_id": ORDER, "lease_generation": 0},
+        {"run_id": ORDER, "lease_generation": -1},
+        {"run_id": ORDER, "lease_generation": "1"},
+        {"run_id": ORDER, "lease_generation": 1.5},
+        {"run_id": ORDER, "lease_generation": True},
+        {"run_id": None, "lease_generation": 1},
+    ],
+)
+def test_task_generation_must_belong_to_an_ordered_claim(binding: dict) -> None:
+    with pytest.raises(ValidationError):
+        validate("session-task", {**TASK, **binding})
 
 
 @pytest.mark.parametrize(
@@ -138,7 +158,8 @@ def test_manifest_records_success_failure_and_multiple_sessions() -> None:
     invalid = copy.deepcopy(ENTRY)
     invalid["executor_session"] = "executor-invalid"
     invalid["output"]["artifact_id"] = None
-    validate("run-manifest", {"artifact": "run-manifest", "sessions": [ENTRY, failed, invalid]})
+    current = {**ENTRY, "lease_generation": 2}
+    validate("run-manifest", {"artifact": "run-manifest", "sessions": [current, failed, invalid]})
     validate("run-manifest", {"artifact": "run-manifest"})
 
 
@@ -174,6 +195,10 @@ def test_manifest_validates_component_target_cross_schema_ref() -> None:
 @pytest.mark.parametrize(
     "field,value",
     [
+        ("lease_generation", 0),
+        ("lease_generation", -1),
+        ("lease_generation", None),
+        ("lease_generation", True),
         ("task_sha256", "bad"),
         ("task_sha256", "a" * 64 + "\n"),
         ("inputs", [{"path": "input/a", "bytes": 0, "sha256": "a" * 64 + "\n"}]),

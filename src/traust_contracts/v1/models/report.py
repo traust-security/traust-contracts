@@ -8,7 +8,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from traust_contracts.v1.enums import ComponentTargetStrategy, RefKind, Severity
 from traust_contracts.v1.models._base import ContractModel
-from traust_contracts.v1.models.finding import Finding
+from traust_contracts.v1.models.finding import DependencyProvenance, Finding
 from traust_contracts.v1.timestamps import IsoTimestamp
 
 
@@ -235,6 +235,39 @@ class DependencyAudit(ContractModel):
     entries: list[DependencyAuditEntry] = Field(default_factory=list)
 
 
+_ELIMINATING = frozenset({"version_not_in_range", "not_imported"})
+_NEVER_ELIMINATED = frozenset({"affected", "likely_affected", "inconclusive", "not_observed"})
+
+
+class NotAffectedEntry(ContractModel):
+    """One scanner-matched advisory the audit eliminated as not affected, and why: by an
+    impact-analysis row (out of range, or not imported) or by a vendor statement cited in
+    `reference`. govulncheck's not_observed never eliminates (it is evidence for triage).
+    report.schema.json#/$defs/not_affected_entry."""
+
+    dependency: DependencyProvenance
+    rationale: str = Field(min_length=1, pattern=r"\S")
+    reference: str | None = Field(default=None, min_length=1, pattern=r"\S")
+
+    @model_validator(mode="after")
+    def _eliminated_by_evidence(self) -> NotAffectedEntry:
+        dep = self.dependency
+        classification = None if dep.classification is None else str(dep.classification)
+        by_impact = bool(dep.impact_artifact and dep.impact_artifact.strip()) and (
+            classification in _ELIMINATING
+        )
+        by_vendor = bool(self.reference and self.reference.strip()) and (
+            classification not in _NEVER_ELIMINATED
+        )
+        if not (by_impact or by_vendor):
+            raise ValueError(
+                "a not_affected entry needs impact evidence (version_not_in_range or "
+                "not_imported, with impact_artifact) or a vendor reference with no affected "
+                "classification"
+            )
+        return self
+
+
 class PeachInterface(ContractModel):
     omit_unset_empty_fields = frozenset({"hardening_gaps", "finding_ids"})
 
@@ -283,5 +316,6 @@ class Report(ContractModel):
     scanner_correlation: ScannerCorrelation | None = None
     asvs_coverage: list[AsvsChapter] | None = None
     dependency_audit: DependencyAudit | None = None
+    not_affected: list[NotAffectedEntry] | None = None
     peach_isolation_review: PeachIsolationReview | None = None
     review_surface_coverage: dict[str, ReviewSurfaceEntry] | None = None
