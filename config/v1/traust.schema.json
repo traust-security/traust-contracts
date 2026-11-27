@@ -650,7 +650,7 @@
     "impact": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Which analysis tools deepen impact reads. analyzers names tools from the registered arsenal (an unknown name refuses startup); absent or empty means L1 only - the SBOM read stays complete without analyzers. plugins declare command plug-ins: a command printing one impact-evidence document for one query (ecosystem, package, version, checkout path as trailing arguments), capped at its declared level.",
+      "description": "Which analysis tools deepen impact reads. analyzers names tools from the registered arsenal (an unknown name refuses startup); absent or empty means L1 only - the SBOM read stays complete without analyzers. plugins declare command plug-ins: a command printing one impact-evidence document for one query, given as trailing operands after `--` (ecosystem, package, installed version - empty when the commit's SBOMs hold none - and checkout path), capped at its declared level: every field it emits must be at or below that level, and it never states the L1, SBOM or evidence-grade fields core owns.",
       "properties": {
         "analyzers": {
           "type": "array",
