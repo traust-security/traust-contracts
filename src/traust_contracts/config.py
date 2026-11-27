@@ -175,6 +175,7 @@ class Locations(_Section):
     feeds_cache: str | None = None
     gitleaks_config: str | None = None
     opengrep_rules: str | None = None
+    opengrep_adopter_rules: str | None = None
     product_definitions: str | None = None
     sarif_tool_uri: str | None = None
     mirror_cache: str | None = None
@@ -246,6 +247,7 @@ _LOCATION_PATH_FIELDS = (
     "feeds_cache",
     "gitleaks_config",
     "opengrep_rules",
+    "opengrep_adopter_rules",
     "mirror_cache",
 )
 

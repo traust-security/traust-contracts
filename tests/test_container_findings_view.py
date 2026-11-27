@@ -132,6 +132,15 @@ def document() -> dict[str, Any]:
                         "last_decision_at": AT,
                     },
                     "effective_severity": "high",
+                    "cvss": {
+                        "score": "7.5",
+                        "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+                        "severity": "high",
+                        "basis": "computed",
+                        "authority_scores": [],
+                        "selected": None,
+                        "conflict": False,
+                    },
                     "sla_due": None,
                     "first_reported_at": AT,
                     "last_reported_at": AT,
@@ -160,6 +169,7 @@ def document() -> dict[str, Any]:
 
 
 OBJECTS: dict[str, tuple[Any, ...]] = {
+    "cvss": ("findings", 0, "view", "cvss"),
     "view": (),
     "report": ("reports", 0),
     "row": ("findings", 0),
@@ -241,6 +251,10 @@ def test_a_claim_location_carries_only_its_four_fields(
         (OBJECTS["disposition"] + ("assurance",), "trusted"),
         (OBJECTS["disposition"] + ("validity",), "probably"),
         (OBJECTS["finding_view"] + ("effective_severity",), "unrated"),
+        ((*OBJECTS["finding_view"], "cvss", "basis"), "guessed"),
+        ((*OBJECTS["finding_view"], "cvss", "severity"), None),
+        ((*OBJECTS["finding_view"], "cvss", "basis"), "unrated"),
+        ((*OBJECTS["finding_view"], "cvss", "basis"), "scanner"),
         ((*LOCATION, "line_start"), 0),
         (OBJECTS["decision"] + ("occurred_at",), None),
         (("total", "tracked"), -1),
@@ -260,6 +274,7 @@ def test_out_of_contract_values_are_rejected(
         (OBJECTS["finding_view"] + ("occurrence",), None),
         (OBJECTS["finding_view"] + ("disposition",), None),
         (OBJECTS["finding_view"] + ("effective_severity",), None),
+        (OBJECTS["finding_view"] + ("cvss",), None),
         (OBJECTS["occurrence"] + ("cvss_score",), "10"),
         (OBJECTS["occurrence"] + ("cvss_score",), "0"),
         (OBJECTS["occurrence"] + ("cvss_score",), None),
@@ -289,6 +304,7 @@ def _records() -> dict[str, Any]:
         ("disposition-assurance", ("disposition", "assurance")),
         ("severity", ("disposition", "severity")),
         ("severity", ("finding_view", "effective_severity")),
+        ("severity", ("finding_cvss", "severity")),
     ],
 )
 def test_record_vocabularies_match_their_registries(registry: str, node: tuple[str, str]) -> None:
@@ -316,3 +332,91 @@ def test_a_location_is_a_claim_or_a_whole_recorded_one(
         validator.validate(document)
     _set(document, LOCATION, claim | recorded)
     validator.validate(document)
+
+
+NIST = {
+    "source": "nist",
+    "version": "3.1",
+    "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "score": "9.8",
+    "band": "critical",
+    "scored_by": "nvd@nist.gov",
+    "document": "nvd:CVE-2026-0001",
+    "acquired_at": AT,
+}
+
+
+def _authority(document: dict[str, Any]) -> dict[str, Any]:
+    """The example's finding scored by an authority: NIST's statement selected over the scanner."""
+    cvss = _object(document, "cvss")
+    cvss.update(
+        basis="authority",
+        authority_scores=[NIST, {**NIST, "source": "cna", "scored_by": "example-cna"}],
+        selected={**NIST, "reason": "precedence"},
+    )
+    _object(document, "finding_view")["effective_severity"] = "critical"
+    return document
+
+
+def test_an_authority_selected_score_is_valid(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    validator.validate(_authority(document))
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("selected", None),  # an authority basis names its statement
+        ("reason", "guessed"),
+        ("source", "osv"),
+        ("version", "2.0"),
+        ("band", "severe"),
+        ("conflict", "yes"),
+        ("effective_severity", None),  # an authority band is a severity
+        ("effective_severity", "low"),  # it counts at the selected band, nothing else
+        ("selected_score", None),  # a statement with no score is never selected
+        ("selected_band", None),
+        ("selected_source", "scanner"),  # the scanner's statement is the scanner basis
+        ("authority_scores", []),  # the selected statement is one of them
+    ],
+)
+def test_an_authority_score_out_of_contract_is_rejected(
+    validator: Draft202012Validator, document: dict[str, Any], field: str, invalid: Any
+) -> None:
+    cvss = _object(_authority(document), "cvss")
+    if field == "selected":
+        cvss["selected"] = invalid
+    elif field == "reason":
+        cvss["selected"]["reason"] = invalid
+    elif field == "conflict":
+        cvss["conflict"] = invalid
+    elif field == "effective_severity":
+        _object(document, "finding_view")["effective_severity"] = invalid
+    elif field.startswith("selected_"):
+        cvss["selected"][field.removeprefix("selected_")] = invalid
+    elif field == "authority_scores":
+        cvss["authority_scores"] = invalid
+    else:
+        cvss["authority_scores"][0][field] = invalid
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+@pytest.mark.parametrize("field", [*NIST, "reason"])
+def test_every_statement_field_is_required(
+    validator: Draft202012Validator, document: dict[str, Any], field: str
+) -> None:
+    cvss = _object(_authority(document), "cvss")
+    target = cvss["selected"] if field == "reason" else cvss["authority_scores"][0]
+    del target[field]
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
+def test_a_statement_carries_nothing_unknown(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    _object(_authority(document), "cvss")["authority_scores"][0]["reason"] = "precedence"
+    with pytest.raises(ValidationError):
+        validator.validate(document)

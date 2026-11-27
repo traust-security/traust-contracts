@@ -511,6 +511,11 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]*$",
           "description": "The prefix the remediation fork-naming convention gives patch repositories in the fork org. No leading hyphen: it would name no repository the URL parser accepts."
+        },
+        "committer": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*-remediation$",
+          "description": "The machine identity fix commits are authored under (email <name>@localhost). Only a machine name: lowercase, ending in -remediation, so it can never be pointed at a person."
         }
       },
       "description": "Only for /remediate-finding."
@@ -611,6 +616,11 @@
         "opengrep_rules": {
           "type": "string",
           "description": "The opengrep rule pack directory. Overrides the bundled default."
+        },
+        "opengrep_adopter_rules": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional local directory for vetted additive Opengrep rules. Relative paths resolve against the config home. No default."
         },
         "product_definitions": {
           "type": "string",

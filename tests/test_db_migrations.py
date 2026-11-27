@@ -22,6 +22,12 @@ from traust_contracts.v1.ops import sql as ops_sql
 from traust_contracts.v1.storage import sql as storage_sql
 
 MODULES = (storage_sql, ops_sql, ledger_sql)
+SHIPPED = [
+    "0001_repository_disposition",
+    "0002_finding_state_columns",
+    "0003_run_order_input",
+    "0004_run_order_lease_generation",
+]
 NOTE = "-- a future additive upgrade\nALTER TABLE {table} ADD COLUMN note TEXT;\n"
 
 
@@ -53,26 +59,291 @@ def channel(tmp_path: Path) -> Path:
 def test_a_fresh_bootstrap_applies_the_shipped_channel_whole() -> None:
     conn = _sqlite()
     applied = migrations.run_upgrades(conn, "sqlite")
-    assert [u.name for u in applied] == ["0001_repository_disposition"]
+    assert [u.name for u in applied] == SHIPPED
     assert migrations.run_upgrades(conn, "sqlite") == []
-    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
-    assert [name for name, _ in stamps] == ["0001_repository_disposition"]
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade ORDER BY name").fetchall()
+    assert stamps == [(path.stem, _sha256(path)) for path in migrations.upgrade_files("sqlite")]
     columns = [row[1] for row in conn.execute("PRAGMA table_info(repository)").fetchall()]
     assert {"disposition", "gone_streak"} <= set(columns)
 
 
-def test_the_shipped_first_script_preserves_every_row() -> None:
+def test_an_order_carries_its_inputs_as_one_document() -> None:
+    """run_order gains one generic column for its asset's input document, indexed with the
+    order's age so an asset's latest order for the same inputs is one lookup."""
     conn = _sqlite()
-    for url in ("https://example.com/r1", "https://example.com/r2"):
-        conn.execute("INSERT INTO repository (url, public) VALUES (?, 1)", (url,))
-    before = conn.execute("SELECT * FROM repository").fetchall()
+    migrations.run_upgrades(conn, "sqlite")
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(ops_run_order)").fetchall()]
+    assert "input_artifact_id" in columns
+    indexes = [row[1] for row in conn.execute("PRAGMA index_list(ops_run_order)").fetchall()]
+    assert "idx_ops_run_order_input" in indexes
 
+
+def test_the_shipped_state_script_adds_the_projection_columns() -> None:
+    conn = _sqlite()
     migrations.run_upgrades(conn, "sqlite")
 
-    after = conn.execute("SELECT * FROM repository").fetchall()
-    assert [row[:7] for row in after] == before  # every baseline column, every row
-    assert all(row[7] is None for row in after)  # disposition: existing rows stay active
-    assert all(row[11] == 0 for row in after)  # gone_streak starts at 0
+    # the decision row carries the folded state, set at insert, never updated
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(decision)").fetchall()]
+    assert {
+        "folded_state",
+        "folded_severity",
+        "folded_decided",
+        "folded_proven",
+        "folded_unverified",
+        "folded_policy_version",
+    } <= set(columns)
+
+    conn.execute("INSERT INTO repository (url, public) VALUES (?, 1)", ("https://example.com/r1",))
+    repo = conn.execute("SELECT id FROM repository").fetchall()[0][0]
+    conn.execute(
+        "INSERT INTO finding (repository_id, fingerprint_algo, fingerprint, title)"
+        " VALUES (?, 'sha256', 'a1', 't')",
+        (repo,),
+    )
+    finding = conn.execute(
+        "SELECT id, current_state, current_severity, current_decided, category FROM finding"
+    ).fetchall()
+    assert finding[0][1:] == ("open", None, 0, None)  # identified: open, undecided, unrated
+    with pytest.raises(sqlite3.IntegrityError):  # the stamped vocabulary is checked
+        conn.execute("UPDATE finding SET current_state = 'bogus'")
+
+    # the state vocabulary is checked; the columns are optional (NULL until stamped)
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO decision (finding_id, statement_key, occurred_at, actor, folded_state)"
+            " VALUES (?, 'k', '2026-01-01T00:00:00Z', 'human:a', 'closed')",
+            (finding[0][0],),
+        )
+    conn.execute(
+        "INSERT INTO decision (finding_id, statement_key, occurred_at, actor, folded_state,"
+        " folded_decided, folded_proven, folded_unverified, folded_policy_version)"
+        " VALUES (?, 'k', '2026-01-01T00:00:00Z', 'human:a', 'open', 1, 0, 1, 'v1')",
+        (finding[0][0],),
+    )
+
+    # the latest-decision-per-finding index the one-query read rides
+    indexes = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'decision'"
+    ).fetchall()
+    assert "idx_decision_finding_occurred" in {row[0] for row in indexes}
+    ops_indexes = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'ops_run_order'"
+    ).fetchall()
+    assert "idx_ops_run_order_asset_state" in {row[0] for row in ops_indexes}
+
+
+def test_stamp_channel_brings_a_pre_channel_store_on_at_the_head() -> None:
+    """A store from before the channel - current shape, no stamps - is stamped
+    as having run everything shipped: nothing runs, nothing is re-run, and the
+    store is on the routine from the head."""
+    conn = _sqlite()  # the baseline, as a pre-channel store would have it
+    # Model a store whose schema is known to be current but whose stamps are absent.
+    migrations.run_upgrades(conn, "sqlite")  # a current store for reference
+    conn.execute("DROP TABLE db_upgrade")  # ...minus the channel's bookkeeping
+
+    stamped = migrations.stamp_channel(conn, "sqlite")
+
+    # the stamps are checked against digests computed independently of stamp_channel:
+    # everything shipped, whatever the channel holds (nothing applied = all pending)
+    shipped = [
+        (upgrade.name, upgrade.sha256) for upgrade in migrations.pending_upgrades("sqlite", {})
+    ]
+    assert [upgrade.name for upgrade in stamped] == SHIPPED
+    assert [(upgrade.name, upgrade.sha256) for upgrade in stamped] == shipped
+    assert migrations.stamp_channel(conn, "sqlite") == []  # idempotent: known store
+    assert migrations.run_upgrades(conn, "sqlite") == []  # nothing pending, nothing runs
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade ORDER BY name").fetchall()
+    assert stamps == shipped
+
+
+def test_stamp_channel_refuses_drift_like_the_runner() -> None:
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite")
+    # a stamp whose script changed after it was recorded: fix forward, never re-stamp
+    conn.execute(
+        "UPDATE db_upgrade SET sha256 = ? WHERE name = '0001_repository_disposition'",
+        (("0") * 64,),
+    )
+    with pytest.raises(migrations.MigrationError, match="changed after"):
+        migrations.stamp_channel(conn, "sqlite")
+
+
+def test_stamp_channel_never_stamps_over_an_enrolled_behind_store(tmp_path: Path) -> None:
+    """A store on the channel with pending work is the runner's to advance,
+    never the stamping's to presume: stamping it would mark unrun scripts done."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)  # on the channel, at its head
+    _write_channel(root, "0002_add_note2.sql", NOTE.replace("note", "note2"))  # later ship
+
+    with pytest.raises(migrations.MigrationError, match="on the channel and behind"):
+        migrations.stamp_channel(conn, "sqlite", root=root)
+    # and the pending script is still pending: nothing was stamped over
+    assert [u.name for u in migrations.run_upgrades(conn, "sqlite", root=root, dry_run=True)] == [
+        "0002_add_note2"
+    ]
+
+
+def test_a_failed_stamp_leaves_no_stranded_empty_table(tmp_path: Path) -> None:
+    """A stamp that fails without a concurrent winner must not strand the
+    store behind an empty stamp table - the next open would read it as
+    enrolled and run scripts against an already-current shape."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    real = conn.execute
+
+    class failing:  # an insert error with no concurrent winner
+        def execute(self, sql: str) -> Any:
+            if sql.startswith("BEGIN") or sql in ("COMMIT", "ROLLBACK"):
+                return None
+            if sql.startswith("INSERT INTO db_upgrade"):
+                raise sqlite3.OperationalError("disk I/O error")
+            return real(sql)
+
+    with pytest.raises(sqlite3.OperationalError):
+        migrations.stamp_channel(failing(), "sqlite", root=root)
+
+    # the empty bookkeeping is gone: the store is still pre-channel, and a retry stamps
+    assert (
+        conn.execute("SELECT count(*) FROM sqlite_master WHERE name = 'db_upgrade'").fetchone()[0]
+        == 0
+    )
+    stamped = migrations.stamp_channel(conn, "sqlite", root=root)
+    assert [upgrade.name for upgrade in stamped] == ["0001_add_note"]
+
+
+def test_a_comment_apostrophe_cannot_conceal_a_transaction_statement(tmp_path: Path) -> None:
+    """Comments are stripped before literals, so apostrophes in two -- lines
+    cannot pair up and swallow an intervening COMMIT from the scan."""
+    sneaky = (
+        "-- don't do this by hand\nCOMMIT;\n-- it's committed now\n"
+        "ALTER TABLE {table} ADD COLUMN note TEXT;\n"
+    )
+    root = _write_channel(tmp_path, "0001_sneaky.sql", sneaky)
+    conn = _sqlite()
+
+    with pytest.raises(migrations.MigrationError, match="carries its own transaction statement"):
+        migrations.run_upgrades(conn, "sqlite", root=root)
+
+
+def test_a_quoted_literal_is_never_mistaken_for_a_transaction_statement(tmp_path: Path) -> None:
+    """A value's text is not a statement: 'text; COMMIT' inside a literal
+    passes the scan."""
+    literal = (
+        "-- a value that looks like a transaction\n"
+        "INSERT INTO {table} (url, public) VALUES ('text; COMMIT', 1);\n"
+    )
+    root = _write_channel(tmp_path, "0001_literal.sql", literal)
+    conn = _sqlite()
+
+    assert [u.name for u in migrations.run_upgrades(conn, "sqlite", root=root)] == ["0001_literal"]
+
+
+def test_an_older_channel_opens_a_newer_stamped_database(tmp_path: Path) -> None:
+    """The rollback story: redeploy the older pair, the database stays
+    forward. A stamp beyond the shipped channel's head is ahead - tolerated,
+    nothing pending, nothing refused - and going forward again needs nothing."""
+    v4 = _write_channel(tmp_path / "v4", "0001_add_note.sql", NOTE)
+    _write_channel(v4, "0002_add_note2.sql", NOTE.replace("note", "note2"))
+    v3 = _write_channel(tmp_path / "v3", "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=v4)  # the v4 deployment stamped both
+
+    assert migrations.run_upgrades(conn, "sqlite", root=v3) == []  # v3 opens: ahead, no-op
+    assert (
+        migrations.pending_upgrades("sqlite", migrations.applied_upgrades(conn, "sqlite"), root=v3)
+        == []
+    )
+    assert migrations.stamp_channel(conn, "sqlite", root=v3) == []  # known, ahead and current
+
+    assert migrations.run_upgrades(conn, "sqlite", root=v4) == []  # forward again: nothing to do
+
+
+def test_a_stamp_within_the_span_is_still_drift(tmp_path: Path) -> None:
+    """Ahead-tolerance loosens nothing within the channel's span: a stamp for a
+    script the channel no longer ships - removed or renamed - still refuses."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_channel(root, "0002_add_note2.sql", NOTE.replace("note", "note2"))
+    conn = _sqlite()
+    migrations.run_upgrades(conn, "sqlite", root=root)
+    (root / "sqlite" / "upgrades" / "0002_add_note2.sql").unlink()
+    _write_channel(root, "0002_renamed.sql", NOTE.replace("note", "note2"))  # renamed in place
+
+    with pytest.raises(migrations.MigrationError, match="no longer ships"):
+        migrations.pending_upgrades(
+            "sqlite", migrations.applied_upgrades(conn, "sqlite"), root=root
+        )
+
+
+def test_an_inline_comment_apostrophe_cannot_conceal_a_commit(tmp_path: Path) -> None:
+    """The scanner walks comments, blocks and literals in one pass: an
+    apostrophe in an inline -- comment never pairs with a later value's and
+    swallows an intervening COMMIT."""
+    sneaky = (
+        "SELECT 1; -- don't commit by hand\n"
+        "COMMIT;\n"
+        "INSERT INTO {table} (url, public) VALUES ('later', 1);\n"
+    )
+    root = _write_channel(tmp_path, "0001_sneaky.sql", sneaky)
+    conn = _sqlite()
+
+    with pytest.raises(migrations.MigrationError, match="carries its own transaction statement"):
+        migrations.run_upgrades(conn, "sqlite", root=root)
+
+
+def test_destructive_work_inside_a_literal_is_still_destructive(tmp_path: Path) -> None:
+    """Dynamic SQL is destructive work: EXECUTE '… DROP …' is flagged at plan
+    time even though the drop lives in a string literal."""
+    dynamic = "DO $$ BEGIN EXECUTE 'ALTER TABLE {table} DROP COLUMN public'; END $$;\n"
+    root = _write_channel(tmp_path, "0001_dynamic.sql", dynamic)
+
+    with pytest.raises(migrations.MigrationError, match="without a"):
+        migrations.pending_upgrades("sqlite", {}, root=root)
+
+
+def test_a_stamp_that_is_not_an_upgrades_name_refuses(tmp_path: Path) -> None:
+    """The stamp table is the channel's bookkeeping: a name that is not an
+    upgrade's refuses as such - never a ValueError, never silently ahead."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    sha = _sha256(root / "sqlite" / "upgrades" / "0001_add_note.sql")
+    for name in ("future", "0002"):
+        with pytest.raises(migrations.MigrationError, match="not an upgrade's name"):
+            migrations.pending_upgrades("sqlite", {name: sha}, root=root)
+
+
+def test_an_ahead_database_with_an_in_span_gap_refuses(tmp_path: Path) -> None:
+    """A newer contracts stamps every script it ships, so a database ahead of
+    this channel has every in-span script stamped too - a gap means its
+    history is inconsistent, and old scripts never run against it."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    _write_channel(root, "0002_add_note2.sql", NOTE.replace("note", "note2"))
+    sha = _sha256(root / "sqlite" / "upgrades" / "0001_add_note.sql")
+
+    with pytest.raises(migrations.MigrationError, match="history is inconsistent"):
+        migrations.pending_upgrades("sqlite", {"0003_future": sha}, root=root)
+
+
+def test_stamp_channel_treats_a_won_race_as_a_no_op(tmp_path: Path) -> None:
+    """Two openers plan the same stamps; the one whose insert loses to the
+    other's commit rolls back, re-reads, and stamps nothing."""
+    root = _write_channel(tmp_path, "0001_add_note.sql", NOTE)
+    conn = _sqlite()
+    real = conn.execute
+
+    class raced:  # simulates the concurrent winner committing mid-transaction
+        def execute(self, sql: str) -> Any:
+            if sql.startswith("BEGIN") or sql in ("COMMIT", "ROLLBACK"):
+                return None  # no transaction of our own: the winner commits in autocommit
+            if sql.startswith("INSERT INTO db_upgrade"):
+                real(sql)  # the concurrent opener's commit lands first
+                raise sqlite3.IntegrityError("UNIQUE constraint failed: db_upgrade.name")
+            return real(sql)
+
+    stamped = migrations.stamp_channel(raced(), "sqlite", root=root)
+
+    assert stamped == []  # lost the race: the winner's stamps stand, ours are nothing
+    stamps = conn.execute("SELECT name, sha256 FROM db_upgrade").fetchall()
+    assert len(stamps) == 1 and stamps[0][0] == "0001_add_note"  # stamped exactly once
 
 
 def test_names_must_be_slugs_numbered_gaplessly_from_one(tmp_path: Path) -> None:
@@ -133,7 +404,7 @@ def test_a_script_carries_no_transaction_statements(tmp_path: Path) -> None:
     ]
 
 
-def test_pending_refuses_drift_in_both_directions(channel: Path) -> None:
+def test_pending_refuses_drift_but_tolerates_ahead(channel: Path) -> None:
     pending = migrations.pending_upgrades("sqlite", {}, root=channel)
     assert [u.name for u in pending] == ["0001_add_note"]
     sha256 = pending[0].sha256
@@ -142,7 +413,15 @@ def test_pending_refuses_drift_in_both_directions(channel: Path) -> None:
     with pytest.raises(migrations.MigrationError, match="changed after"):
         migrations.pending_upgrades("sqlite", {"0001_add_note": "0" * 64}, root=channel)
     with pytest.raises(migrations.MigrationError, match="no longer ships"):
-        migrations.pending_upgrades("sqlite", {"0002_gone": sha256}, root=channel)
+        migrations.pending_upgrades("sqlite", {"0001_gone": sha256}, root=channel)
+    # a stamp beyond the channel's head is ahead, not drift: the database was
+    # stamped by a newer contracts, and this one opens it
+    assert (
+        migrations.pending_upgrades(
+            "sqlite", {"0001_add_note": sha256, "0002_future": sha256}, root=channel
+        )
+        == []
+    )
 
 
 def test_an_upgrade_adds_its_column_and_preserves_every_row(channel: Path) -> None:
@@ -312,14 +591,15 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
             for statement in module.bootstrap_statements("postgres", path):
                 conn.execute(statement)
 
-    shipped = migrations.upgrade_files("postgres")
     try:
         applied = migrations.run_upgrades(conn, "postgres")  # fresh: the shipped channel
-        assert [u.name for u in applied] == ["0001_repository_disposition"]
-        stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
-        assert stamps == [("0001_repository_disposition", _sha256(shipped[0]))]
+        assert [u.name for u in applied] == SHIPPED
+        stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade ORDER BY name").fetchall()
+        assert stamps == [
+            (path.stem, _sha256(path)) for path in migrations.upgrade_files("postgres")
+        ]
 
-        channel = _write_channel(tmp_path, "0002_add_note.sql", NOTE)
+        channel = _write_channel(tmp_path, "0005_add_note.sql", NOTE)
         for dialect in ("postgres", "sqlite"):  # the fixture channel carries the shipped scripts
             for path in migrations.upgrade_files(dialect):
                 target = channel / dialect / "upgrades" / path.name
@@ -329,14 +609,14 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
         before = conn.execute("SELECT * FROM traust.repository").fetchall()
 
         applied = migrations.run_upgrades(conn, "postgres", root=channel)
-        assert [u.name for u in applied] == ["0002_add_note"]
+        assert [u.name for u in applied] == ["0005_add_note"]
 
         after = conn.execute("SELECT * FROM traust.repository").fetchall()
         assert [row[:-1] for row in after] == before
         assert all(row[-1] is None for row in after)
-        script = channel / "postgres" / "upgrades" / "0002_add_note.sql"
+        script = channel / "postgres" / "upgrades" / "0005_add_note.sql"
         stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
-        assert ("0002_add_note", _sha256(script)) in stamps
+        assert ("0005_add_note", _sha256(script)) in stamps
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
     finally:

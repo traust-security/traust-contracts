@@ -7,6 +7,10 @@ relational contract for the one-owner data model).
 
 ## Before adding anything to the data model
 
+Placement first — where each kind of thing lives, and the delete test — is
+[AGENTS.md](AGENTS.md); the questions below gate the change itself.
+
+
 Six questions gate every change to this repo's schemas, enums and DDL. If a
 change can't answer all six, it isn't ready — reviewers will ask, so answer
 them in the PR description:
@@ -484,9 +488,25 @@ records as its views serialize them (the finding, an occurrence, a location, a l
 folded disposition, the finding view and a decision), for every view that embeds them. A
 location is a recorded one (all eight fields) or a finding claim's (path, lines, symbol), never
 part of a recorded one; a stored record's id and timestamps are never null. A CVSS score is
-Core's canonical 0-10 decimal string (the findings rollup's definition). Enums Core types are
-tied to their registries by test; what Core keeps raw (a decision's validity, resolution,
-reason and channel, which may hold historical values) stays raw.
+Core's canonical 0-10 decimal string (the findings rollup's definition). A finding view carries
+its CVSS as a block: the occurrence's score and vector, the severity the vector computes
+(FIRST's qualitative rating, "None" reading informational), and which source won the effective
+severity — `computed` (the vector's band; the score, never a word, labels what was scored),
+`scanner` (the report's word for an unscored finding), `judgement` (a re-rating), or `unrated`.
+The block is null when no occurrence reported the finding; a computed basis always carries the
+severity it computed, and an effective severity never rides beside an unrated one. For an
+advisory-backed finding the block also carries every authority's kept statement
+(`authority_scores`: source, version, vector, score, band, scorer, document, when fetched), the
+one `selected` by traust-core's precedence (NIST, the GitHub-reviewed advisory, the CNA, an ADP,
+Red Hat, then the scanner; 3.x before 4.0; `reason: precedence`), and `conflict` when two
+authorities' same-version 3.x bands differ. A selected statement always has a score and band. A
+basis of `authority` means the effective severity equals the selected statement's band, so it
+requires that statement (an authority's, never the scanner's) and at least one kept statement;
+that the selected one is among them is Core's to keep, since a schema can't compare the two. The
+findings rollup's top findings and the trend's accepted register name their score's source
+(`cvss_source`), null exactly when the score is. Enums Core
+types are tied to their registries by test; what Core keeps raw (a decision's validity,
+resolution, reason and channel, which may hold historical values) stays raw.
 
 `views_schema/v1/container-findings.schema.json` is the contract for Core's container-findings
 view: one image repository's container report family's cumulative findings as of `as_of`,
@@ -638,8 +658,14 @@ state share one artifact.
 
 `artifacts_schema/v1/session-task.schema.json` declares a runner's staged input files,
 resolved models and one schema-named output. All paths are relative to the task directory;
-`run_id` is the order UUID, or null for a manual session. The executor's identity, measured
-usage and optional error use `artifacts_schema/v1/session-result.schema.json`.
+`run_id` is the order UUID, or null for a manual session. An ordered task must
+include the positive `lease_generation` issued to the claim that staged it, so the
+task digest binds its output to that claim. Do not fill in a missing generation
+from the current order: restage older ordered tasks under a new claim. Manual
+tasks omit `lease_generation` or set it to null. The executor's identity,
+measured usage and optional error use `artifacts_schema/v1/session-result.schema.json`.
+New run-manifest session entries record the staging generation. Historical
+entries without it remain readable but do not prove ownership of a claim.
 
 The run manifest's optional `sessions` list records runner-computed task and input digests,
 input sizes, and the declared output's digest and recorded artifact UUID. Missing output has

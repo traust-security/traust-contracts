@@ -163,6 +163,11 @@ def test_logging_outputs_are_nonempty_known_and_unique(outputs: list[str]) -> No
         _validate({"logging": {"outputs": outputs}})
 
 
+@pytest.mark.parametrize("committer", ["traust-remediation", "sci-remediation"])
+def test_a_machine_committer_is_accepted(committer: str) -> None:
+    _validate({"remediation": {"committer": committer}})
+
+
 @pytest.mark.parametrize(
     "document",
     [
@@ -182,6 +187,9 @@ def test_logging_outputs_are_nonempty_known_and_unique(outputs: list[str]) -> No
         {"remediation": {"fix_branch_prefix": "a/b"}},
         {"remediation": {"patch_prefix": "patch prefix"}},
         {"remediation": {"patch_prefix": "-patch"}},
+        {"remediation": {"committer": "Shaun Smith"}},
+        {"remediation": {"committer": "-remediation"}},
+        {"remediation": {"committer": "a.b-remediation"}},
         {"overrides": {"model_registry": "./m.yaml"}},
         {"overrides": {"external_tools": "./tools.yaml"}},
         {"overrides": {"safe_exec_profiles": "./profiles.yaml"}},
@@ -206,6 +214,9 @@ def test_logging_outputs_are_nonempty_known_and_unique(outputs: list[str]) -> No
         "fix-branch-prefix",
         "patch-prefix",
         "patch-prefix-leading-hyphen",
+        "committer-a-person",
+        "committer-no-name",
+        "committer-not-a-machine-name",
         "override-unknown-file",
         "tool-pins-are-not-configurable",
         "safe-exec-is-not-configurable",
@@ -247,6 +258,7 @@ def test_relative_locations_resolve_against_the_home(tmp_path: Path) -> None:
             "locations": {
                 "workspace": "ws",
                 "analysis_results": "s3://b/ar",
+                "opengrep_adopter_rules": "rules/adopter",
                 "mirror_cache": "mirrors",
             }
         },
@@ -254,6 +266,7 @@ def test_relative_locations_resolve_against_the_home(tmp_path: Path) -> None:
     locations = load_context(config_home=home).traust.locations
     assert locations.workspace == str((home / "ws").resolve())
     assert locations.analysis_results == "s3://b/ar"
+    assert locations.opengrep_adopter_rules == str((home / "rules/adopter").resolve())
     assert locations.mirror_cache == str((home / "mirrors").resolve())
 
 

@@ -68,6 +68,12 @@
       "type": "object",
       "propertyNames": {"$ref": "#/$defs/degraded_key"},
       "additionalProperties": {"type": "integer", "minimum": 1}
+    },
+    "outputs": {
+      "description": "Artifacts the run produced that belong to no assessment (a report's file): what the order wrote, read one order at a time. An assessment's documents are found through the assessment, never here.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "format": "uuid"}
     }
   },
   "$defs": {
@@ -79,6 +85,11 @@
         "skill": {"$ref": "session-task.schema.json#/$defs/name"},
         "mode": {"$ref": "session-task.schema.json#/$defs/name"},
         "executor_session": {"type": ["string", "null"], "minLength": 1},
+        "lease_generation": {
+          "description": "Claim that staged this session. Historical entries without a recorded generation remain readable.",
+          "type": "integer",
+          "minimum": 1
+        },
         "models": {"$ref": "session-task.schema.json#/$defs/models"},
         "task_sha256": {"$ref": "#/$defs/sha256"},
         "inputs": {

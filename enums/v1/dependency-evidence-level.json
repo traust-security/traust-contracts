@@ -14,6 +14,7 @@
     "impact-analysis.schema.json",
     "report.schema.json",
     "traust.schema.json",
-    "validation.schema.json"
+    "validation.schema.json",
+    "vuln-findings.schema.json"
   ]
 }

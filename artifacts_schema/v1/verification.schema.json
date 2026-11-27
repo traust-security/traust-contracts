@@ -423,7 +423,6 @@
         "cvss": {
           "type": "object",
           "required": [
-            "score",
             "vector"
           ],
           "additionalProperties": false,
@@ -431,10 +430,12 @@
             "score": {
               "type": "number",
               "minimum": 0.0,
-              "maximum": 10.0
+              "maximum": 10.0,
+              "description": "Optional: traust-core computes the score from the vector at intake with its CVSS calculator. A stated score that differs from the computed one is refused."
             },
             "vector": {
-              "type": "string"
+              "type": "string",
+              "description": "The CVSS vector (3.0, 3.1 or 4.0), its metrics chosen by FIRST's definitions; for an advisory-backed finding, the selected authority's vector verbatim."
             }
           }
         },

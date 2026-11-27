@@ -110,8 +110,9 @@ The channel's rules:
 - **Immutable once shipped.** The stamp table `db_upgrade` records each
   applied script's sha256 — the only record of what ran. A script whose hash
   no longer matches its stamp is refused; fix forward with a new script.
-- **Version 0 is recreated.** A database with no stamp table predates the
-  runner and is recreated, not migrated.
+- **Version 0 is stamped on.** A database with no stamp table predates the
+  runner and is brought on by `stamp_channel`: presumed current, every
+  shipped script stamped as applied, nothing run.
 
 ## Views
 
