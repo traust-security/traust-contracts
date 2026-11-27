@@ -80,6 +80,7 @@
         "created_at": {"type": "string", "format": "date-time", "description": "When it was recorded."},
         "repository_ref_id": {"$ref": "#/$defs/uuid"},
         "image_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}], "description": "The image examined, for a container scan; else null."},
+        "target_purl": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}], "description": "The component (package URL) a monorepo audit was scoped to; null for a whole-repository assessment. Optional: producers that predate the column omit it."},
         "baseline_assessment_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}], "description": "What a diff scan or verification compared against; else null."},
         "run_order_id": {"oneOf": [{"$ref": "#/$defs/uuid"}, {"type": "null"}], "description": "The order that produced it; null when manual or imported."},
         "kind": {"$ref": "#/$defs/kind"},

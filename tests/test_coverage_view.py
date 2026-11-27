@@ -208,6 +208,22 @@ def test_an_empty_assessor_version_is_preserved(
     validator.validate(document)
 
 
+@pytest.mark.parametrize("target_purl", ["pkg:golang/example.com/mono/sub", None])
+def test_a_component_target_is_carried(
+    validator: Draft202012Validator, document: dict[str, Any], target_purl: str | None
+) -> None:
+    document["population"]["rows"][0]["latest"]["target_purl"] = target_purl
+    validator.validate(document)
+
+
+def test_an_empty_component_target_is_refused(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    document["population"]["rows"][0]["latest"]["target_purl"] = ""
+    with pytest.raises(ValidationError):
+        validator.validate(document)
+
+
 def test_never_assessed_repositories_are_listed_once(
     validator: Draft202012Validator, document: dict[str, Any]
 ) -> None:
