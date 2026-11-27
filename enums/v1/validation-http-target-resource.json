@@ -1,0 +1,7 @@
+{
+  "name": "validation_http_target_resource",
+  "source_schema": "validation-authorization.schema.json#/$defs/http_target/properties/resource",
+  "description": "Resource kinds for an explicit HTTP validation target.",
+  "values": ["routes", "nodes", "http_targets"],
+  "used_in_schemas": ["validation-authorization.schema.json"]
+}

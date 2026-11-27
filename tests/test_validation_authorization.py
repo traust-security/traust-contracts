@@ -46,6 +46,29 @@ APPROVAL: dict[str, Any] = {
     },
 }
 
+HTTP_DISCOVERY: dict[str, Any] = {
+    "routes": [
+        {
+            "namespace": "example-a",
+            "names": ["console"],
+            "domains": ["apps.example"],
+            "credentials": True,
+        }
+    ],
+    "nodes": {
+        "names": ["worker-0"],
+        "networks": ["10.0.0.0/24"],
+        "address_types": ["InternalIP"],
+        "credentials": False,
+    },
+    "port_forward_credentials": False,
+    "kube_env": [],
+    "ca_bundle": None,
+    "insecure_tls": False,
+    "session_check_path": None,
+    "session_check_contains": None,
+}
+
 
 @pytest.fixture
 def validator() -> Draft202012Validator:
@@ -68,6 +91,130 @@ def test_authorization_pins_plan_and_complete_scope(validator: Draft202012Valida
 
 
 @pytest.mark.parametrize(
+    "nodes",
+    [
+        None,
+        {
+            "names": ["worker-0"],
+            "networks": ["10.0.0.0/24"],
+            "address_types": ["InternalIP"],
+            "credentials": False,
+        },
+    ],
+)
+def test_authorization_preserves_complete_http_grants_and_expiry(
+    validator: Draft202012Validator, nodes: dict[str, Any] | None
+) -> None:
+    approval = deepcopy(APPROVAL)
+    scope = approval["scope"]
+    scope["expires_at"] = "2026-12-31T16:30:00Z"
+    scope["http_targets"] = [
+        {
+            "host": "console.example",
+            "context": "example-lab",
+            "namespace": "example-a",
+            "resource": "routes",
+            "name": "console",
+            "credentials": True,
+        }
+    ]
+    cluster = scope["clusters"][0]
+    cluster["api"] = "https://api.example:6443"
+    cluster["http_discovery"] = deepcopy(HTTP_DISCOVERY)
+    cluster["http_discovery"]["nodes"] = nodes
+    validator.validate(approval)
+    scope["expires_at"] = None
+    cluster["http_discovery"] = None
+    validator.validate(approval)
+
+
+@pytest.mark.parametrize(
+    ("path", "missing"),
+    [
+        ((), "routes"),
+        ((), "nodes"),
+        ((), "port_forward_credentials"),
+        ((), "kube_env"),
+        ((), "ca_bundle"),
+        ((), "insecure_tls"),
+        ((), "session_check_path"),
+        ((), "session_check_contains"),
+        (("routes", 0), "namespace"),
+        (("routes", 0), "names"),
+        (("routes", 0), "domains"),
+        (("routes", 0), "credentials"),
+        (("nodes",), "names"),
+        (("nodes",), "networks"),
+        (("nodes",), "address_types"),
+        (("nodes",), "credentials"),
+    ],
+)
+def test_present_http_policy_requires_every_snapshot_field(
+    validator: Draft202012Validator, path: tuple[str | int, ...], missing: str
+) -> None:
+    approval = deepcopy(APPROVAL)
+    discovery = approval["scope"]["clusters"][0]["http_discovery"] = deepcopy(HTTP_DISCOVERY)
+    validator.validate(approval)
+    obj = discovery
+    for part in path:
+        obj = obj[part]
+    del obj[missing]
+    with pytest.raises(ValidationError):
+        validator.validate(approval)
+
+
+@pytest.mark.parametrize("path", [(), ("routes", 0), ("nodes",)])
+def test_authorization_rejects_empty_http_policy_objects(
+    validator: Draft202012Validator, path: tuple[str | int, ...]
+) -> None:
+    approval = deepcopy(APPROVAL)
+    cluster = approval["scope"]["clusters"][0]
+    cluster["http_discovery"] = deepcopy(HTTP_DISCOVERY)
+    if not path:
+        cluster["http_discovery"] = {}
+    else:
+        obj = cluster["http_discovery"]
+        for part in path[:-1]:
+            obj = obj[part]
+        obj[path[-1]] = {}
+    with pytest.raises(ValidationError):
+        validator.validate(approval)
+
+
+def test_authorization_accepts_serialized_http_defaults(validator: Draft202012Validator) -> None:
+    approval = deepcopy(APPROVAL)
+    cluster = approval["scope"]["clusters"][0]
+    cluster["http_discovery"] = {
+        "routes": [{"namespace": "example-a", "names": [], "domains": [], "credentials": False}],
+        "nodes": {
+            "names": [],
+            "networks": [],
+            "address_types": ["InternalIP"],
+            "credentials": False,
+        },
+        "port_forward_credentials": False,
+        "kube_env": [],
+        "ca_bundle": None,
+        "insecure_tls": False,
+        "session_check_path": None,
+        "session_check_contains": None,
+    }
+    validator.validate(approval)
+    cluster["http_discovery"]["routes"] = []
+    cluster["http_discovery"]["nodes"] = None
+    validator.validate(approval)
+
+
+def test_authorization_accepts_pre_http_snapshots(validator: Draft202012Validator) -> None:
+    # Older snapshots have none of the HTTP-related fields or the timestamp expiry.
+    assert "http_targets" not in APPROVAL["scope"]
+    assert "expires_at" not in APPROVAL["scope"]
+    assert "http_discovery" not in APPROVAL["scope"]["clusters"][0]
+    assert "api" not in APPROVAL["scope"]["clusters"][0]
+    validator.validate(APPROVAL)
+
+
+@pytest.mark.parametrize(
     ("path", "value"),
     [
         (("approval",), "yes"),
@@ -84,6 +231,21 @@ def test_authorization_pins_plan_and_complete_scope(validator: Draft202012Valida
         (("scope", "clusters", 0, "unsafe"), True),
         (("scope", "off_limits", 0, "unsafe"), True),
         (("scope", "expires"), "tomorrow"),
+        (("scope", "expires_at"), "2026-12-31T16:30:00"),
+        (("scope", "http_targets"), [{"context": "example-lab"}]),
+        (
+            ("scope", "clusters", 0, "http_discovery"),
+            HTTP_DISCOVERY
+            | {
+                "nodes": {
+                    "names": ["worker-0"],
+                    "networks": ["10.0.0.0/24"],
+                    "address_types": ["DNS"],
+                    "credentials": False,
+                }
+            },
+        ),
+        (("scope", "clusters", 0, "api"), 1),
         (("scope", "wasm_artifact_ids"), ["file:///var/example.wasm"]),
     ],
 )

@@ -1,0 +1,7 @@
+{
+  "name": "validation_http_method",
+  "source_schema": "validation-plan.schema.json#/$defs/http_probe/properties/method",
+  "description": "HTTP methods supported by structured validation probes.",
+  "values": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  "used_in_schemas": ["validation-plan.schema.json"]
+}
