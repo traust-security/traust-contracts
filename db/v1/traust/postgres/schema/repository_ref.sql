@@ -8,10 +8,12 @@
 -- Dockerfile FROM).
 -- manifest_sbom_assessment_id: the exact scan that produced current coverage,
 -- even when the SBOM content is unchanged; null means coverage is unknown.
--- default_named_at: when this row was last named the default head (import or
--- observation) — a line is immutable once recorded, and a re-import of an old
--- head must still win over an earlier observation, so the row's creation time
--- can't carry it.
+-- default_named_at: when this row was last named its line's head (import or
+-- observation): the default line's by the forge's default-branch answer, any
+-- other tracked branch line's each time the forge confirms its head. A line is
+-- immutable once recorded, so a line moved back to an earlier commit, or a
+-- re-import of an old head, must still win over an earlier naming; the row's
+-- creation time can't carry it. Default-head reads take only is_default rows.
 -- manifest_sbom_assessment_id's FK closes a cycle and is added after
 -- assessment exists in assessment.sql.
 CREATE TABLE IF NOT EXISTS traust.repository_ref (
