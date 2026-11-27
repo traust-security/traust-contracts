@@ -530,10 +530,13 @@ def test_lease_generation_upgrade_preserves_orders_without_issuing_claims(
     db: Db, tmp_path: Path
 ) -> None:
     # Open the previous release's database, including its real 0001-0003 hash stamps.
+    shipped = {path.stem: path for path in migrations.upgrade_files(db.engine)}
+    lease_script = shipped["0004_run_order_lease_generation"]
     upgrades = tmp_path / db.engine / "upgrades"
     upgrades.mkdir(parents=True)
-    for previous in migrations.upgrade_files(db.engine)[:-1]:
-        (upgrades / previous.name).write_bytes(previous.read_bytes())
+    for name, previous in shipped.items():
+        if name < lease_script.stem:
+            (upgrades / previous.name).write_bytes(previous.read_bytes())
     migrations.run_upgrades(db.conn, db.engine, root=tmp_path)
 
     order = {"asset": "diff_scan", "priority": 1, "requested_by": "skill:router"}
@@ -550,12 +553,14 @@ def test_lease_generation_upgrade_preserves_orders_without_issuing_claims(
     table = db.t("ops.run_order")
     before = db.run(f"SELECT * FROM {table} ORDER BY id")
 
-    applied = migrations.run_upgrades(db.conn, db.engine)
+    # Then exactly 0004: later shipped scripts add run_order columns of their own.
+    (upgrades / lease_script.name).write_bytes(lease_script.read_bytes())
+    applied = migrations.run_upgrades(db.conn, db.engine, root=tmp_path)
     assert [u.name for u in applied] == ["0004_run_order_lease_generation"]
     # Includes the in-flight lease: no token was handed to its worker. Preserve
     # its holder, expiry and timestamps; zero cannot authorize a fenced write.
     assert db.run(f"SELECT * FROM {table} ORDER BY id") == [(*row, 0, None) for row in before]
-    assert migrations.run_upgrades(db.conn, db.engine) == []
+    assert migrations.run_upgrades(db.conn, db.engine, root=tmp_path) == []
 
     new = db.insert("ops.run_order", state="queued", **order)
     lease = f"SELECT lease_generation, completed_by FROM {table} WHERE id = ?"

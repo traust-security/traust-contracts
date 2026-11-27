@@ -27,6 +27,7 @@ SHIPPED = [
     "0002_finding_state_columns",
     "0003_run_order_input",
     "0004_run_order_lease_generation",
+    "0005_component_target_purl",
 ]
 NOTE = "-- a future additive upgrade\nALTER TABLE {table} ADD COLUMN note TEXT;\n"
 
@@ -599,7 +600,7 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
             (path.stem, _sha256(path)) for path in migrations.upgrade_files("postgres")
         ]
 
-        channel = _write_channel(tmp_path, "0005_add_note.sql", NOTE)
+        channel = _write_channel(tmp_path, "0006_add_note.sql", NOTE)
         for dialect in ("postgres", "sqlite"):  # the fixture channel carries the shipped scripts
             for path in migrations.upgrade_files(dialect):
                 target = channel / dialect / "upgrades" / path.name
@@ -609,14 +610,14 @@ def test_postgres_stamps_applies_and_preserves(postgres_dsn: str, tmp_path: Path
         before = conn.execute("SELECT * FROM traust.repository").fetchall()
 
         applied = migrations.run_upgrades(conn, "postgres", root=channel)
-        assert [u.name for u in applied] == ["0005_add_note"]
+        assert [u.name for u in applied] == ["0006_add_note"]
 
         after = conn.execute("SELECT * FROM traust.repository").fetchall()
         assert [row[:-1] for row in after] == before
         assert all(row[-1] is None for row in after)
-        script = channel / "postgres" / "upgrades" / "0005_add_note.sql"
+        script = channel / "postgres" / "upgrades" / "0006_add_note.sql"
         stamps = conn.execute("SELECT name, sha256 FROM traust.db_upgrade").fetchall()
-        assert ("0005_add_note", _sha256(script)) in stamps
+        assert ("0006_add_note", _sha256(script)) in stamps
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
         assert migrations.run_upgrades(conn, "postgres", root=channel) == []
     finally:
