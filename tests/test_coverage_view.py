@@ -27,6 +27,7 @@ def _assessment(**overrides: Any) -> dict[str, Any]:
         "created_at": "2026-10-01T10:00:00Z",
         "repository_ref_id": "00000000-0000-4000-8000-000000000011",
         "image_id": None,
+        "target_purl": None,
         "baseline_assessment_id": None,
         "run_order_id": "00000000-0000-4000-8000-000000000012",
         "kind": "secure_code",
