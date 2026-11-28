@@ -45,20 +45,17 @@ def build_registry() -> Registry:
     return Registry(resources=resources)
 
 
-_USERINFO = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*@")
+_USERINFO = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*://)[^/?#\s'\"@]*@")
 
 
-def _redacted(error) -> str:
-    """The error message, without a URL that carries credentials.
+def _scrub(text: str) -> str:
+    """Text for validation output, with any URL's userinfo removed.
 
-    jsonschema's message quotes the rejected value; a clone URL with userinfo
-    (`https://user:secret@host/…`) must not reach validation output.
+    jsonschema's messages quote rejected values, property names and whole
+    objects; a clone URL with credentials (`https://user:secret@host/…`) can
+    sit anywhere in them and must not reach validation output.
     """
-    message = error.message
-    if isinstance(error.instance, str) and _USERINFO.match(error.instance):
-        message = message.replace(repr(error.instance), "<URL with credentials>")
-        message = message.replace(error.instance, "<URL with credentials>")
-    return message
+    return _USERINFO.sub(r"\1<credentials>@", text)
 
 
 def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
@@ -75,7 +72,7 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
             artifact_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_object
         )
     except ValueError as e:
-        print(f"{artifact_path}: JSON parse error: {e}")
+        print(_scrub(f"{artifact_path}: JSON parse error: {e}"))
         return False
 
     registry = build_registry()
@@ -95,7 +92,7 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
         path_str = (
             ".".join(str(p) for p in error.absolute_path) if error.absolute_path else "<root>"
         )
-        print(f"{artifact_path}: {path_str}: {_redacted(error)}")
+        print(_scrub(f"{artifact_path}: {path_str}: {error.message}"))
 
     # Content gates are whole-document cross-field rules. A JSON Pointer
     # fragment selects a sub-schema (a bare `#` selects the whole document),
@@ -166,12 +163,13 @@ def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:
                     f"{artifact_path}: verification_hint must identify the backport it "
                     f"verifies (backport_commit or backport_branch): {name}"
                 )
-            elif target.get("backport_commit") and target["backport_commit"] != row.get(
+                continue
+            if target.get("backport_commit") and target["backport_commit"] != row.get(
                 "backport_commit"
             ):
                 valid = False
                 print(f"{artifact_path}: verification_hint commit disagrees with {name}'s row")
-            elif target.get("backport_branch") and target["backport_branch"] != row.get(
+            if target.get("backport_branch") and target["backport_branch"] != row.get(
                 "backport_branch"
             ):
                 valid = False

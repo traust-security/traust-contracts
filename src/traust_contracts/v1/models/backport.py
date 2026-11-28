@@ -15,7 +15,7 @@ from traust_contracts.v1.models._base import ContractModel
 
 _GIT_REF = r"^[A-Za-z0-9._/][A-Za-z0-9._/-]{0,199}$"
 _REPO_URL = r"^(https://|ssh://)"
-_SHORT_SHA = r"^[0-9a-f]{7,64}$"
+_SHORT_SHA = r"^[0-9a-f]{7,40}$"  # remediation.schema.json fix_commit
 _FULL_SHA = r"^[0-9a-f]{40}$"  # verification.schema.json patched_commit
 _CWE = r"^CWE-\d{1,5}$"
 _SHA256 = r"^[a-f0-9]{64}$"
@@ -313,7 +313,7 @@ class BackportReport(ContractModel):
                         f"{target.target_branch}: hint {target.backport_commit} "
                         f"!= landed {row.backport_commit}"
                     )
-                elif target.backport_branch and target.backport_branch != row.backport_branch:
+                if target.backport_branch and target.backport_branch != row.backport_branch:
                     mismatched.append(
                         f"{target.target_branch}: hint {target.backport_branch} "
                         f"!= landed {row.backport_branch}"

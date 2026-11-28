@@ -168,13 +168,14 @@ def _set_backport_commit(document_: dict[str, Any], value: str) -> None:
     hinted["backport_commit"] = value
 
 
-def test_a_sha256_fix_commit_is_a_reference() -> None:
-    # source_fix.commit is a reference (abbreviations allowed) that feeds no other
-    # contract, so a SHA-256 object id is accepted.
+def test_a_fix_commit_stays_sha1_while_remediation_does() -> None:
+    # source_fix.commit is the remediation artifact's fix_commit (remediation_path),
+    # which takes 40 hex at most: SHA-256 widens across the contracts together.
     base = document()
     base["source_fix"]["commit"] = "d" * 64
-    assert errors(base) == []
-    BackportReport.from_dict(base)
+    assert errors(base)
+    with pytest.raises(ValueError):
+        BackportReport.from_dict(base)
 
 
 def test_a_backport_commit_stays_sha1_while_verification_does() -> None:
@@ -276,6 +277,36 @@ def test_validation_output_never_prints_a_credential(tmp_path: Path, capsys) -> 
     out = capsys.readouterr().out
     assert "verification_hint.repository" in out
     assert "secret" not in out
+
+
+@pytest.mark.parametrize(
+    "place",
+    ["leading space", "property name"],
+)
+def test_validation_output_scrubs_a_credential_anywhere(place: str, tmp_path: Path, capsys) -> None:
+    """Qodo #187: only a value that began with the URL was redacted."""
+    base = document()
+    url = "https://user:secret@example.test/repo.git"
+    if place == "leading space":
+        base["verification_hint"]["repository"] = " " + url
+    else:
+        base[url] = 1
+    path = tmp_path / "report.json"
+    path.write_text(json.dumps(base))
+    assert _validator_module().validate_artifact("backport-report", path) is False
+    assert "secret" not in capsys.readouterr().out
+
+
+def test_a_hint_must_agree_on_both_commit_and_branch(tmp_path: Path) -> None:
+    """Qodo #187: a matching commit skipped the branch comparison."""
+    base = document()
+    base["verification_hint"]["branches"][0]["backport_branch"] = "amalgamator/elsewhere"
+    assert errors(base) == []
+    with pytest.raises(ValueError, match="disagrees with the landed backport"):
+        BackportReport.from_dict(base)
+    path = tmp_path / "report.json"
+    path.write_text(json.dumps(base))
+    assert _validator_module().validate_artifact("backport-report", path) is False
 
 
 def test_the_artifact_declares_no_command_for_a_consumer_to_run() -> None:

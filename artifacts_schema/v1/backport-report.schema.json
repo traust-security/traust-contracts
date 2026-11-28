@@ -185,9 +185,9 @@
       "properties": {
         "commit": {
           "type": "string",
-          "pattern": "^[0-9a-f]{7,64}$",
+          "pattern": "^[0-9a-f]{7,40}$",
           "not": {"type": "string", "pattern": "\\s"},
-          "description": "SHA of the fix commit being backported (SHA-1 or SHA-256, possibly abbreviated). A reference, so abbreviations are accepted here; the backport side requires the full SHA."
+          "description": "SHA of the fix commit being backported, the remediation artifact's fix_commit (40 hex, so SHA-256 widens with remediation and verification together). A reference, so abbreviations are accepted here; the backport side requires the full SHA."
         },
         "branch": {
           "$ref": "#/$defs/git_ref",
