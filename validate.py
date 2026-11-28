@@ -47,7 +47,7 @@ def build_registry() -> Registry:
 
 # Userinfo in any authority (`scheme://…@`, protocol-relative `//…@`) and a bare
 # `user:password@` (scp-style or unprefixed).
-_USERINFO = re.compile(r"(//)[^/?#\s'\"@]*@|(?<![\w.+-])[^\s'\"/@:]+:[^\s'\"/@]+@")
+_USERINFO = re.compile(r"(//)[^/?#\s@]*@|(?<![\w.+-])[^\s'\"/@:]+:[^\s/@]+@")
 
 
 def _scrub(text: str) -> str:

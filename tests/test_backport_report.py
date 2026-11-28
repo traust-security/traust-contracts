@@ -303,6 +303,23 @@ def test_validation_output_scrubs_a_credential_anywhere(place: str, tmp_path: Pa
     assert "secret" not in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "'https://user:secret@example.test/repo' does not match",
+        '"https://user:it\'s-secret@example.test/repo"',
+        "//user:secret@example.test/repo",
+        "user:secret@example.test:repo.git",
+        "Expecting value: 'git+https://tok:secret@example.test/x'",
+    ],
+)
+def test_the_scrub_backstop_removes_userinfo(text: str) -> None:
+    """Qodo #187: the output tests no longer reach the scrub (values aren't printed), so
+    the backstop is tested directly, quotes inside a password included."""
+    scrubbed = _validator_module()._scrub(text)
+    assert "secret" not in scrubbed and "<credentials>@" in scrubbed
+
+
 def test_a_hint_must_agree_on_both_commit_and_branch(tmp_path: Path) -> None:
     """Qodo #187: a matching commit skipped the branch comparison."""
     base = document()
