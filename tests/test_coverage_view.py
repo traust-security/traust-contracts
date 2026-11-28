@@ -27,6 +27,7 @@ def _assessment(**overrides: Any) -> dict[str, Any]:
         "created_at": "2026-10-01T10:00:00Z",
         "repository_ref_id": "00000000-0000-4000-8000-000000000011",
         "image_id": None,
+        "target_purl": None,
         "baseline_assessment_id": None,
         "run_order_id": "00000000-0000-4000-8000-000000000012",
         "kind": "secure_code",
@@ -206,6 +207,22 @@ def test_an_empty_assessor_version_is_preserved(
 ) -> None:
     document["population"]["rows"][0]["latest"]["assessor_version"] = ""
     validator.validate(document)
+
+
+@pytest.mark.parametrize("target_purl", ["pkg:golang/example.com/mono/sub", None])
+def test_a_component_target_is_carried(
+    validator: Draft202012Validator, document: dict[str, Any], target_purl: str | None
+) -> None:
+    document["population"]["rows"][0]["latest"]["target_purl"] = target_purl
+    validator.validate(document)
+
+
+def test_an_empty_component_target_is_refused(
+    validator: Draft202012Validator, document: dict[str, Any]
+) -> None:
+    document["population"]["rows"][0]["latest"]["target_purl"] = ""
+    with pytest.raises(ValidationError):
+        validator.validate(document)
 
 
 def test_never_assessed_repositories_are_listed_once(

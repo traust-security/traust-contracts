@@ -74,6 +74,10 @@
       "type": "array",
       "uniqueItems": true,
       "items": {"type": "string", "format": "uuid"}
+    },
+    "component_target": {
+      "$ref": "report.schema.json#/$defs/component_target",
+      "description": "Server-resolved component PURL target (including verification strategy and manifest paths) for component-scoped orders; absent on whole-repository orders."
     }
   },
   "$defs": {

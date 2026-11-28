@@ -1,0 +1,24 @@
+{
+  "name": "component_target_strategy",
+  "source_schema": "report.schema.json#/$defs/component_target/properties/verification/properties/strategy",
+  "description": "Deterministic resolution strategy that verified a component PURL against a pinned repository tree.",
+  "values": [
+    "shared_release",
+    "package_release",
+    "workspace_package",
+    "external_provenance"
+  ],
+  "definitions": {
+    "shared_release": "Package inherits the monorepo release version and matches a shared release tag pointing at the pinned commit (e.g. multi-module Maven POM).",
+    "package_release": "Package declares its own version and matches a package-specific release tag pointing at the pinned commit (e.g. LangChain).",
+    "workspace_package": "Public workspace member declares its own package name and version independently of a private workspace root (e.g. Pi).",
+    "external_provenance": "Package-to-commit and version association is established by independently verified external build or release provenance alongside a declarative manifest in the pinned tree confirming package ownership at module_path."
+  },
+  "standard": {
+    "none": "Project-defined vocabulary for verified component PURL resolution."
+  },
+  "used_in_schemas": [
+    "report.schema.json",
+    "run-manifest.schema.json"
+  ]
+}

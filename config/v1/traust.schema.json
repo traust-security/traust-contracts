@@ -633,6 +633,10 @@
         "inputs": {
           "type": "string",
           "description": "The repository-inventory tree. Default <workspace>/inputs."
+        },
+        "provenance_trust": {
+          "type": "string",
+          "description": "Optional JSON trust-policy file (trusted public keys, allowed sources/issuers) for external_provenance verification; absent fails closed."
         }
       }
     },

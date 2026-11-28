@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [[package]]
@@ -681,6 +681,7 @@ dev = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pytest" },
     { name = "pytest-xdist" },
+    { name = "referencing" },
     { name = "ruff" },
     { name = "vulture" },
 ]
@@ -699,6 +700,7 @@ dev = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-xdist", specifier = ">=3" },
+    { name = "referencing", specifier = ">=0.28" },
     { name = "ruff", specifier = ">=0.6" },
     { name = "vulture", specifier = ">=2.16" },
 ]
