@@ -266,6 +266,18 @@ def test_a_clone_url_carries_no_credentials(url: str, tmp_path: Path) -> None:
     assert _validator_module().validate_artifact("backport-report", path) is False
 
 
+def test_validation_output_never_prints_a_credential(tmp_path: Path, capsys) -> None:
+    """Qodo #187: the CLI printed jsonschema's message, which quotes the rejected URL."""
+    base = document()
+    base["verification_hint"]["repository"] = "https://user:secret@github.com/example/x"
+    path = tmp_path / "report.json"
+    path.write_text(json.dumps(base))
+    assert _validator_module().validate_artifact("backport-report", path) is False
+    out = capsys.readouterr().out
+    assert "verification_hint.repository" in out
+    assert "secret" not in out
+
+
 def test_the_artifact_declares_no_command_for_a_consumer_to_run() -> None:
     base = document()
     base["verification_hint"]["command"] = "verify-remediation --yes"

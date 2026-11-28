@@ -10,6 +10,7 @@ Exits 0 if all artifacts valid, 1 if any fail.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -42,6 +43,22 @@ def build_registry() -> Registry:
         resources[sf.name] = resource
 
     return Registry(resources=resources)
+
+
+_USERINFO = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*@")
+
+
+def _redacted(error) -> str:
+    """The error message, without a URL that carries credentials.
+
+    jsonschema's message quotes the rejected value; a clone URL with userinfo
+    (`https://user:secret@host/…`) must not reach validation output.
+    """
+    message = error.message
+    if isinstance(error.instance, str) and _USERINFO.match(error.instance):
+        message = message.replace(repr(error.instance), "<URL with credentials>")
+        message = message.replace(error.instance, "<URL with credentials>")
+    return message
 
 
 def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
@@ -78,7 +95,7 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
         path_str = (
             ".".join(str(p) for p in error.absolute_path) if error.absolute_path else "<root>"
         )
-        print(f"{artifact_path}: {path_str}: {error.message}")
+        print(f"{artifact_path}: {path_str}: {_redacted(error)}")
 
     # Content gates are whole-document cross-field rules. A JSON Pointer
     # fragment selects a sub-schema (a bare `#` selects the whole document),
