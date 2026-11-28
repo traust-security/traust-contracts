@@ -67,8 +67,9 @@
     },
     "full_commit_sha": {
       "type": "string",
-      "pattern": "^[0-9a-f]{40}$",
-      "description": "A full 40-hex commit SHA. Abbreviated SHAs are not identities: verification.schema.json requires the same of the patched_commit this value is passed as."
+      "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+      "not": {"type": "string", "pattern": "\\s"},
+      "description": "A full commit object id: SHA-1 (40) or SHA-256 (64), lowercase hex. Abbreviated SHAs are not identities: verification.schema.json requires the same of the patched_commit this value is passed as. The whitespace guard stops Python validators, where $ matches before a final newline, accepting a trailing newline."
     },
     "backport_status": {
       "type": "string",
@@ -146,7 +147,8 @@
         },
         "harness_version": {
           "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9a-f]{7,40})?$"
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9a-f]{7,64})?$",
+          "not": {"type": "string", "pattern": "\\s"}
         },
         "repository": {
           "$ref": "#/$defs/repo_url",
@@ -182,8 +184,9 @@
       "properties": {
         "commit": {
           "type": "string",
-          "pattern": "^[0-9a-f]{7,40}$",
-          "description": "SHA of the fix commit being backported. A reference, so abbreviations are accepted here; the backport side requires the full SHA."
+          "pattern": "^[0-9a-f]{7,64}$",
+          "not": {"type": "string", "pattern": "\\s"},
+          "description": "SHA of the fix commit being backported (SHA-1 or SHA-256, possibly abbreviated). A reference, so abbreviations are accepted here; the backport side requires the full SHA."
         },
         "branch": {
           "$ref": "#/$defs/git_ref",
@@ -269,7 +272,8 @@
         },
         "patch_sha256": {
           "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "pattern": "^[a-f0-9]{64}$",
+          "not": {"type": "string", "pattern": "\\s"}
         },
         "patch_files_changed": {
           "type": "integer",

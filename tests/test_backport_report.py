@@ -151,14 +151,49 @@ def test_refs_cannot_be_read_as_options(value: str) -> None:
 
 @pytest.mark.parametrize("value", ["0b1c2d3", "0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C"])
 def test_a_backport_commit_is_a_full_sha(value: str) -> None:
-    """verification.schema.json requires ^[0-9a-f]{40}$ of patched_commit, and
-    this value is passed to it as exactly that."""
+    """verification.schema.json requires a full SHA of patched_commit, and this
+    value is passed to it as exactly that."""
     base = document()
     branch(base, "release-1.33")["backport_commit"] = value
     assert errors(base)
     base = document()
     base["verification_hint"]["branches"][0]["backport_commit"] = value
     assert errors(base)
+
+
+def test_a_sha256_backport_commit_is_accepted() -> None:
+    base = document()
+    _set_backport_commit(base, "c" * 64)
+    base["source_fix"]["commit"] = "d" * 64
+    base["metadata"]["harness_version"] = "1.2.3-" + "e" * 64
+    assert errors(base) == []
+    BackportReport.from_dict(base)
+
+
+def _set_backport_commit(document_: dict[str, Any], value: str) -> None:
+    """Set the hinted branch's commit in both places, so only the value itself is at issue."""
+    hinted = document_["verification_hint"]["branches"][0]
+    branch(document_, hinted["target_branch"])["backport_commit"] = value
+    hinted["backport_commit"] = value
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda d: _set_backport_commit(d, "a" * 40 + "\n"),
+        lambda d: _set_backport_commit(d, "a" * 64 + "\n"),
+        lambda d: d["source_fix"].update(commit="abc1234\n"),
+        lambda d: d["metadata"].update(harness_version="1.2.3-abc1234\n"),
+        lambda d: d["target_branches"][0].update(patch_sha256="f" * 64 + "\n"),
+    ],
+)
+def test_a_trailing_newline_is_not_a_sha(mutate) -> None:
+    """Python's jsonschema matches $ before a final newline; the whitespace guard refuses it."""
+    base = document()
+    mutate(base)
+    assert errors(base)
+    with pytest.raises(ValidationError):
+        BackportReport.from_dict(base)
 
 
 def test_the_artifact_declares_no_command_for_a_consumer_to_run() -> None:
@@ -254,6 +289,7 @@ def test_the_hint_speaks_the_verification_contracts_language() -> None:
     hint_commit = hint["branches"]["items"]["properties"]["backport_commit"]
     resolved = SCHEMA["$defs"][hint_commit["$ref"].rsplit("/", 1)[-1]]
     assert resolved["pattern"] == metadata["properties"]["patched_commit"]["pattern"]
+    assert resolved["not"] == metadata["properties"]["patched_commit"]["not"]
 
 
 class TestModelEnforcesSchemaConstraints:

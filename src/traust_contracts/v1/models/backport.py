@@ -14,11 +14,11 @@ from traust_contracts.v1.models._base import ContractModel
 
 _GIT_REF = r"^[A-Za-z0-9._/][A-Za-z0-9._/-]{0,199}$"
 _REPO_URL = r"^(https://|ssh://)"
-_SHORT_SHA = r"^[0-9a-f]{7,40}$"
-_FULL_SHA = r"^[0-9a-f]{40}$"
+_SHORT_SHA = r"^[0-9a-f]{7,64}$"
+_FULL_SHA = r"^([0-9a-f]{40}|[0-9a-f]{64})$"
 _CWE = r"^CWE-\d{1,5}$"
 _SHA256 = r"^[a-f0-9]{64}$"
-_HARNESS_VERSION = r"^\d+\.\d+\.\d+(-[0-9a-f]{7,40})?$"
+_HARNESS_VERSION = r"^\d+\.\d+\.\d+(-[0-9a-f]{7,64})?$"
 _TITLE = re.compile(r"(backport|remediat|patch|fix)", re.I)
 
 

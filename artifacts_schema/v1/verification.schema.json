@@ -113,13 +113,15 @@
         },
         "original_commit": {
           "type": "string",
-          "pattern": "^[0-9a-f]{40}$",
-          "description": "Full SHA of the commit the original audit findings were identified against."
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+          "not": {"type": "string", "pattern": "\\s"},
+          "description": "Full SHA of the commit the original audit findings were identified against: SHA-1 (40) or SHA-256 (64), lowercase hex."
         },
         "patched_commit": {
           "type": "string",
-          "pattern": "^[0-9a-f]{40}$",
-          "description": "Full SHA of the patched HEAD that was verified (branch head, PR/MR head, or default-branch tip)."
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+          "not": {"type": "string", "pattern": "\\s"},
+          "description": "Full SHA of the patched HEAD that was verified (branch head, PR/MR head, or default-branch tip): SHA-1 (40) or SHA-256 (64), lowercase hex."
         },
         "patched_ref": {
           "type": "string",
