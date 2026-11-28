@@ -281,7 +281,7 @@ def test_validation_output_never_prints_a_credential(tmp_path: Path, capsys) -> 
 
 @pytest.mark.parametrize(
     "place",
-    ["leading space", "property name", "protocol-relative", "scp-style"],
+    ["leading space", "property name", "protocol-relative", "scp-style", "apostrophe"],
 )
 def test_validation_output_scrubs_a_credential_anywhere(place: str, tmp_path: Path, capsys) -> None:
     """Qodo #187: only a value that began with the URL was redacted."""
@@ -293,6 +293,8 @@ def test_validation_output_scrubs_a_credential_anywhere(place: str, tmp_path: Pa
         base["metadata"]["repository"] = "//user:secret@example.test/repo"
     elif place == "scp-style":
         base["metadata"]["repository"] = "user:secret@example.test:repo.git"
+    elif place == "apostrophe":
+        base["metadata"]["repository"] = "https://user:it's-secret@example.test/repo"
     else:
         base[url] = 1
     path = tmp_path / "report.json"

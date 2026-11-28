@@ -60,6 +60,23 @@ def _scrub(text: str) -> str:
     return _USERINFO.sub(lambda m: (m.group(1) or "") + "<credentials>@", text)
 
 
+def _describe(error) -> str:
+    """The failure from the schema's side, never quoting the rejected value.
+
+    jsonschema's message starts with the instance's repr, and an artifact value
+    (a clone URL with a password, an unexpected property name) is untrusted. The
+    keyword and what the schema expected identify the failure without it.
+    """
+    expected = error.validator_value
+    if error.validator in {"additionalProperties", "unevaluatedProperties"}:
+        return f"fails {error.validator}: unexpected propert(ies) not allowed"
+    if error.validator in {"required", "dependentRequired"}:
+        return error.message  # names the schema's property, not an artifact value
+    if isinstance(expected, dict | list) and error.validator not in {"enum", "type"}:
+        return f"fails {error.validator}"
+    return f"fails {error.validator}: expected {expected!r}"
+
+
 def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
     """Validate artifact against a schema basename and optional JSON Pointer fragment."""
     basename, separator, fragment = schema_name.partition("#")
@@ -94,7 +111,7 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
         path_str = (
             ".".join(str(p) for p in error.absolute_path) if error.absolute_path else "<root>"
         )
-        print(_scrub(f"{artifact_path}: {path_str}: {error.message}"))
+        print(_scrub(f"{artifact_path}: {path_str}: {_describe(error)}"))
 
     # Content gates are whole-document cross-field rules. A JSON Pointer
     # fragment selects a sub-schema (a bare `#` selects the whole document),
