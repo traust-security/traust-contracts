@@ -63,8 +63,8 @@
     "repo_url": {
       "type": "string",
       "format": "uri",
-      "pattern": "^(https://|ssh://)",
-      "description": "A clone URL. Only https and ssh are accepted: consumers hand this to git clone, where the ext:: transport executes arbitrary commands and file: (or a bare path) reads outside the workspace."
+      "pattern": "^(https://(?![^/?#]*@)|ssh://)",
+      "description": "A clone URL. Only https and ssh are accepted: consumers hand this to git clone, where the ext:: transport executes arbitrary commands and file: (or a bare path) reads outside the workspace. An https URL carries no userinfo: credentials never travel in an artifact (ssh://git@host stays valid)."
     },
     "full_commit_sha": {
       "type": "string",

@@ -168,7 +168,7 @@ def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:
             valid = False
             print(
                 f"{artifact_path}: verification_hint.repository is neither "
-                f"metadata.repository nor source_fix.fork_url: {repository}"
+                "metadata.repository nor source_fix.fork_url"
             )
     if basename == "repo-liveness":
         for key, entry in artifact.get("repositories", {}).items():

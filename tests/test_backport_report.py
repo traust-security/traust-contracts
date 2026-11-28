@@ -245,6 +245,27 @@ def test_the_model_refuses_what_the_schema_refuses(mutate) -> None:
         report.to_dict()
 
 
+@pytest.mark.parametrize(
+    "url", ["https://user:secret@github.com/example/x", "https://token@github.com/example/x"]
+)
+def test_a_clone_url_carries_no_credentials(url: str, tmp_path: Path) -> None:
+    """Qodo #187: an https URL with userinfo passed, and a mismatch echoed it."""
+    base = document()
+    base["verification_hint"]["repository"] = url
+    assert errors(base)
+    with pytest.raises(ValueError) as refused:
+        BackportReport.from_dict(base)
+    assert "secret" not in str(refused.value) and "token@" not in str(refused.value)
+    base = document()
+    base["verification_hint"]["repository"] = "https://github.com/example/other-server"
+    with pytest.raises(ValueError) as refused:
+        BackportReport.from_dict(base)
+    assert "other-server" not in str(refused.value)
+    path = tmp_path / "report.json"
+    path.write_text(json.dumps(base))
+    assert _validator_module().validate_artifact("backport-report", path) is False
+
+
 def test_the_artifact_declares_no_command_for_a_consumer_to_run() -> None:
     base = document()
     base["verification_hint"]["command"] = "verify-remediation --yes"

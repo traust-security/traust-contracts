@@ -45,6 +45,19 @@ def _relative_path(value: str) -> str:
 RelativePath = Annotated[str, AfterValidator(_relative_path)]
 
 
+def _no_credentials(value: str) -> str:
+    """Mirror the schema's repo_url: an https clone URL carries no userinfo.
+
+    The value is never echoed: it may be the credential.
+    """
+    if value.startswith("https://") and "@" in value[len("https://") :].split("/", 1)[0]:
+        raise ValueError("an https clone URL must not carry credentials (userinfo)")
+    return value
+
+
+RepoUrl = Annotated[str, Field(pattern=_REPO_URL), AfterValidator(_no_credentials)]
+
+
 def _schema_check(document: Any) -> None:
     """Refuse what backport-report.schema.json refuses (format, minimum, minLength…).
 
@@ -64,7 +77,8 @@ def _schema_check(document: Any) -> None:
     if errors:
         first = errors[0]
         where = "/".join(map(str, first.absolute_path)) or "<root>"
-        raise ValueError(f"backport-report schema: {where}: {first.message}")
+        # The keyword, not the message: jsonschema's message quotes the value.
+        raise ValueError(f"backport-report schema: {where}: fails {first.validator!r}")
 
 
 class BackportStatus(StrEnum):
@@ -95,11 +109,11 @@ class CheckOutcome(StrEnum):
 
 
 class BackportMetadata(ContractModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, hide_input_in_errors=True)
 
     date: str
     harness_version: str = Field(pattern=_HARNESS_VERSION)
-    repository: str = Field(pattern=_REPO_URL)
+    repository: RepoUrl
     logical_product: str | None = None
     language: str | None = None
     operator: str | None = None
@@ -108,11 +122,11 @@ class BackportMetadata(ContractModel):
 
 
 class SourceFix(ContractModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, hide_input_in_errors=True)
 
     commit: str = Field(pattern=_SHORT_SHA)
     branch: str = Field(pattern=_GIT_REF)
-    fork_url: str | None = Field(default=None, pattern=_REPO_URL)
+    fork_url: RepoUrl | None = None
     remediation_path: RelativePath | None = None
     finding_refs: list[str] = Field(default_factory=list)
     cwes: list[str] = Field(default_factory=list)
@@ -129,7 +143,7 @@ class SourceFix(ContractModel):
 class Check(ContractModel):
     """A build or test run recorded as evidence. Never an instruction."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, hide_input_in_errors=True)
 
     name: str
     outcome: CheckOutcome
@@ -140,7 +154,7 @@ class Check(ContractModel):
 
 
 class BranchResult(ContractModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, hide_input_in_errors=True)
 
     branch: str = Field(pattern=_GIT_REF)
     status: BackportStatus
@@ -181,7 +195,7 @@ class BranchResult(ContractModel):
 
 
 class VerificationTarget(ContractModel):
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, hide_input_in_errors=True)
 
     target_branch: str = Field(pattern=_GIT_REF)
     backport_commit: str | None = Field(default=None, pattern=_FULL_SHA)
@@ -191,10 +205,10 @@ class VerificationTarget(ContractModel):
 class VerificationHint(ContractModel):
     """Inputs for verify-remediation. Inputs only: no command line."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, hide_input_in_errors=True)
 
     original_audit_report: RelativePath | None = None
-    repository: str | None = Field(default=None, pattern=_REPO_URL)
+    repository: RepoUrl | None = None
     #: None rather than [] so `to_dict()` drops an empty list the schema rejects;
     #: an explicitly supplied list must have an item (schema minItems: 1).
     branches: list[VerificationTarget] | None = Field(default=None, min_length=1)
@@ -203,7 +217,7 @@ class VerificationHint(ContractModel):
 class BackportSummary(ContractModel):
     """Counts derived from target_branches; never independently authored."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, hide_input_in_errors=True)
 
     total: int = Field(ge=1)
     succeeded: int = Field(ge=0)
@@ -216,7 +230,7 @@ class BackportSummary(ContractModel):
 class BackportReport(ContractModel):
     """A fix propagated across release branches, one entry per branch."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, hide_input_in_errors=True)
 
     title: str = Field(min_length=5)
     metadata: BackportMetadata
@@ -318,8 +332,9 @@ class BackportReport(ContractModel):
         if self.verification_hint and self.verification_hint.repository is not None:
             allowed = {self.metadata.repository, self.source_fix.fork_url} - {None}
             if self.verification_hint.repository not in allowed:
+                # The value is not echoed: a clone URL can carry credentials.
                 raise ValueError(
                     "verification_hint.repository must be metadata.repository or "
-                    f"source_fix.fork_url: {self.verification_hint.repository}"
+                    "source_fix.fork_url"
                 )
         return self
