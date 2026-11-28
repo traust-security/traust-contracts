@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from enum import StrEnum
@@ -15,19 +16,23 @@ from traust_contracts.v1.models._base import ContractModel
 _GIT_REF = r"^[A-Za-z0-9._/][A-Za-z0-9._/-]{0,199}$"
 _REPO_URL = r"^(https://|ssh://)"
 _SHORT_SHA = r"^[0-9a-f]{7,64}$"
-_FULL_SHA = r"^([0-9a-f]{40}|[0-9a-f]{64})$"
+_FULL_SHA = r"^[0-9a-f]{40}$"  # verification.schema.json patched_commit
 _CWE = r"^CWE-\d{1,5}$"
 _SHA256 = r"^[a-f0-9]{64}$"
-_HARNESS_VERSION = r"^\d+\.\d+\.\d+(-[0-9a-f]{7,64})?$"
+_HARNESS_VERSION = r"^\d+\.\d+\.\d+(-[0-9a-f]{7,40})?$"
 _TITLE = re.compile(r"(backport|remediat|patch|fix)", re.I)
 
 
 def _relative_path(value: str) -> str:
     """Mirror the schema's relative_path: never absolute, never traversal.
 
-    Rejects a leading '/', a backslash (a Windows separator in a POSIX reader),
-    a drive letter, and any '..' component.
+    Rejects an empty path, a leading '/', a backslash (a Windows separator in a
+    POSIX reader), a drive letter, a control character, and any '..' component.
     """
+    if not value:
+        raise ValueError("path must not be empty")
+    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in value):
+        raise ValueError("path must not contain a control character")
     if value.startswith("/") or "\\" in value:
         raise ValueError("path must be workspace-relative (no leading / or backslash)")
     if len(value) > 1 and value[1] == ":" and value[0].isalpha():
@@ -38,6 +43,28 @@ def _relative_path(value: str) -> str:
 
 
 RelativePath = Annotated[str, AfterValidator(_relative_path)]
+
+
+def _schema_check(document: Any) -> None:
+    """Refuse what backport-report.schema.json refuses (format, minimum, minLength…).
+
+    The model mirrors the security-relevant constraints field by field; this keeps a
+    model-only producer or reader from drifting from the schema on the rest.
+    """
+    from jsonschema import Draft202012Validator, FormatChecker
+
+    from traust_contracts.paths import schema_path
+
+    with schema_path("backport-report").open(encoding="utf-8") as handle:
+        schema = json.load(handle)
+    errors = sorted(
+        Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(document),
+        key=lambda e: list(e.absolute_path),
+    )
+    if errors:
+        first = errors[0]
+        where = "/".join(map(str, first.absolute_path)) or "<root>"
+        raise ValueError(f"backport-report schema: {where}: {first.message}")
 
 
 class BackportStatus(StrEnum):
@@ -207,8 +234,15 @@ class BackportReport(ContractModel):
             raise ValueError("title must name the artifact (backport/remediat/patch/fix)")
         return value
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """The model's checks, then the JSON Schema's: the schema is the reference."""
+        report = cls.model_validate(data)
+        _schema_check(data)
+        return report
+
     def to_dict(self) -> dict[str, Any]:
-        """Re-check the cross-field invariants before serializing.
+        """Re-check the cross-field invariants and the JSON Schema before serializing.
 
         Mutating ``target_branches`` in place or assigning a nested summary
         field validates the child model, not this one, so the after-validator
@@ -216,7 +250,9 @@ class BackportReport(ContractModel):
         summary or a duplicated branch can still be caught.
         """
         self._summary_is_derived_from_branches()
-        return super().to_dict()
+        out = super().to_dict()
+        _schema_check(out)
+        return out
 
     @model_validator(mode="after")
     def _summary_is_derived_from_branches(self) -> Self:
@@ -278,5 +314,12 @@ class BackportReport(ContractModel):
             if mismatched:
                 raise ValueError(
                     f"verification_hint disagrees with the landed backport: {mismatched}"
+                )
+        if self.verification_hint and self.verification_hint.repository is not None:
+            allowed = {self.metadata.repository, self.source_fix.fork_url} - {None}
+            if self.verification_hint.repository not in allowed:
+                raise ValueError(
+                    "verification_hint.repository must be metadata.repository or "
+                    f"source_fix.fork_url: {self.verification_hint.repository}"
                 )
         return self

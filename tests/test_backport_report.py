@@ -161,20 +161,30 @@ def test_a_backport_commit_is_a_full_sha(value: str) -> None:
     assert errors(base)
 
 
-def test_a_sha256_backport_commit_is_accepted() -> None:
-    base = document()
-    _set_backport_commit(base, "c" * 64)
-    base["source_fix"]["commit"] = "d" * 64
-    base["metadata"]["harness_version"] = "1.2.3-" + "e" * 64
-    assert errors(base) == []
-    BackportReport.from_dict(base)
-
-
 def _set_backport_commit(document_: dict[str, Any], value: str) -> None:
     """Set the hinted branch's commit in both places, so only the value itself is at issue."""
     hinted = document_["verification_hint"]["branches"][0]
     branch(document_, hinted["target_branch"])["backport_commit"] = value
     hinted["backport_commit"] = value
+
+
+def test_a_sha256_fix_commit_is_a_reference() -> None:
+    # source_fix.commit is a reference (abbreviations allowed) that feeds no other
+    # contract, so a SHA-256 object id is accepted.
+    base = document()
+    base["source_fix"]["commit"] = "d" * 64
+    assert errors(base) == []
+    BackportReport.from_dict(base)
+
+
+def test_a_backport_commit_stays_sha1_while_verification_does() -> None:
+    # backport_commit is passed to verification.schema.json's patched_commit, which
+    # (and whose consumers) take 40 hex only: it widens with them, not before.
+    base = document()
+    _set_backport_commit(base, "c" * 64)
+    assert errors(base)
+    with pytest.raises(ValueError):
+        BackportReport.from_dict(base)
 
 
 @pytest.mark.parametrize(
@@ -194,6 +204,45 @@ def test_a_trailing_newline_is_not_a_sha(mutate) -> None:
     assert errors(base)
     with pytest.raises(ValidationError):
         BackportReport.from_dict(base)
+
+
+@pytest.mark.parametrize("value", ["safe\n/../../secrets", "a\r..", "logs/\x00x", ""])
+def test_a_path_cannot_hide_traversal_or_control_characters(value: str) -> None:
+    """Qodo #187: `.*` stopped at a newline, so traversal after one passed the schema."""
+    base = document()
+    base["target_branches"][0]["patch_path"] = value
+    assert errors(base)
+    with pytest.raises(ValueError):
+        BackportReport.from_dict(base)
+
+
+def test_the_hint_clones_the_reported_repository_or_its_fork() -> None:
+    base = document()
+    base["verification_hint"]["repository"] = base["source_fix"]["fork_url"]
+    BackportReport.from_dict(base)
+    base["verification_hint"]["repository"] = "https://github.com/example/other-server"
+    with pytest.raises(ValueError, match=r"verification_hint\.repository"):
+        BackportReport.from_dict(base)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda d: d["metadata"].update(date="not-a-date"),
+        lambda d: d["target_branches"][0].update(cost_usd=-1),
+    ],
+)
+def test_the_model_refuses_what_the_schema_refuses(mutate) -> None:
+    """Qodo #187: model users must not read or emit a report the schema rejects."""
+    base = document()
+    mutate(base)
+    assert errors(base)
+    with pytest.raises(ValueError, match="backport-report schema"):
+        BackportReport.from_dict(base)
+    report = BackportReport.from_dict(document())
+    report.target_branches[0].cost_usd = -1
+    with pytest.raises(ValueError, match="backport-report schema"):
+        report.to_dict()
 
 
 def test_the_artifact_declares_no_command_for_a_consumer_to_run() -> None:
@@ -289,7 +338,6 @@ def test_the_hint_speaks_the_verification_contracts_language() -> None:
     hint_commit = hint["branches"]["items"]["properties"]["backport_commit"]
     resolved = SCHEMA["$defs"][hint_commit["$ref"].rsplit("/", 1)[-1]]
     assert resolved["pattern"] == metadata["properties"]["patched_commit"]["pattern"]
-    assert resolved["not"] == metadata["properties"]["patched_commit"]["not"]
 
 
 class TestModelEnforcesSchemaConstraints:
@@ -434,6 +482,28 @@ class TestContentGate:
     def test_a_duplicated_branch_is_rejected_by_the_gate(self, tmp_path: Path) -> None:
         report = document()
         report["target_branches"].append(copy.deepcopy(report["target_branches"][0]))
+        path = tmp_path / "report.json"
+        path.write_text(json.dumps(report))
+        assert _validator_module().validate_artifact("backport-report", path) is False
+
+    @pytest.mark.parametrize(
+        "mutate",
+        [
+            lambda d: d["verification_hint"]["branches"][0].update(target_branch="release-1.32"),
+            lambda d: d["verification_hint"]["branches"][0].update(backport_commit="e" * 40),
+            lambda d: d["verification_hint"].update(
+                repository="https://github.com/example/other-server"
+            ),
+        ],
+        ids=["failed branch", "other commit", "other repository"],
+    )
+    def test_a_hint_pointing_away_from_the_backport_is_rejected_by_the_gate(
+        self, tmp_path: Path, mutate
+    ) -> None:
+        """Qodo #187: the gate checked counts and duplicates, not the hint."""
+        report = document()
+        mutate(report)
+        assert errors(report) == []  # the schema alone accepts it
         path = tmp_path / "report.json"
         path.write_text(json.dumps(report))
         assert _validator_module().validate_artifact("backport-report", path) is False

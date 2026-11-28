@@ -56,8 +56,9 @@
     "relative_path": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?!/)(?!.*\\\\)(?!.*\\.\\.)(?![A-Za-z]:)",
-      "description": "A workspace-relative path. Not absolute and never containing '..': consumers open these, and a path from an artifact must not escape the workspace it is resolved in."
+      "pattern": "^(?!/)(?![\\s\\S]*\\\\)(?![\\s\\S]*\\.\\.)(?![A-Za-z]:)",
+      "not": {"type": "string", "pattern": "[\\u0000-\\u001f\\u007f]"},
+      "description": "A workspace-relative path. Not absolute, never containing '..' or a control character: consumers open these, and a path from an artifact must not escape the workspace it is resolved in. The lookaheads span newlines, so 'a\\n/../x' is refused."
     },
     "repo_url": {
       "type": "string",
@@ -67,9 +68,9 @@
     },
     "full_commit_sha": {
       "type": "string",
-      "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+      "pattern": "^[0-9a-f]{40}$",
       "not": {"type": "string", "pattern": "\\s"},
-      "description": "A full commit object id: SHA-1 (40) or SHA-256 (64), lowercase hex. Abbreviated SHAs are not identities: verification.schema.json requires the same of the patched_commit this value is passed as. The whitespace guard stops Python validators, where $ matches before a final newline, accepting a trailing newline."
+      "description": "A full 40-hex commit SHA. Abbreviated SHAs are not identities: verification.schema.json requires the same of the patched_commit this value is passed as, so it widens to SHA-256 only together with verification and its consumers. The whitespace guard stops Python validators, where $ matches before a final newline, accepting a trailing newline."
     },
     "backport_status": {
       "type": "string",
@@ -147,7 +148,7 @@
         },
         "harness_version": {
           "type": "string",
-          "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9a-f]{7,64})?$",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9a-f]{7,40})?$",
           "not": {"type": "string", "pattern": "\\s"}
         },
         "repository": {
@@ -286,7 +287,7 @@
         },
         "backport_branch": {
           "$ref": "#/$defs/git_ref",
-          "description": "Branch where Amalgamator committed the backport (e.g. 'amalgamator/backport-crio-stats-nil-panic-release-1-33'). Can be passed to verify-remediation as the patched ref."
+          "description": "Branch where Amalgamator committed the backport (e.g. 'amalgamator/backport-widget-nil-deref-release-1-33'). Can be passed to verify-remediation as the patched ref."
         },
         "error": {
           "type": "string",
@@ -359,7 +360,7 @@
         },
         "repository": {
           "$ref": "#/$defs/repo_url",
-          "description": "Repository URL to clone for verification."
+          "description": "Repository URL to clone for verification: metadata.repository, or source_fix.fork_url when the backport branches live on the fork."
         },
         "branches": {
           "type": "array",

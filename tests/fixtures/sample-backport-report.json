@@ -44,11 +44,11 @@
       "duration_seconds": 318,
       "tokens_used": 184233,
       "has_patch": true,
-      "patch_path": "runs/2026-01-15/backport-crio-stats-nil-panic-release-1-33/candidate.patch",
+      "patch_path": "runs/2026-01-15/backport-widget-nil-deref-release-1-33/candidate.patch",
       "patch_sha256": "5f0c1d2e3a4b5c6d7e8f90112233445566778899aabbccddeeff001122334455",
       "patch_files_changed": 1,
       "backport_commit": "0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c",
-      "backport_branch": "amalgamator/backport-crio-stats-nil-panic-release-1-33"
+      "backport_branch": "amalgamator/backport-widget-nil-deref-release-1-33"
     },
     {
       "branch": "release-1.32",
@@ -60,7 +60,7 @@
           "name": "go build",
           "command": "go build ./...",
           "outcome": "fail",
-          "log_path": "runs/2026-01-15/backport-crio-stats-nil-panic-release-1-32/build.log",
+          "log_path": "runs/2026-01-15/backport-widget-nil-deref-release-1-32/build.log",
           "summary": "undefined: metrics.FromContext"
         }
       ],
@@ -93,7 +93,7 @@
       {
         "target_branch": "release-1.33",
         "backport_commit": "0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c",
-        "backport_branch": "amalgamator/backport-crio-stats-nil-panic-release-1-33"
+        "backport_branch": "amalgamator/backport-widget-nil-deref-release-1-33"
       }
     ]
   },

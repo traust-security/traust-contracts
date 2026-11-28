@@ -132,6 +132,44 @@ def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:
         if duplicated:
             valid = False
             print(f"{artifact_path}: target_branches repeats a branch: {duplicated}")
+        # The verification hint is a pre-filled input for verify-remediation: it
+        # must point at a backport this report says landed, in its own repository.
+        hint = artifact.get("verification_hint") or {}
+        rows = {entry.get("branch"): entry for entry in branches}
+        for target in hint.get("branches") or []:
+            name = target.get("target_branch")
+            row = rows.get(name)
+            if row is None or row.get("status") != "succeeded":
+                valid = False
+                print(f"{artifact_path}: verification_hint names a non-succeeded branch: {name}")
+                continue
+            if not (target.get("backport_commit") or target.get("backport_branch")):
+                valid = False
+                print(
+                    f"{artifact_path}: verification_hint must identify the backport it "
+                    f"verifies (backport_commit or backport_branch): {name}"
+                )
+            elif target.get("backport_commit") and target["backport_commit"] != row.get(
+                "backport_commit"
+            ):
+                valid = False
+                print(f"{artifact_path}: verification_hint commit disagrees with {name}'s row")
+            elif target.get("backport_branch") and target["backport_branch"] != row.get(
+                "backport_branch"
+            ):
+                valid = False
+                print(f"{artifact_path}: verification_hint branch disagrees with {name}'s row")
+        repository = hint.get("repository")
+        allowed = {
+            (artifact.get("metadata") or {}).get("repository"),
+            (artifact.get("source_fix") or {}).get("fork_url"),
+        } - {None}
+        if repository is not None and repository not in allowed:
+            valid = False
+            print(
+                f"{artifact_path}: verification_hint.repository is neither "
+                f"metadata.repository nor source_fix.fork_url: {repository}"
+            )
     if basename == "repo-liveness":
         for key, entry in artifact.get("repositories", {}).items():
             if entry.get("repository_id") != key:
