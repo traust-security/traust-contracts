@@ -180,6 +180,7 @@ def test_report_without_target_stays_valid() -> None:
         "pkg:npm/@acme/cache-lib@1.2.0",
         "pkg:pypi/langchain-core@1.8.4?classifier=wheel#libs/core",
         "pkg:golang/github.com/org/repo@v1.2.3+build.1#sub/pkg",
+        "pkg:my+type/name@1.0",  # purl-spec: a type may carry '+', '.' and '-'
     ],
 )
 def test_report_accepts_valid_versioned_purls(purl: str) -> None:
@@ -203,6 +204,11 @@ def test_report_accepts_valid_versioned_purls(purl: str) -> None:
         {"purl": "pkg:maven/g/a?repository_url=https://u@host"},
         {"purl": "pkg:maven/g/a#dir@1"},
         {"purl": "pkg:1x/a@1"},
+        {"purl": "pkg:maven/a b/c@1"},
+        {"purl": "pkg:maven/a/c@1 "},
+        {"purl": "pkg:maven/a/c@1\n"},
+        {"purl": "pkg:maven/a/c@1?k=a b"},
+        {"purl": "pkg:maven/a/c@1#sub dir"},
         {"repository": ""},
         {"commit": "f2e4863"},
         {"commit": "F2E4863DE60E6A20E827A0AA3C524FFB3AE96AD4"},
@@ -211,6 +217,9 @@ def test_report_accepts_valid_versioned_purls(purl: str) -> None:
         {"commit": "a" * 63},
         {"commit": "a" * 65},
         {"commit": "B" * 64},
+        {"commit": "a" * 40 + "\n"},
+        {"commit": "a" * 64 + "\n"},
+        {"commit": " " + "a" * 40},
         {"module_path": ""},
         {"release_ref": ""},
         {"release_ref": None},

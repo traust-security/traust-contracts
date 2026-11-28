@@ -20,7 +20,7 @@ class LocBreakdown(ContractModel):
 
 
 COMPONENT_PURL_PATTERN = (
-    r"^pkg:[a-z][a-z0-9.+-]*/(@[^?#@/]+/)?([^?#@/]+/)*[^?#@/]+@[^?#@]+(\?[^#]*)?(#.*)?$"
+    r"^pkg:[a-z][a-z0-9.+-]*/(@[^?#@/\s]+/)?([^?#@/\s]+/)*[^?#@/\s]+@[^?#@\s]+(\?[^#\s]*)?(#\S*)?$"
 )
 COMPONENT_COMMIT_PATTERN = r"^([0-9a-f]{40}|[0-9a-f]{64})$"
 
