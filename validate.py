@@ -45,7 +45,9 @@ def build_registry() -> Registry:
     return Registry(resources=resources)
 
 
-_USERINFO = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*://)[^/?#\s'\"@]*@")
+# Userinfo in any authority (`scheme://…@`, protocol-relative `//…@`) and a bare
+# `user:password@` (scp-style or unprefixed).
+_USERINFO = re.compile(r"(//)[^/?#\s'\"@]*@|(?<![\w.+-])[^\s'\"/@:]+:[^\s'\"/@]+@")
 
 
 def _scrub(text: str) -> str:
@@ -55,7 +57,7 @@ def _scrub(text: str) -> str:
     objects; a clone URL with credentials (`https://user:secret@host/…`) can
     sit anywhere in them and must not reach validation output.
     """
-    return _USERINFO.sub(r"\1<credentials>@", text)
+    return _USERINFO.sub(lambda m: (m.group(1) or "") + "<credentials>@", text)
 
 
 def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
