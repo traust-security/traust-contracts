@@ -10,6 +10,7 @@ Exits 0 if all artifacts valid, 1 if any fail.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -44,6 +45,38 @@ def build_registry() -> Registry:
     return Registry(resources=resources)
 
 
+# Userinfo in any authority (`scheme://…@`, protocol-relative `//…@`) and a bare
+# `user:password@` (scp-style or unprefixed).
+_USERINFO = re.compile(r"(//)[^/?#\s@]*@|(?<![\w.+-])[^\s'\"/@:]+:[^\s/@]+@")
+
+
+def _scrub(text: str) -> str:
+    """Text for validation output, with any URL's userinfo removed.
+
+    jsonschema's messages quote rejected values, property names and whole
+    objects; a clone URL with credentials (`https://user:secret@host/…`) can
+    sit anywhere in them and must not reach validation output.
+    """
+    return _USERINFO.sub(lambda m: (m.group(1) or "") + "<credentials>@", text)
+
+
+def _describe(error) -> str:
+    """The failure from the schema's side, never quoting the rejected value.
+
+    jsonschema's message starts with the instance's repr, and an artifact value
+    (a clone URL with a password, an unexpected property name) is untrusted. The
+    keyword and what the schema expected identify the failure without it.
+    """
+    expected = error.validator_value
+    if error.validator in {"additionalProperties", "unevaluatedProperties"}:
+        return f"fails {error.validator}: unexpected propert(ies) not allowed"
+    if error.validator in {"required", "dependentRequired"}:
+        return error.message  # names the schema's property, not an artifact value
+    if isinstance(expected, dict | list) and error.validator not in {"enum", "type"}:
+        return f"fails {error.validator}"
+    return f"fails {error.validator}: expected {expected!r}"
+
+
 def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
     """Validate artifact against a schema basename and optional JSON Pointer fragment."""
     basename, separator, fragment = schema_name.partition("#")
@@ -58,7 +91,7 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
             artifact_path.read_text(encoding="utf-8"), object_pairs_hook=_unique_object
         )
     except ValueError as e:
-        print(f"{artifact_path}: JSON parse error: {e}")
+        print(_scrub(f"{artifact_path}: JSON parse error: {e}"))
         return False
 
     registry = build_registry()
@@ -78,7 +111,7 @@ def validate_artifact(schema_name: str, artifact_path: Path) -> bool:
         path_str = (
             ".".join(str(p) for p in error.absolute_path) if error.absolute_path else "<root>"
         )
-        print(f"{artifact_path}: {path_str}: {error.message}")
+        print(_scrub(f"{artifact_path}: {path_str}: {_describe(error)}"))
 
     # Content gates are whole-document cross-field rules. A JSON Pointer
     # fragment selects a sub-schema (a bare `#` selects the whole document),
@@ -103,6 +136,74 @@ def _content_gates(basename: str, artifact: dict, artifact_path: Path) -> bool:
                     f"{artifact_path}: patterns[{i}]: vulnerable ({vulnerable}) "
                     f"exceeds tested ({tested})"
                 )
+    if basename == "backport-report":
+        # JSON Schema cannot express the arithmetic or per-property
+        # uniqueness, and a report whose summary disagrees with its own
+        # branches is what a producer bug or a tampered artifact looks like.
+        branches = artifact.get("target_branches") or []
+        summary = artifact.get("summary") or {}
+        counts = {"succeeded": 0, "failed": 0, "skipped": 0}
+        seen: dict[str, int] = {}
+        for entry in branches:
+            name = entry.get("branch")
+            seen[name] = seen.get(name, 0) + 1
+            if entry.get("status") in counts:
+                counts[entry["status"]] += 1
+        expected = {"total": len(branches), **counts}
+        # `skipped` is optional in the schema (a report with none omits it);
+        # treat an absent value as zero, like the model does.
+        declared = {key: summary.get(key, 0) for key in expected}
+        wrong = {
+            key: {"declared": declared[key], "branches": value}
+            for key, value in expected.items()
+            if declared[key] != value
+        }
+        if wrong:
+            valid = False
+            print(f"{artifact_path}: summary disagrees with target_branches: {wrong}")
+        duplicated = sorted(name for name, runs in seen.items() if runs > 1)
+        if duplicated:
+            valid = False
+            print(f"{artifact_path}: target_branches repeats a branch: {duplicated}")
+        # The verification hint is a pre-filled input for verify-remediation: it
+        # must point at a backport this report says landed, in its own repository.
+        hint = artifact.get("verification_hint") or {}
+        rows = {entry.get("branch"): entry for entry in branches}
+        for target in hint.get("branches") or []:
+            name = target.get("target_branch")
+            row = rows.get(name)
+            if row is None or row.get("status") != "succeeded":
+                valid = False
+                print(f"{artifact_path}: verification_hint names a non-succeeded branch: {name}")
+                continue
+            if not (target.get("backport_commit") or target.get("backport_branch")):
+                valid = False
+                print(
+                    f"{artifact_path}: verification_hint must identify the backport it "
+                    f"verifies (backport_commit or backport_branch): {name}"
+                )
+                continue
+            if target.get("backport_commit") and target["backport_commit"] != row.get(
+                "backport_commit"
+            ):
+                valid = False
+                print(f"{artifact_path}: verification_hint commit disagrees with {name}'s row")
+            if target.get("backport_branch") and target["backport_branch"] != row.get(
+                "backport_branch"
+            ):
+                valid = False
+                print(f"{artifact_path}: verification_hint branch disagrees with {name}'s row")
+        repository = hint.get("repository")
+        allowed = {
+            (artifact.get("metadata") or {}).get("repository"),
+            (artifact.get("source_fix") or {}).get("fork_url"),
+        } - {None}
+        if repository is not None and repository not in allowed:
+            valid = False
+            print(
+                f"{artifact_path}: verification_hint.repository is neither "
+                "metadata.repository nor source_fix.fork_url"
+            )
     if basename == "repo-liveness":
         for key, entry in artifact.get("repositories", {}).items():
             if entry.get("repository_id") != key:

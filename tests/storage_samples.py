@@ -822,6 +822,67 @@ AUTHORED_SAMPLES: dict[str, dict[str, Any]] = {
             }
         ],
     },
+    # Two branches: one that landed and one the pipeline stopped on, so the
+    # success-evidence rule and the stop_reason rule are both exercised by
+    # the sample every storage test ingests.
+    "backport-report": {
+        "title": "Backport report: CWE-476 fix",
+        "metadata": {
+            "date": "2026-01-01",
+            "harness_version": "0.1.0-abc1234",
+            "repository": "https://example.test/repo",
+            "logical_product": "example-product",
+            "operator": "amalgamator",
+        },
+        "source_fix": {
+            "commit": "abc1234",
+            "branch": "main",
+            "fork_url": "https://example.test/fork",
+            "remediation_path": "findings/example/repo/remediation.json",
+            "finding_refs": ["FIND-001"],
+            "cwes": ["CWE-476"],
+        },
+        "target_branches": [
+            {
+                "branch": "release-1.0",
+                "status": "succeeded",
+                "phase_reached": "Phase 4b",
+                "checks": [{"name": "go build", "command": "go build ./...", "outcome": "pass"}],
+                "has_patch": True,
+                "patch_path": "runs/1/candidate.patch",
+                "patch_sha256": "a" * 64,
+                "patch_files_changed": 1,
+                "backport_commit": "b" * 40,
+                "backport_branch": "amalgamator/backport-example-release-1-0",
+                "cost_usd": 1.25,
+                "duration_seconds": 120,
+            },
+            {
+                "branch": "release-2.0",
+                "status": "failed",
+                "stop_reason": "pipeline_stop",
+                "error": "conflicting hunk in pkg/server/handler.go",
+            },
+        ],
+        "summary": {
+            "total": 2,
+            "succeeded": 1,
+            "failed": 1,
+            "total_cost_usd": 1.25,
+            "total_duration_seconds": 120,
+        },
+        "verification_hint": {
+            "original_audit_report": "findings/example/repo/security-audit.json",
+            "repository": "https://example.test/repo",
+            "branches": [
+                {
+                    "target_branch": "release-1.0",
+                    "backport_commit": "b" * 40,
+                    "backport_branch": "amalgamator/backport-example-release-1-0",
+                }
+            ],
+        },
+    },
     "doc-variance": {
         "metadata": {
             "repository": "https://example.test/value",

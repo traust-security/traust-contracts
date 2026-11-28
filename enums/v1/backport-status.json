@@ -1,0 +1,18 @@
+{
+  "name": "backport_status",
+  "source_schema": "backport-report.schema.json#/$defs/backport_status",
+  "description": "Values of `backport_status` in backport-report.schema.json. Outcomes only: why a branch did not succeed is a separate vocabulary (`backport_stop_reason`), so a consumer gates on one word per branch.",
+  "values": [
+    "succeeded",
+    "failed",
+    "skipped"
+  ],
+  "definitions": {
+    "succeeded": "The fix was committed on this release branch and the report carries the commit or branch it landed on.",
+    "failed": "The run did not produce a backport on this branch; `stop_reason` says why.",
+    "skipped": "The branch was deliberately not attempted (for example the fix was already present, or the branch is out of scope). No backport was produced."
+  },
+  "used_in_schemas": [
+    "backport-report.schema.json"
+  ]
+}
