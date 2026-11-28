@@ -675,7 +675,22 @@
               },
               "ecosystem": {
                 "type": "string",
-                "minLength": 1
+                "enum": [
+                  "go",
+                  "npm",
+                  "pypi",
+                  "maven",
+                  "cargo",
+                  "ruby",
+                  "nuget",
+                  "actions",
+                  "docker",
+                  "helm",
+                  "rpm",
+                  "deb",
+                  "apk"
+                ],
+                "description": "The ecosystem the plug-in answers for (enums/v1/ecosystem.json): the same closed vocabulary traust-core's typed config parses, so a value core would refuse fails here first."
               },
               "level": {
                 "type": "string",

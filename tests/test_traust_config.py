@@ -307,3 +307,34 @@ def test_retired_files_in_the_home_are_not_read(tmp_path: Path) -> None:
         load_section("storage", config_home=home)
     with pytest.raises(DeploymentConfigMissing):
         load_section("traust", config_home=tmp_path / "nowhere", required=True)
+
+
+def _plugin(ecosystem: str) -> dict:
+    return {
+        "impact": {
+            "plugins": [
+                {
+                    "name": "reach",
+                    "ecosystem": ecosystem,
+                    "level": "manifest",
+                    "tier": "manifest_scan",
+                    "run": ["reach-check"],
+                }
+            ]
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    "ecosystem",
+    json.loads((Path(__file__).parents[1] / "enums/v1/ecosystem.json").read_text())["values"],
+)
+def test_a_plugin_answers_for_a_registered_ecosystem(ecosystem: str) -> None:
+    _validate(_plugin(ecosystem))
+
+
+@pytest.mark.parametrize("ecosystem", ["golang", "PyPI", "conda", ""])
+def test_a_plugin_for_an_unregistered_ecosystem_is_refused(ecosystem: str) -> None:
+    # core parses the plug-in's ecosystem as its closed Ecosystem enum; the schema refuses first
+    with pytest.raises(jsonschema.ValidationError):
+        _validate(_plugin(ecosystem))
