@@ -11,11 +11,13 @@ import sqlite3
 import time
 import uuid
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
 from conftest import bootstrap_namespaces_sqlite
 
+from traust_contracts.v1 import migrations
 from traust_contracts.v1.ledger import sql as ledger_sql
 from traust_contracts.v1.ops import sql as ops_sql
 from traust_contracts.v1.sql import bootstrap_statements
@@ -297,46 +299,7 @@ def test_a_bound_manifest_assessment_cannot_be_deleted_through_its_ref(db: Db) -
     assert db.run(f"SELECT id FROM {table} WHERE id = ?", (rref,))
 
 
-def test_manifest_scan_upgrade_preserves_existing_rows_without_inventing_coverage(db: Db) -> None:
-    rref = ref(db, repo(db))
-    scan = assessment(db, rref)
-    sid = db.insert("sbom", digest="9" * 64)
-    table = db.t("repository_ref")
-    db.run(f"UPDATE {table} SET manifest_sbom_id = ? WHERE id = ?", (sid, rref))
-    # Reproduce the prior table shape without recreating any populated table.
-    db.run(f"DROP INDEX {db.t('idx_repository_ref_manifest_sbom_assessment')}")
-    db.run(f"ALTER TABLE {table} DROP COLUMN manifest_sbom_assessment_id")
-    query = f"SELECT * FROM {table} WHERE id = ?"
-    before = db.run(query, (rref,))[0]
-    assessment_before = db.run(f"SELECT * FROM {db.t('assessment')} WHERE id = ?", (scan,))
-    sbom_before = db.run(f"SELECT * FROM {db.t('sbom')} WHERE id = ?", (sid,))
-    for statement in storage_sql.manifest_sbom_binding_upgrade(db.engine):
-        db.run(statement)
-    row = db.run(query, (rref,))[0]
-    assert row[:-1] == before and row[-1] is None
-    assert db.run(f"SELECT * FROM {db.t('assessment')} WHERE id = ?", (scan,)) == assessment_before
-    assert db.run(f"SELECT * FROM {db.t('sbom')} WHERE id = ?", (sid,)) == sbom_before
-    with pytest.raises(db.Error):
-        db.run(
-            f"UPDATE {table} SET manifest_sbom_assessment_id = ? WHERE id = ?",
-            (str(uuid.uuid4()), rref),
-        )
-    db.run(f"UPDATE {table} SET manifest_sbom_assessment_id = ? WHERE id = ?", (scan, rref))
-    assert (
-        str(db.run(f"SELECT manifest_sbom_assessment_id FROM {table} WHERE id = ?", (rref,))[0][0])
-        == scan
-    )
-    # Normal bootstrap remains safe once the explicit upgrade has run.
-    for path in storage_sql.bootstrap_files(db.engine):
-        for statement in bootstrap_statements(db.engine, path):
-            db.run(statement)
-    assert (
-        str(db.run(f"SELECT manifest_sbom_assessment_id FROM {table} WHERE id = ?", (rref,))[0][0])
-        == scan
-    )
-
-
-def test_default_named_at_upgrade_preserves_rows_without_inventing_times(db: Db) -> None:
+def test_default_named_at_stays_unknown_until_the_line_is_named_again(db: Db) -> None:
     rid = repo(db)
     named = ref(db, rid)
     other = db.insert("repository_ref", repository_id=rid, name="main", kind="branch", sha="e" * 40)
@@ -344,29 +307,14 @@ def test_default_named_at_upgrade_preserves_rows_without_inventing_times(db: Db)
     flagged = True if db.engine == "postgres" else 1
     db.run(f"UPDATE {table} SET is_default = ? WHERE id = ?", (flagged, named))
     assert db.run(f"SELECT is_default FROM {table} WHERE id = ?", (named,))[0][0] in (1, True)
-    # Reproduce the prior table shape without recreating any populated table.
-    db.run(f"DROP INDEX {db.t('idx_repository_ref_default')}")
-    db.run(f"ALTER TABLE {table} DROP COLUMN default_named_at")
-    for statement in storage_sql.default_named_at_upgrade(db.engine):
-        db.run(statement)
-    # The flagged row keeps an unknown naming time; the column is additive.
-    listed = (
-        f"PRAGMA table_info({table})"
-        if db.engine == "sqlite"
-        else (
-            "SELECT column_name FROM information_schema.columns WHERE table_name = 'repository_ref'"
-        )
-    )
-    at = 1 if db.engine == "sqlite" else 0
-    assert "default_named_at" in {d[at] for d in db.run(listed)}
+    # A default flag carries no naming time until the line is named again.
     assert db.run(f"SELECT is_default FROM {table} WHERE id = ?", (named,))[0][0] in (1, True)
     assert db.run(f"SELECT default_named_at FROM {table} WHERE id = ?", (named,))[0][0] is None
     assert db.run(f"SELECT default_named_at FROM {table} WHERE id = ?", (other,))[0][0] is None
-    # Stamping a naming time is a plain update once the column exists.
+    # Stamping a naming time is a plain update, and bootstrap stays safe.
     db.run(f"UPDATE {table} SET default_named_at = ? WHERE id = ?", (NOW, named))
     named_at = db.run(f"SELECT default_named_at FROM {table} WHERE id = ?", (named,))[0][0]
     assert str(named_at).replace(" ", "T").startswith("2026-10-20T12:00:00")
-    # Normal bootstrap remains safe once the explicit upgrade has run.
     for path in storage_sql.bootstrap_files(db.engine):
         for statement in bootstrap_statements(db.engine, path):
             db.run(statement)
@@ -429,71 +377,6 @@ def test_an_artifact_names_the_order_whose_run_recorded_it(db: Db) -> None:
         db.run(f"UPDATE {table} SET run_order_id = NULL WHERE run_order_id = ?", (fixing,))
 
 
-def _before_artifact_run_order(db: Db) -> Db:
-    """The engine as it was before artifact.run_order_id: no column, index or guard. Postgres
-    drops them; SQLite can't drop a column a foreign key uses, so it is rebuilt without."""
-    if db.engine == "postgres":
-        for statement in (
-            "DROP TRIGGER artifact_order_owns_its_assessment ON traust.artifact",
-            "DROP FUNCTION traust_ops.artifact_order_owns_its_assessment()",
-            "DROP TRIGGER credited_order_keeps_its_work_item ON traust_ops.run_order",
-            "DROP FUNCTION traust_ops.credited_order_keeps_its_work_item()",
-            "DROP INDEX traust.idx_artifact_run_order",
-            "ALTER TABLE traust.artifact DROP COLUMN run_order_id",
-        ):
-            db.run(statement)
-        return db
-    conn = sqlite3.connect(":memory:")
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.create_function("uuid", 0, lambda: str(uuid.uuid4()))
-    conn.isolation_level = None
-    old = Db("sqlite", conn, sqlite3.Error)
-    column = "    run_order_id TEXT REFERENCES ops_run_order(id) ON DELETE RESTRICT,\n"
-    for module in MODULES:
-        for path in module.bootstrap_files("sqlite"):
-            for statement in bootstrap_statements("sqlite", path):
-                if any(
-                    name in statement
-                    for name in ("idx_artifact_run_order", "artifact_order_owns", "credited_order")
-                ):
-                    continue
-                if "TABLE IF NOT EXISTS artifact (" in statement:
-                    assert column in statement
-                    statement = statement.replace(column, "")
-                old.run(statement)
-    return old
-
-
-def test_artifact_run_order_upgrade_adds_the_link_without_inventing_one(db: Db) -> None:
-    old = _before_artifact_run_order(db)
-    rid = repo(old)
-    work, other = assessment(old, ref(old, rid)), assessment(old, ref(old, rid, "dev"))
-    doc = {"kind": "report", "uri": "file:///artifacts/a.json"}
-    old.insert("artifact", assessment_id=work, digest="a" * 64, **doc)
-    order = {"state": "queued", "priority": 1, "requested_by": "h", "repository_id": rid}
-    fixing = old.insert("ops.run_order", asset="remediate_finding", work_item_id=work, **order)
-    with pytest.raises(old.Error):  # no column yet
-        old.insert("artifact", assessment_id=work, run_order_id=fixing, digest="b" * 64, **doc)
-    for statement in storage_sql.artifact_run_order_upgrade(old.engine):
-        old.run(statement)
-    table = old.t("artifact")
-    rows = old.run(f"SELECT digest, run_order_id FROM {table} WHERE assessment_id = ?", (work,))
-    assert [(d, o) for d, o in rows] == [("a" * 64, None)]  # nothing inferred
-    old.insert("artifact", assessment_id=work, run_order_id=fixing, digest="b" * 64, **doc)
-    old.rejects("artifact", assessment_id=other, run_order_id=fixing, digest="c" * 64, **doc)
-    for path in storage_sql.bootstrap_files(old.engine):  # bootstrap stays safe afterwards
-        for statement in bootstrap_statements(old.engine, path):
-            old.run(statement)
-    assert len(old.run(f"SELECT id FROM {table} WHERE run_order_id = ?", (fixing,))) == 1
-
-
-def _columns(db: Db, table: str) -> set[str]:
-    if db.engine == "sqlite":
-        return {c[1] for c in db.run(f"PRAGMA table_info({db.t(table)})")}
-    query = "SELECT column_name FROM information_schema.columns WHERE table_name = ?"
-    return {c[0] for c in db.run(query, (table,))}
-
-
 def _indexes(db: Db, table: str) -> list[dict]:
     if db.engine == "sqlite":
         return [
@@ -512,37 +395,7 @@ def _indexes(db: Db, table: str) -> list[dict]:
     ]
 
 
-def test_an_interrupted_sqlite_artifact_upgrade_rolls_back_whole() -> None:
-    statements = storage_sql.artifact_run_order_upgrade("sqlite")
-    assert statements[0].rstrip(";\n").endswith("BEGIN") and "COMMIT" in statements[-1]
-    old = _before_artifact_run_order(_sqlite())
-    work = assessment(old, ref(old, repo(old)))
-    doc = {"kind": "report", "uri": "file:///artifacts/a.json"}
-    upto = next(i for i, st in enumerate(statements) if "CREATE TRIGGER" in st)
-    for statement in statements[: upto + 1]:  # stopped after the first guard
-        old.run(statement)
-    old.run("ROLLBACK")
-    assert "run_order_id" not in _columns(old, "artifact")
-    old.insert("artifact", assessment_id=work, digest="a" * 64, **doc)  # writes still work
-    for statement in statements:  # and a retry completes
-        old.run(statement)
-    assert "run_order_id" in _columns(old, "artifact")
-    old.insert("artifact", assessment_id=work, digest="b" * 64, **doc)
-
-
-def test_the_artifact_upgrade_needs_contracts_117_and_changes_nothing_without_it(db: Db) -> None:
-    old = _before_artifact_run_order(db)
-    for statement in ROLLBACK[old.engine]:  # back to before contracts#117
-        old.run(statement)
-    with pytest.raises(old.Error):  # its prerequisite check fails first
-        for statement in storage_sql.artifact_run_order_upgrade(old.engine):
-            old.run(statement)
-    if old.engine == "sqlite":
-        old.run("ROLLBACK")
-    assert "run_order_id" not in _columns(old, "artifact")
-
-
-def test_run_order_fork_scheduled_upgrade_stamps_nothing_it_did_not_see(db: Db) -> None:
+def test_a_fork_scheduling_stamp_is_only_what_the_door_saw(db: Db) -> None:
     rid = repo(db)
     work = assessment(db, ref(db, rid))
     table = db.t("ops.run_order")
@@ -552,20 +405,27 @@ def test_run_order_fork_scheduled_upgrade_stamps_nothing_it_did_not_see(db: Db) 
         "fork_url": "https://github.com/mirror-org/r",
         "fork_branch": "fix/a",
     }
-    stamped = db.insert(
-        "ops.run_order", asset="remediate_finding", fork_scheduled_at=NOW, **fork, **order
-    )
-    assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (stamped,))[0][0]
-    db.run(f"ALTER TABLE {table} DROP COLUMN fork_scheduled_at")  # the shape before
-    legacy = db.insert("ops.run_order", asset="remediate_finding", **fork, **order)
-    for statement in ops_sql.run_order_fork_scheduled_upgrade(db.engine):
-        db.run(statement)
-    assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (legacy,))[0][0] is None
-    db.run(f"UPDATE {table} SET fork_scheduled_at = ? WHERE id = ?", (NOW, legacy))
-    for path in ops_sql.bootstrap_files(db.engine):  # bootstrap stays safe afterwards
+    unstamped = db.insert("ops.run_order", asset="remediate_finding", **fork, **order)
+    assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (unstamped,))[0][0] is None
+    # Stamping is a plain update, and bootstrap stays safe.
+    db.run(f"UPDATE {table} SET fork_scheduled_at = ? WHERE id = ?", (NOW, unstamped))
+    for path in ops_sql.bootstrap_files(db.engine):
         for statement in bootstrap_statements(db.engine, path):
             db.run(statement)
-    assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (legacy,))[0][0]
+    assert db.run(f"SELECT fork_scheduled_at FROM {table} WHERE id = ?", (unstamped,))[0][0]
+
+
+def test_order_history_bootstrap_is_additive_and_repeatable(db: Db) -> None:
+    order = {"asset": "repo_state", "state": "queued", "priority": 1, "requested_by": "h"}
+    db.insert("ops.run_order", **order)
+    db.insert("ops.run_order", started_at=NOW, **order)
+    table = db.t("ops.run_order")
+    before = db.run(f"SELECT * FROM {table} ORDER BY id")
+    for _ in range(2):
+        for path in ops_sql.bootstrap_files(db.engine):
+            for statement in bootstrap_statements(db.engine, path):
+                db.run(statement)
+    assert db.run(f"SELECT * FROM {table} ORDER BY id") == before
 
 
 def test_finding_identity_and_advisory_pairing(db: Db) -> None:
@@ -664,6 +524,62 @@ def test_occurrence_and_location_rules(db: Db) -> None:
     db.rejects("location", occurrence_id=oid, path="a.go")  # whole file twice
     db.rejects("location", occurrence_id=oid, path="b.go", line_start=5, line_end=3)
     db.rejects("location", occurrence_id=oid, path="b.go", line_start=5)
+
+
+def test_lease_generation_upgrade_preserves_orders_without_issuing_claims(
+    db: Db, tmp_path: Path
+) -> None:
+    # Open the previous release's database, including its real 0001-0003 hash stamps.
+    upgrades = tmp_path / db.engine / "upgrades"
+    upgrades.mkdir(parents=True)
+    for previous in migrations.upgrade_files(db.engine)[:-1]:
+        (upgrades / previous.name).write_bytes(previous.read_bytes())
+    migrations.run_upgrades(db.conn, db.engine, root=tmp_path)
+
+    order = {"asset": "diff_scan", "priority": 1, "requested_by": "skill:router"}
+    db.insert("ops.run_order", state="queued", **order)
+    db.insert(
+        "ops.run_order",
+        state="leased",
+        lease_holder="w1",
+        lease_expires_at=LATER,
+        started_at=NOW,
+        **order,
+    )
+    db.insert("ops.run_order", state="succeeded", started_at=NOW, finished_at=LATER, **order)
+    table = db.t("ops.run_order")
+    before = db.run(f"SELECT * FROM {table} ORDER BY id")
+
+    applied = migrations.run_upgrades(db.conn, db.engine)
+    assert [u.name for u in applied] == ["0004_run_order_lease_generation"]
+    # Includes the in-flight lease: no token was handed to its worker. Preserve
+    # its holder, expiry and timestamps; zero cannot authorize a fenced write.
+    assert db.run(f"SELECT * FROM {table} ORDER BY id") == [(*row, 0, None) for row in before]
+    assert migrations.run_upgrades(db.conn, db.engine) == []
+
+    new = db.insert("ops.run_order", state="queued", **order)
+    lease = f"SELECT lease_generation, completed_by FROM {table} WHERE id = ?"
+    assert db.run(lease, (new,)) == [(0, None)]
+    completed = db.insert(
+        "ops.run_order",
+        state="succeeded",
+        lease_generation=1,
+        completed_by="w2",
+        **order,
+    )
+    assert db.run(lease, (completed,)) == [(1, "w2")]
+    invalid_values: list[Any] = [None, -1, "not-an-integer", "1.5"]
+    if db.engine == "sqlite":
+        invalid_values.append("1")
+    for invalid in invalid_values:
+        db.rejects("ops.run_order", state="queued", lease_generation=invalid, **order)
+    if db.engine == "postgres":
+        with pytest.raises(db.Error):
+            db.run(
+                f'INSERT INTO {table} ("state", "lease_generation", "asset", "priority", '
+                '"requested_by") VALUES (?, CAST(? AS TEXT), ?, ?, ?)',
+                ("queued", "1", "diff_scan", 1, "skill:router"),
+            )
 
 
 def test_run_order_routing_and_lease_rules(db: Db) -> None:

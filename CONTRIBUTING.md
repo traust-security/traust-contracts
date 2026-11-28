@@ -9,6 +9,14 @@ make setup
 
 Installs deps (`uv sync`) and enables git hooks. One time per clone.
 
+## Where things live
+
+Each directory has one job, and every file must be load-bearing — the delete
+test: something fails when the file is removed. API request/response shapes
+belong in traust-core (pydantic → OpenAPI → the SDK), never here; a vocabulary
+nothing loads is decoration. The placement rules and the six questions gating
+data-model changes are in [AGENTS.md](AGENTS.md).
+
 ## Commit messages
 
 Conventional commits required. Format: `type(scope): subject`
@@ -39,9 +47,11 @@ traust-core's tests. `make schema-diff` lists schema changes (removed
 properties or enum values, newly required fields) that traust-core may need
 to absorb in the same push.
 
-SQL changes require compatibility review, not byte-level equality. Database-shape
-changes need a storage revision bump and explicit migration instructions; `init()`
-rejects mismatches and never upgrades an existing database automatically.
+SQL changes require compatibility review, not byte-level equality. A change to an
+existing database's shape lands in the upgrade channel (`db/v1/migrations`,
+runner `traust_contracts.v1.migrations`) as an additive, hash-stamped script —
+not as a bootstrap edit, a legacy `upgrades/` folder, or a hand-applied ALTER.
+Databases bootstrapped before the channel are version 0: recreate, don't migrate.
 
 ## CI pipeline
 

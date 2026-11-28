@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/exposure.schema.json",
+  "title": "Dependency exposure view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's exposure view: fleet-wide dependency exposure as of as_of, from the analysis standing for each commit and advisory: its latest-prepared complete run (every package and version it declared), else its latest-prepared partial run, so recorded verdicts still show, else, for documents recorded before preparation scopes, the latest of each package and version. Counted by advisory, by product and by verdict. Fleet-wide only: Core refuses a product or team scope. Not a persisted artifact or SQL projection. Every serialized field is present. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "as_of",
+    "by_advisory",
+    "by_product",
+    "by_classification"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The point in time the analyses are read at: the filter's, else when the view was built."
+    },
+    "by_advisory": {
+      "description": "One row per advisory id (never null).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rollup"
+      }
+    },
+    "by_product": {
+      "description": "One row per product slug shipping an analysed commit (a commit counts in each product that ships it); key null for commits no product ships.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rollup"
+      }
+    },
+    "by_classification": {
+      "description": "One row per verdict, each commit and advisory pair counted once at its worst verdict; the key is that impact-classification value (never null).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rollup"
+      }
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rollup": {
+      "description": "The commits analysed in one group, each commit and advisory pair counted once at its worst verdict: most commits first, a null key last, then by key.",
+      "type": "object",
+      "required": [
+        "commits",
+        "exposed",
+        "affected",
+        "by_classification",
+        "key"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The group's advisory id, product slug or verdict, raw; null for commits without that dimension."
+        },
+        "commits": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Commit and advisory pairs counted."
+        },
+        "exposed": {
+          "$ref": "#/$defs/count",
+          "description": "Of those, verdicts in range with a positive or undecided call: affected, likely_affected or inconclusive."
+        },
+        "affected": {
+          "$ref": "#/$defs/count",
+          "description": "Of those, affected verdicts."
+        },
+        "by_classification": {
+          "description": "The counted verdicts by impact-classification value; only verdicts seen appear, so a row (at least one commit) has at least one.",
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "affected",
+              "likely_affected",
+              "not_observed",
+              "version_not_in_range",
+              "not_imported",
+              "inconclusive"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minProperties": 1
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "Advisory rows are keyed by an advisory id.",
+      "if": {
+        "required": [
+          "by_advisory"
+        ]
+      },
+      "then": {
+        "properties": {
+          "by_advisory": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Verdict rows are keyed by an impact-classification value.",
+      "if": {
+        "required": [
+          "by_classification"
+        ]
+      },
+      "then": {
+        "properties": {
+          "by_classification": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "enum": [
+                    "affected",
+                    "likely_affected",
+                    "not_observed",
+                    "version_not_in_range",
+                    "not_imported",
+                    "inconclusive"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

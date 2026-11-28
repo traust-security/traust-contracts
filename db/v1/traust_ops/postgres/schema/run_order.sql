@@ -89,6 +89,16 @@ CREATE INDEX IF NOT EXISTS idx_ops_run_order_asset_state
 CREATE INDEX IF NOT EXISTS idx_ops_run_order_updated
     ON traust_ops.run_order (updated_at, id);
 
+-- Global order-history pages, including the nulls-last started-time segment.
+CREATE INDEX IF NOT EXISTS idx_ops_run_order_created
+    ON traust_ops.run_order (created_at, id);
+CREATE INDEX IF NOT EXISTS idx_ops_run_order_started
+    ON traust_ops.run_order (started_at, id)
+    WHERE started_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_ops_run_order_unstarted
+    ON traust_ops.run_order (id)
+    WHERE started_at IS NULL;
+
 -- Cross-namespace links, closing the cycle: assessment.run_order_id and
 -- artifact.run_order_id -> traust_ops.run_order. SQLite carries this FK inline (parent existence is
 -- not checked at CREATE); Postgres cannot, because run_order references

@@ -25,6 +25,7 @@
     "manifest-coverage.schema.json",
     "pqc-vendor-claims.schema.json",
     "report.schema.json",
-    "validation.schema.json"
+    "validation.schema.json",
+    "vuln-findings.schema.json"
   ]
 }

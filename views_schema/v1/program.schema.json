@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/program.schema.json",
+  "title": "Program metrics view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's program view: what the program spent and ran over an explicit window, derived from spend events and run orders, never a stored snapshot. Spend splits into what run orders claim and what no order claims, and rolls up by month, model, lane and skill (rollups are the shared spend-records definitions); throughput counts each registered asset's finished run orders per bucket, by outcome. Core needs the window and does not order its bounds. Not a persisted artifact or SQL projection. Every serialized field is required; lists are never null. Keys, models, lanes, skills and asset names are raw recorded text.",
+  "type": "object",
+  "required": [
+    "window",
+    "bucket",
+    "spend",
+    "by_month",
+    "by_model",
+    "by_lane",
+    "by_skill",
+    "throughput"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "window": {
+      "type": "object",
+      "required": [
+        "start",
+        "end"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Exclusive."
+        }
+      },
+      "description": "The explicit timezone-aware window, start inclusive, end exclusive."
+    },
+    "bucket": {
+      "enum": [
+        "day",
+        "week",
+        "month"
+      ],
+      "description": "The throughput bucket: a UTC day, ISO week (from Monday) or calendar month."
+    },
+    "spend": {
+      "type": "object",
+      "required": [
+        "window",
+        "attributed_usd",
+        "unattributed_usd"
+      ],
+      "additionalProperties": false,
+      "description": "The window's spend split by whether a run order claims it; the two sum to the total.",
+      "properties": {
+        "window": {
+          "type": "object",
+          "required": [
+            "start",
+            "end"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "start": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "end": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Exclusive."
+            }
+          }
+        },
+        "attributed_usd": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/usd"
+        },
+        "unattributed_usd": {
+          "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/usd",
+          "description": "Spend no run order claims (workstation sessions)."
+        }
+      }
+    },
+    "by_month": {
+      "type": "array",
+      "items": {
+        "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/rollup"
+      },
+      "description": "Per UTC calendar month (key YYYY-MM), oldest first."
+    },
+    "by_model": {
+      "type": "array",
+      "items": {
+        "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/rollup"
+      },
+      "description": "Per model, by key."
+    },
+    "by_lane": {
+      "type": "array",
+      "items": {
+        "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/rollup"
+      },
+      "description": "Per work lane, by key; spend without a lane last (null key)."
+    },
+    "by_skill": {
+      "type": "array",
+      "items": {
+        "$ref": "https://example.com/traust-contracts/views_schema/v1/spend-records.schema.json#/$defs/rollup"
+      },
+      "description": "Per skill, by key; spend without a skill last (null key)."
+    },
+    "throughput": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/point"
+        }
+      },
+      "description": "Per registered asset (by name, sorted; never empty), its finished run orders in every bucket of the window, oldest first, zero-filled: an idle asset has a point per bucket with every count 0. A series is empty only when the window is (Core does not order its bounds).",
+      "propertyNames": {
+        "minLength": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "Every spend event has a time, so every month row has a YYYY-MM key.",
+      "if": {
+        "required": [
+          "by_month"
+        ]
+      },
+      "then": {
+        "properties": {
+          "by_month": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+                  "not": {
+                    "pattern": "\\s"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "Every spend event names its model (non-empty), so every model row has a key.",
+      "if": {
+        "required": [
+          "by_model"
+        ]
+      },
+      "then": {
+        "properties": {
+          "by_model": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "A recorded lane is never empty; null is spend without one.",
+      "if": {
+        "required": [
+          "by_lane"
+        ]
+      },
+      "then": {
+        "properties": {
+          "by_lane": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "point": {
+      "description": "Run orders finished within one bucket, by outcome: every finished outcome, zero-filled.",
+      "type": "object",
+      "required": [
+        "bucket",
+        "finished"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "bucket": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The bucket's start."
+        },
+        "finished": {
+          "type": "object",
+          "required": [
+            "succeeded",
+            "degraded",
+            "refused",
+            "withheld",
+            "failed"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "succeeded": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "degraded": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "refused": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "withheld": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

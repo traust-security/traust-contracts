@@ -8,6 +8,8 @@ from pydantic import Field
 
 from traust_contracts.v1.enums import Severity
 from traust_contracts.v1.models._base import ContractModel
+from traust_contracts.v1.models.finding import CVSS, DependencyProvenance
+from traust_contracts.v1.models.report import NotAffectedEntry
 
 
 class ScanMetadata(ContractModel):
@@ -36,6 +38,8 @@ class ScanFinding(ContractModel):
     cwe: str | None = None
     exploit_scenario: str | None = None
     confidence_reason: str | None = None
+    cvss: CVSS | None = None
+    dependency: DependencyProvenance | None = None
 
 
 class KnownFinding(ContractModel):
@@ -63,4 +67,5 @@ class ScanResult(ContractModel):
     metadata: ScanMetadata
     findings: list[ScanFinding] = Field(default_factory=list)
     known_findings: list[KnownFinding] = Field(default_factory=list)
+    not_affected: list[NotAffectedEntry] | None = None
     summary: ScanSummary | None = None

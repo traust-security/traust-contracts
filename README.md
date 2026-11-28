@@ -7,6 +7,10 @@ relational contract for the one-owner data model).
 
 ## Before adding anything to the data model
 
+Placement first — where each kind of thing lives, and the delete test — is
+[AGENTS.md](AGENTS.md); the questions below gate the change itself.
+
+
 Six questions gate every change to this repo's schemas, enums and DDL. If a
 change can't answer all six, it isn't ready — reviewers will ask, so answer
 them in the PR description:
@@ -118,12 +122,15 @@ full authored-finding requirements unchanged.
 
 ## Database bootstrap boundary
 
-`bootstrap_files()` / `bootstrap_statements()` define the static starting DDL.
-New schema changes are additive bootstrap statements only: they do not upgrade
-an already-bootstrapped database. No versioned migration runner or applied-state
-ledger exists yet. Existing `*_upgrade` helpers are deprecated legacy territory;
-do not extend that pattern. Reaching existing databases requires the separately
-designed upgrade feature, not conditional scripts or historical backfills.
+`bootstrap_files()` / `bootstrap_statements()` define the static starting DDL
+(the baseline). Reaching a database bootstrapped before a shape change is the
+upgrade channel's job: `db/v1/migrations/<dialect>/upgrades/NNNN_slug.sql`,
+applied whole and hash-stamped by the runner `traust_contracts.v1.migrations`
+on open. A shape change lands there — never as a bootstrap edit existing
+databases never see, and never as a hand-applied ALTER. The per-namespace
+`upgrades/` folders and `*_upgrade()` helpers are deleted; do not recreate
+them. The channel's contract — naming, ordering, additivity, immutability —
+is [db/v1/traust/README.md](db/v1/traust/README.md), Upgrades.
 
 ## Stored census observations
 
@@ -151,12 +158,6 @@ are rejected before decoding can discard an identical or conflicting declaration
 An empty object is a complete read only for the matching scan. Missing coverage is
 unknown, not complete; mismatched bindings are rejected.
 
-Existing databases need the explicit additive
-`storage.sql.manifest_sbom_binding_upgrade(dialect)` before using this contract.
-Inspect the reference table first and apply it only when the new column is absent.
-The authored SQL preserves existing rows and leaves their scan pointers null;
-no timestamps, historical assessments or deduplicated SBOM artifacts are used to
-invent bindings. Core exposes the upgrade through its contracts facade.
 
 ## Scheduled fork facts
 
@@ -164,8 +165,7 @@ invent bindings. Core exposes the upgrade through its contracts facade.
 fork facts, after its fork-policy and branch checks: the order's own proof that
 they were checked, so a later policy change never unvouches them. A stamp
 vouches only with both `fork_url` and `fork_branch` set. Older orders carry no
-stamp and are checked against the current policy. Existing databases apply
-`ops.sql.run_order_fork_scheduled_upgrade(dialect)` when the column is absent.
+stamp and are checked against the current policy.
 
 ## Artifact recording order
 
@@ -173,8 +173,7 @@ stamp and are checked against the current policy. Existing databases apply
 can tell its own report from an earlier one on the same assessment; null means it
 was recorded outside an order or imported. An insert guard requires the order to
 own the artifact's assessment: the work item it runs, or an assessment it
-produced. Existing databases apply `storage.sql.artifact_run_order_upgrade(dialect)`
-when the column is absent; existing artifacts name no order.
+produced. Existing artifacts name no order.
 
 ## Spend declaration attribution
 
@@ -211,9 +210,8 @@ does not invent historical absence or require fabricated human presence evidence
 `repository_ref.default_named_at` records when the row was last named the default
 head (an import or an observation). A line is immutable once recorded, so the
 row's creation time cannot order competing namings: a re-import of a previously
-recorded head must still win over an earlier observation. Existing databases
-apply `storage.sql.default_named_at_upgrade(dialect)` when the column is absent;
-already-flagged rows keep an unknown naming time until the line is named again.
+recorded head must still win over an earlier observation. A line already flagged
+before it was named keeps an unknown naming time until the line is named again.
 
 ## Algorithm-free finding identity
 
@@ -344,6 +342,310 @@ composition and ordering. No inventory declaration, stored projection or new art
 kind is introduced. The CLI retains its legacy bare JSON array separately from this
 canonical wrapper, with CSV produced by Core's shared renderer.
 
+`views_schema/v1/findings-rollup.schema.json` is the contract for Core's findings-rollup
+view: disposition-aware finding counts for a scope at a point in time. It requires every
+serialized field, nullable ones included (`as_of` null means current recorded state). `total`
+counts each finding in scope once. `products` has one row per product the filter names, and a
+finding in a repository several products ship counts under each, so product rows can sum to
+more than `total`. `repositories` has one row per repository in scope, including those with
+no findings. A tally separates `open` (exposure, by severity) from hardening, resolved,
+risk-accepted and false-positive findings; `tracked` is everything but false positives.
+`top` lists the open critical and high findings. `cvss_score` is an exact decimal string from
+0 to 10 in its shortest fixed-point form (compare as decimals), or null when unscored. `categories` counts findings per category label (null key =
+unlabelled); its `open_by_severity` always carries the five rated keys and carries `unrated`
+only when counted. `attack_scenarios` is filled only for a product or team scope. Severity keys
+match the `scanner-severity` registry. JSON Schema checks structure and ranges, not count
+arithmetic. Core owns the typed `FindingsRollup` model, the scoping and disposition fold,
+validation and rendering; titles, URLs, labels and narrative steps are raw untrusted data.
+
+`views_schema/v1/findings-trend.schema.json` is the contract for Core's findings-trend view:
+the scope's findings replayed bucket by bucket to `as_of` and summed over its repositories,
+each metric's direction, and the accepted-risk register. Every serialized field is required,
+nullable ones included. A point's open counts, accepted, hardening and risk indexes stand at
+the bucket's end; new, resolved, regressions, false positives and decisions happened within
+it. A risk index is the CVSS sum (else severity-band midpoints) and is null, unknown, when any
+standing finding has neither; a metric unknown in the compared buckets has no direction,
+because unknown is not zero. `open_by_severity` carries the five rated keys and `unrated` only
+when counted. A direction with no baseline has no change and no rising/falling, and a flat one
+is never worsening. The register's severity is null for an unrated finding, which ranks last;
+a CVSS score of 0 still ranks above an unscored one, and `cvss_score` is an exact decimal
+string in its shortest fixed-point form. JSON Schema checks structure and ranges, not
+arithmetic across fields. Core owns the replay, policy and rendering; titles, URLs,
+principals and rationales are raw untrusted data.
+
+`views_schema/v1/coverage.schema.json` is the contract for Core's coverage view (the census):
+for a scope, what each repository had assessed by `population.as_of` (one row per repository
+and kind, with the newest default-line assessment, or null when every one ran on another
+branch, and the default-line and branch run counts), the repositories never assessed, and the
+coverage gaps the latest default-line secure-code audits report. Every serialized field is
+required, nullable ones included. An embedded assessment is a recorded row (`id`,
+`created_at` and times always present). `kind` is served in its canonical spelling and
+`status` is any non-empty recorded value: the `assessment-kind` registry is named, not
+enforced, because historical stored values are preserved, and `assessment-status` has no
+registry yet. The gap figures are read from the latest audits as currently recorded, not as
+of `population.as_of`. A gap family counts at least one repository, at least one recording
+signal (`structured`, `steps`, `text`) and up to eight unique example repositories. JSON
+Schema checks structure and ranges, not arithmetic across fields. Core owns the census, gap
+extraction and rendering; tools, systems and assessors are raw untrusted data.
+
+`views_schema/v1/remediation-index.schema.json` is the contract for Core's remediation-index
+view: every remediation work item of the scope's repositories as it stands now (there is no
+`as_of`), grouped per named product in the filter's order or in one group whose `product` is
+null, repositories by URL and each repository's items oldest first. A row carries the
+product slug, repository URL, work item ID, status, covered finding count, HTTPS fork URL,
+fix branch and tracker reference, the last three null until they exist. Statuses come from
+the `remediation-status` registry, tied by test. `by_status` counts rows per status seen, so
+a work item under several products counts once per product. Core owns the work-item fold and
+rendering; URLs, branches and tracker references are raw untrusted data.
+
+`views_schema/v1/census.schema.json` is the contract for Core's census view, the denominator
+authority: for a scope as of `as_of`, the repository counts (in scope, reported,
+dispositioned, never assessed), one cut per corpus ownership class present (registry order,
+then the unregistered cut whose `ownership` is null; at most one each), the scope's products
+by slug, and the declared-IaC and container findings counted apart from the cuts. A cut's
+distinct vulnerabilities are default-line findings that are neither false positives nor
+hardening; `occurrences`, `hardening`, `false_positives`, `branch_confirmed` and `branch_only`
+say how the rest were counted. Severity counts always carry all six keys, `unrated` included.
+Ownership classes use the `ownership` registry, tied by test. Every serialized field is
+required. JSON Schema checks structure and ranges, not arithmetic across fields. Core owns the
+corpus registry, the population and the fold; product names, business units and URLs are raw
+untrusted data.
+
+`views_schema/v1/attack-coverage.schema.json` is the contract for Core's attack-coverage
+view: the scope's MITRE ATT&CK coverage as of `as_of` against the pinned ATT&CK release, with
+modeled evidence (techniques the latest threat models cite) and weakness-derived candidates
+(finding categories through the pack's category map) counted apart, never blended. Each
+technique has at least one piece of evidence and a score: exactly 2 when modeled, else 1; 3
+(observed) is refused until confirmed validation chains are recorded. Technique ids are ATT&CK
+technique or sub-technique ids; `dropped` counts the raw citations that are not live in the
+release, malformed references included.
+`navigator_layer` is an ATT&CK Navigator layer (format 4.5): this contract checks its
+envelope, MITRE's own schema governs the rest. Every serialized field is required. Core owns
+the catalog, the category map and rendering.
+
+`views_schema/v1/executive-summary.schema.json` is the contract for Core's executive-summary
+view, the leadership roll-up. It composes the component view contracts by `$ref`, never by
+copying a shape: the findings rollup (`findings-rollup`), and when the filter asks for them
+the ATT&CK panel (`attack-coverage`), the PQC panel (`pqc-portfolio`), the isolation panel's
+threat register (`threat-register`) and the IaC panel's census layer (`census`); fleet-wide,
+the top 10 advisory rows of `exposure` (null for a product or team scope). Panels not asked
+for are null; a PQC panel asked for at an `as_of` is explained in `pqc_unavailable`, never
+built. Credential leaks have their own row (any severity or unrated; the rollup's top
+findings are critical or high only). A validator resolves the references through a registry
+of the view schemas by `$id`. Every serialized field is required; lists are never null
+except `exposure`, null for a product or team scope.
+Core owns the composition and rendering; titles, URLs, themes and flags are raw data.
+
+`views_schema/v1/compliance.schema.json` is the contract for Core's compliance view: posture
+per framework and per boundary over every declared (boundary, framework) pair, each assessed
+by its newest recorded compliance assessment, as two lists of the same row. A row's coverage
+is kept per framework, never blended, and each framework's counts are the compliance
+assessment's own coverage block (referenced, not copied), summed over the group. Framework
+rows are keyed by their framework and cover exactly it (a boundary key may be empty, as a
+declaration may name one so); frameworks use the
+`compliance-framework` registry, tied by test. The view reads posture as it stands, so Core
+refuses an `as_of`, and a product or team scope.
+Every serialized field is required. Boundary names are raw data.
+
+`views_schema/v1/insecure-patterns.schema.json` is the contract for Core's insecure-patterns
+view: the scope's findings as of `as_of` (false positives dropped) grouped by primary CWE
+within each corpus ownership class, ranked by distinct repositories, then occurrences (one
+occurrence per repository and path). Ownership is the census's definition and severity
+counts the findings rollup's, both referenced; a cut is listed only when it has a pattern or
+a finding without a CWE, and a pattern carries at most six examples. CWE ids, ASVS labels,
+paths and symbols are raw data, as Core records them. Every serialized field is required;
+lists are never null.
+
+`views_schema/v1/privileges.schema.json` is the contract for Core's privileges view: each
+repository's latest operator priv-profile as of `as_of`, one row of declared-privilege
+posture (never finding counts), ranked by tier-2 surplus, wildcard rules, then privileged
+workloads. Counts the artifact bounds are non-negative; a flag counts at least one matching
+rule; container posture is listed with its containers or not at all. The profile's own
+`no_scc_request_recorded` flag is kept, so "asked for no SCC" never reads as "could not
+tell". Install modes are the names the profile marks supported. SCC request names,
+namespaces and the tier-2 marker and surplus counts are raw, as the profile states them. Every serialized field is required; lists are never null.
+
+`views_schema/v1/dependency-reach.schema.json` is the contract for Core's dependency-reach
+view: what the scope's latest default-branch manifest SBOMs hold, per ecosystem, with the 25
+most shared packages and how many repositories have no manifest SBOM (not measured, not
+dependency-free). It reads the latest manifests, so Core refuses an `as_of`. Ecosystems and
+package names are non-empty, as the store keeps them; the ecosystem registry is applied at
+intake, not re-checked here. One row per ecosystem and per (ecosystem, name) package is
+Core's grouping (JSON Schema cannot check a field unique across rows; Core's tests pin it).
+Every serialized field is required; lists are never null.
+
+`views_schema/v1/validation-fuzz.schema.json` is the contract for Core's validation-fuzz view:
+each target's latest recorded fuzz run as of `as_of`, its crashers ranked by CVSS then
+proposed severity, the surfaces it left unfuzzed, and each repository's validated findings
+by latest verdict. Fuzz fields (target and harness names, engines, outcomes, crash classes,
+gap reasons, CWEs, reproducer digests, the proposed severity and CVSS score) reference the
+fuzz-report and report artifacts' own definitions rather than copy them: Core parses each
+report against its schema. Verdicts use the `validation-verdict` registry, tied by test.
+Every serialized field is required; lists are never null.
+
+`views_schema/v1/finding-records.schema.json` is not a view: it defines, once, Core's finding
+records as its views serialize them (the finding, an occurrence, a location, a label, the
+folded disposition, the finding view and a decision), for every view that embeds them. A
+location is a recorded one (all eight fields) or a finding claim's (path, lines, symbol), never
+part of a recorded one; a stored record's id and timestamps are never null. A CVSS score is
+Core's canonical 0-10 decimal string (the findings rollup's definition). A finding view carries
+its CVSS as a block: the occurrence's score and vector, the severity the vector computes
+(FIRST's qualitative rating, "None" reading informational), and which source won the effective
+severity — `computed` (the vector's band; the score, never a word, labels what was scored),
+`scanner` (the report's word for an unscored finding), `judgement` (a re-rating), or `unrated`.
+The block is null when no occurrence reported the finding; a computed basis always carries the
+severity it computed, and an effective severity never rides beside an unrated one. For an
+advisory-backed finding the block also carries every authority's kept statement
+(`authority_scores`: source, version, vector, score, band, scorer, document, when fetched), the
+one `selected` by traust-core's precedence (NIST, the GitHub-reviewed advisory, the CNA, an ADP,
+Red Hat, then the scanner; 3.x before 4.0; `reason: precedence`), and `conflict` when two
+authorities' same-version 3.x bands differ. A selected statement always has a score and band. A
+basis of `authority` means the effective severity equals the selected statement's band, so it
+requires that statement (an authority's, never the scanner's) and at least one kept statement;
+that the selected one is among them is Core's to keep, since a schema can't compare the two. The
+findings rollup's top findings and the trend's accepted register name their score's source
+(`cvss_source`), null exactly when the score is. Enums Core
+types are tied to their registries by test; what Core keeps raw (a decision's validity,
+resolution, reason and channel, which may hold historical values) stays raw.
+
+`views_schema/v1/container-findings.schema.json` is the contract for Core's container-findings
+view: one image repository's container report family's cumulative findings as of `as_of`,
+asked for by a container assessment and its `<image>-container-audit` report stem; absence
+never closes a finding. Each row is a finding view, its occurrences in the family and its
+decisions, all from `finding-records`; the total is the findings rollup's tally. Every
+serialized field is required; lists are never null.
+
+`views_schema/v1/pqc.schema.json` is the contract for Core's pqc view: the latest PQC readiness
+of each commit, per named product (else one scope over every commit), rolled up by readiness
+bucket and by dominant provenance. Bucket rows are keyed by a `pqc-readiness-bucket` value or
+`unbucketed`, provenance rows by a `pqc-dominant-provenance` value, and remediation counts by
+`pqc-remediation-category`, each tied by test; a mean overall score is 0-100. It reads
+readiness as it stands, so Core refuses an `as_of`, and a team scope. Every serialized field
+is required; lists are never null.
+
+`views_schema/v1/pqc-vendors.schema.json` is the contract for Core's pqc-vendors view: the
+latest recorded `pqc-vendor-claims`, worst status first, each claim with the count of
+repositories whose latest default-branch manifest SBOM holds its packages (null exactly when the
+claim names no package), the fleet's repository and unmeasured counts, and the sorted URLs of
+repositories whose newest readiness is blocked-external. Claims are Core's projection of the
+artifact with every optional field present (null when absent); each field references the
+artifact's own definition, so the vocabularies cannot drift. It reads the latest claims and
+manifests, so Core refuses an `as_of`, and a product or team scope. Every serialized field is
+required; lists are never null, and `vendors` never empty (the artifact holds at least one
+claim). Names, claims and URLs are raw untrusted data.
+
+`views_schema/v1/exposure.schema.json` is the contract for Core's exposure view: fleet-wide
+dependency exposure as of `as_of` (carried in the view), from the analysis standing for each
+commit and advisory (its latest complete run, else its latest partial run, else, before
+preparation scopes, the latest of each package and version), as three lists of the same row
+(by advisory, by product, by verdict). A row counts each commit and advisory pair once at its
+worst verdict and has at least one verdict count; verdicts use the `impact-classification`
+registry, tied by test. Advisory rows are keyed by an advisory id and verdict rows by a
+verdict; only product rows have a null key (commits no product ships). Core refuses a product
+or team scope. Every serialized field is required. Core owns the verdict ranking and
+rendering; keys are raw data.
+
+`views_schema/v1/spend-records.schema.json` is not a view: it defines, once, a spend rollup
+(spend events summed over one group, its key null for spend without that dimension) and a
+non-negative US-dollar amount (a Python decimal string, exponent form included), for every
+view that rolls up recorded spend. The `spend_event` table guarantees non-negative tokens and
+cost; a group is never empty.
+
+`views_schema/v1/program.schema.json` is the contract for Core's program view: what the program
+spent and ran over an explicit window, derived from spend events and run orders. Spend splits
+into what run orders claim and what none claims, and rolls up by month (a `YYYY-MM` key), model
+(a non-empty key), lane (a non-empty key, or null for spend without one) and skill (a raw key),
+from `spend-records`; throughput counts each registered asset's finished run orders per bucket,
+every finished `run-order-state` outcome present and zero-filled (an idle asset has a point per
+bucket, all zero), tied by test; asset names are never empty. Core needs the window and does
+not order its bounds, so a series is empty only over an empty window. Decimal strings and month
+keys carry no whitespace. Every serialized field is required; lists are never null.
+Keys and asset names are raw recorded text.
+
+`views_schema/v1/spend.schema.json` is the contract for Core's spend view
+(financial-tracking): list-priced spend per UTC calendar month the window touches, split by
+skill, lane, model and business unit (from `spend-records`; a business unit is the corpus
+registry's, null when none claims the spend), with the estimate's limits named: models whose
+rate the registry does not confirm and their cost, models it does not know, invoices
+reconciled (a variance may be negative; its percentage is null against a zero estimate), and
+the latest month with spend over all-time counts (null when no month has spend). A month's
+`total` is its own row (null key); an idle month is all zeros with no rows to split, and one
+with spend has a row in every split (a null-key row at least); business-unit coverage is a
+0-100 percentage exactly when the month cost something. Core needs the window, refuses a product or team scope
+and does not order the window's bounds. Every serialized field is required, nullable ones
+included; lists are never null. Keys, models and notes are raw recorded text.
+
+`views_schema/v1/loc.schema.json` is the contract for Core's loc view: the lines of code the
+scope's repositories hold at their observed default-branch commit as of `as_of` (carried in the
+view), by language and by repository, largest first; `code` excludes documentation languages,
+`total` includes them. A repository is measured exactly when it gives no `unmeasured` reason:
+then it has its commit and counts, a primary language exactly when languages were measured,
+and both deltas or neither; an unmeasured one has none of them. Language counts reference the
+`code-facts` artifact's `language` definition. An optional comparison with an earlier moment
+is null when not asked for, and then no repository carries a delta. A first-party estimate
+(measured code over an explicitly supplied divisor, an estimate, never a measurement) is
+present exactly when a divisor was supplied and at least one repository was measured. Decimals are Python decimal
+strings, exponent form included. Every serialized field is required; lists are never null.
+URLs and reasons are raw untrusted data.
+
+`views_schema/v1/freshness.schema.json` is the contract for Core's freshness view
+(drift-watch): every checked input (feeds, providers, tool databases) and assessment cadence,
+worst status first, the toolchain that would run, and the scope's audit coverage (the coverage
+view's `coverage` definition, by `$id`), derived now, so Core refuses an `as_of`. The
+secure-code and threat-model cadences are always present, once each. A stale item says how to
+refresh it; a fresh or unavailable one has nothing to refresh; a pending one may or may not.
+The toolchain is null exactly when one `toolchain` item, unavailable and with a non-empty
+detail, explains why. A tool
+database's `max_age` is an ISO 8601 duration. Every serialized field is required, nullable
+ones included; item names, details, hints, versions and paths are raw text.
+
+`views_schema/v1/scoreboard.schema.json` is the contract for Core's scoreboard view: the
+leadership scoreboard's headline counts read off the executive summary, findings trend and
+threat register as of `as_of` (carried in the view), plus the findings filed in Jira; it
+authors none. Open severities are the findings rollup's `severity_counts`, the top three risk
+themes the executive summary's `theme_counts`, and the trend the findings trend's latest
+`point` (null without one), each referenced by `$id`. A repository with an open critical (or
+high) means an open critical (or high); no threat models means no threats, and no threats no
+open ones. Every serialized field is required, nullable ones included. JSON Schema checks
+counts and shapes, not sums across fields; theme labels are raw data.
+
+`views_schema/v1/sla.schema.json` is the contract for Core's sla view: owner-response SLA
+clocks over the scope's findings (false positives and hardening excluded) as of `as_of`, one
+block per profile of the deployment's SLA policy, default first. Every serialized field is
+required, nullable ones included. Each profile's nine counts place every in-scope finding in
+exactly one bucket. Compliance is a 0–100 percentage or null when nothing resolved was
+clocked. `overdue_by_severity` and `median_days_to_resolve` carry only the severities seen;
+a median can be negative when a finding was resolved before its clock started. Team rows have
+at least one overdue finding. The escalation digest holds at most 100 overdue findings, with
+a null severity for an unrated one in scope through the CVSS floor and a title truncated to
+120 characters. `clock_start` uses the `sla-clock-start` registry, tied by test. JSON Schema
+checks structure and ranges, not arithmetic across fields. Core owns the policy resolution,
+the clock ladder and rendering; names, titles and URLs are raw untrusted data.
+
+`views_schema/v1/pqc-portfolio.schema.json` is the contract for Core's pqc-portfolio view:
+post-quantum readiness worklists as recorded now (no `as_of`), one scope per named product or
+a single scope with a null `product_id`, and a product index (worst first) when no product is
+named. A scope lists its assessed commits worst first with their readiness records, the crypto
+decision sites with their facts, the crypto packages in its manifest SBOMs, and the commits
+without an SBOM. Readiness records and facts are Core's projections of the `pqc-readiness` and
+`pqc-facts` documents with every optional field present (null when absent), so they are
+defined here rather than referenced. Scores are 0–100; every PQC vocabulary is tied to its
+registry by test. Every serialized field is required; lists are never null. Named products
+mean every scope is a product's and the index is empty. Core owns the readiness projection,
+ranking and rendering; URLs, actions, primitives and file paths are raw untrusted data.
+
+`views_schema/v1/threat-register.schema.json` is the contract for Core's threat-register view:
+the scope's threats from each repository's latest completed threat model as of `as_of`,
+ranked by band then status, with class-closing xs/s quick wins over unmitigated critical and
+high threats, tenant boundaries weakest first and the open doc variances. Threats,
+mitigations and boundaries are Core's projections of the threat-model documents. Fields Core
+types (status, actor, bands, legacy likelihood and impact, isolation dimensions, interface
+complexity, variance kind) are tied to their registries by test; fields Core serves as the
+model states them (mitigation size and class closure, boundary kind, exposure and dimension
+results, cited technique ids) stay raw. Every serialized field is required; lists are never
+null. Core owns the ranking, the rating crosswalk and rendering; titles, URLs, claims and
+evidence anchors are raw untrusted data.
+
 ## Run manifest
 
 `artifacts_schema/v1/run-manifest.schema.json` is the per-order detail that
@@ -356,8 +658,14 @@ state share one artifact.
 
 `artifacts_schema/v1/session-task.schema.json` declares a runner's staged input files,
 resolved models and one schema-named output. All paths are relative to the task directory;
-`run_id` is the order UUID, or null for a manual session. The executor's identity, measured
-usage and optional error use `artifacts_schema/v1/session-result.schema.json`.
+`run_id` is the order UUID, or null for a manual session. An ordered task must
+include the positive `lease_generation` issued to the claim that staged it, so the
+task digest binds its output to that claim. Do not fill in a missing generation
+from the current order: restage older ordered tasks under a new claim. Manual
+tasks omit `lease_generation` or set it to null. The executor's identity,
+measured usage and optional error use `artifacts_schema/v1/session-result.schema.json`.
+New run-manifest session entries record the staging generation. Historical
+entries without it remain readable but do not prove ownership of a claim.
 
 The run manifest's optional `sessions` list records runner-computed task and input digests,
 input sizes, and the declared output's digest and recorded artifact UUID. Missing output has

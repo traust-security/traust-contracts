@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/threat-register.schema.json",
+  "title": "Threat register view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's threat-register view: the scope's standing threats from each repository's latest completed threat model as of as_of, ranked, with class-closing quick wins, tenant boundaries weakest first and the open doc variances. Threats, mitigations and boundaries are Core's projections of the threat-model documents, not the documents. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": ["as_of", "repository_urls", "models", "threats", "quick_wins", "tenant_boundaries", "open_variances"],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The point in time the threat models are read at: the filter's, else when the view was built."
+    },
+    "repository_urls": {
+      "description": "Every repository in scope by id, with its raw registered URL.",
+      "type": "object",
+      "propertyNames": {"format": "uuid"},
+      "additionalProperties": {"type": "string"}
+    },
+    "models": {"$ref": "#/$defs/count", "description": "Threat models the threats come from."},
+    "threats": {
+      "description": "Every threat, by band (critical first, unbanded last), then status, repository URL and label.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/ranked_threat"}
+    },
+    "quick_wins": {
+      "description": "Class-closing xs or s mitigations over unmitigated critical or high threats, one per model and mitigation, critical first, then by mitigation text.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/quick_win"}
+    },
+    "tenant_boundaries": {
+      "description": "Tenant-facing interfaces, weakest first (then most complex, most open threats, repository URL, boundary id).",
+      "type": "array",
+      "items": {"$ref": "#/$defs/ranked_boundary"}
+    },
+    "open_variances": {
+      "description": "The scope's open doc variances (official-docs claims that code evidence contradicts), oldest verified first.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/doc_variance"}
+    }
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "uuid": {"type": "string", "format": "uuid"},
+    "band": {
+      "type": "string",
+      "enum": ["critical", "high", "medium", "low", "note"],
+      "description": "The risk-rating-band registry's OWASP band."
+    },
+    "dimension": {
+      "type": "string",
+      "enum": ["privilege", "encryption", "authentication", "connectivity", "hygiene"],
+      "description": "The isolation-dimension registry's dimension."
+    },
+    "actor": {
+      "type": "string",
+      "enum": ["remote_unauth", "remote_auth", "adjacent_network", "local_user", "local_admin", "supply_chain", "insider"],
+      "description": "The threat-actor registry's position."
+    },
+    "ranked_threat": {
+      "description": "A threat with the band it ranks by.",
+      "type": "object",
+      "required": ["threat", "band", "crosswalked"],
+      "additionalProperties": false,
+      "properties": {
+        "threat": {"$ref": "#/$defs/threat"},
+        "band": {
+          "oneOf": [{"$ref": "#/$defs/band"}, {"type": "null"}],
+          "description": "Its stated OWASP severity, else the rating policy's crosswalk of its legacy likelihood and impact; null when it has neither."
+        },
+        "crosswalked": {"type": "boolean", "description": "Whether the band came from the legacy crosswalk."}
+      }
+    },
+    "threat": {
+      "description": "One threat as its threat model states it.",
+      "type": "object",
+      "required": [
+        "assessment_id",
+        "repository_id",
+        "label",
+        "title",
+        "status",
+        "actor",
+        "actors",
+        "severity",
+        "likelihood",
+        "impact",
+        "surface",
+        "asset",
+        "controls",
+        "evidence",
+        "techniques",
+        "isolation_dimensions",
+        "boundary_ids",
+        "isolation_review_ref",
+        "mitigations",
+        "linddun"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {"$ref": "#/$defs/uuid", "description": "The threat model's assessment."},
+        "repository_id": {"$ref": "#/$defs/uuid"},
+        "label": {"type": "string", "description": "The model's threat id (T1, T2, ...), raw."},
+        "title": {"type": "string"},
+        "status": {
+          "type": "string",
+          "enum": ["unmitigated", "partially_mitigated", "mitigated", "risk_accepted"],
+          "description": "The threat-status registry's status."
+        },
+        "actor": {"$ref": "#/$defs/actor", "description": "The weakest position, the one scoring reads."},
+        "actors": {"type": "array", "items": {"$ref": "#/$defs/actor"}, "description": "Every position, weakest first."},
+        "severity": {"oneOf": [{"$ref": "#/$defs/band"}, {"type": "null"}], "description": "The stated OWASP rating; null until re-rated."},
+        "likelihood": {
+          "type": ["string", "null"],
+          "enum": ["very_rare", "rare", "possible", "likely", "almost_certain", null],
+          "description": "The threat-likelihood registry's legacy label; null when not stated."
+        },
+        "impact": {
+          "type": ["string", "null"],
+          "enum": ["low", "medium", "high", "critical", "existential", null],
+          "description": "The threat-impact registry's legacy label; null when not stated."
+        },
+        "surface": {"type": ["string", "null"], "description": "Raw; null when not stated."},
+        "asset": {"type": ["string", "null"], "description": "Raw; null when not stated."},
+        "controls": {"type": ["string", "null"], "description": "Raw; null when not stated."},
+        "evidence": {"type": "array", "items": {"type": "string"}, "description": "Evidence anchors, raw; empty when modelled but not evidenced."},
+        "techniques": {
+          "description": "The ATT&CK techniques the threat cites, raw: a citation need not be a live or even well-formed technique id.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id"],
+            "additionalProperties": false,
+            "properties": {"id": {"type": "string"}}
+          }
+        },
+        "isolation_dimensions": {"type": "array", "items": {"$ref": "#/$defs/dimension"}, "description": "The isolation dimensions it stresses."},
+        "boundary_ids": {"type": "array", "items": {"type": "string"}, "description": "The tenant boundaries naming it, raw."},
+        "isolation_review_ref": {"type": ["string", "null"], "description": "The first naming boundary's isolation-review artifact reference, raw; null when none."},
+        "mitigations": {"type": "array", "items": {"$ref": "#/$defs/mitigation"}},
+        "linddun": {"type": "boolean", "description": "Whether it is a LINDDUN privacy-overlay row."}
+      }
+    },
+    "mitigation": {
+      "type": "object",
+      "required": ["text", "closes_class", "effort", "blocked_external"],
+      "additionalProperties": false,
+      "properties": {
+        "text": {"type": "string"},
+        "closes_class": {"type": "string", "description": "Whether it closes the threat's class (yes, partial, no), raw as the model states it."},
+        "effort": {"type": ["string", "null"], "description": "Its size, raw as the model states it (a legacy XS is preserved); null when unsized."},
+        "blocked_external": {"type": ["boolean", "null"], "description": "Whether something outside the repository blocks it; null when unknown."}
+      }
+    },
+    "quick_win": {
+      "description": "A class-closing xs or s mitigation and the unmitigated critical or high threats it covers.",
+      "type": "object",
+      "required": ["repository_id", "mitigation", "effort", "covers", "band", "blocked_external"],
+      "additionalProperties": false,
+      "properties": {
+        "repository_id": {"$ref": "#/$defs/uuid"},
+        "mitigation": {"type": "string"},
+        "effort": {
+          "type": "string",
+          "enum": ["XS", "S", "xs", "s"],
+          "description": "The mitigation-effort registry values that normalize to xs or s, as the model states them."
+        },
+        "covers": {"type": "array", "minItems": 1, "items": {"type": "string"}, "description": "The labels of the threats it covers."},
+        "band": {"type": "string", "enum": ["critical", "high"], "description": "The first covered threat's band."},
+        "blocked_external": {"type": ["boolean", "null"]}
+      }
+    },
+    "ranked_boundary": {
+      "description": "A tenant boundary with what ranks it.",
+      "type": "object",
+      "required": ["boundary", "weakness", "failed", "partial", "open_threats"],
+      "additionalProperties": false,
+      "properties": {
+        "boundary": {"$ref": "#/$defs/boundary"},
+        "weakness": {"$ref": "#/$defs/count", "description": "Each failed dimension weighs 2 (a result outside the isolation-check-result vocabulary counts as failed), each partial one 1."},
+        "failed": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/dimension"}, "description": "Dimensions stated no, or with a result outside the vocabulary."},
+        "partial": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/dimension"}},
+        "open_threats": {"type": "array", "items": {"type": "string"}, "description": "Labels of the open threats it tags."}
+      }
+    },
+    "boundary": {
+      "description": "One tenant-facing interface as a multi-tenant threat model states it.",
+      "type": "object",
+      "required": [
+        "assessment_id",
+        "repository_id",
+        "boundary_id",
+        "interface",
+        "kind",
+        "exposure",
+        "complexity",
+        "dimensions",
+        "threat_ids",
+        "isolation_review_ref"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {"$ref": "#/$defs/uuid"},
+        "repository_id": {"$ref": "#/$defs/uuid"},
+        "boundary_id": {"type": "string", "description": "The model's interface id (IF-1, ...), raw."},
+        "interface": {"type": "string"},
+        "kind": {"type": "string", "description": "Raw as the model states it."},
+        "exposure": {"type": "string", "description": "Raw as the model states it."},
+        "complexity": {
+          "type": ["string", "null"],
+          "enum": ["low", "medium", "high", null],
+          "description": "The interface-complexity registry's level; null when not stated."
+        },
+        "dimensions": {
+          "description": "Each isolation dimension's result as the model states it, raw.",
+          "type": "object",
+          "propertyNames": {"enum": ["privilege", "encryption", "authentication", "connectivity", "hygiene"]},
+          "additionalProperties": {"type": "string"}
+        },
+        "threat_ids": {"type": "array", "items": {"type": "string"}},
+        "isolation_review_ref": {"type": ["string", "null"]}
+      }
+    },
+    "doc_variance": {
+      "description": "One official-docs claim that code evidence contradicts (a doc-variance register record).",
+      "type": "object",
+      "required": ["repository_id", "record", "kind", "disposition", "product_slug", "version", "claim", "verified_at", "artifact"],
+      "additionalProperties": false,
+      "properties": {
+        "repository_id": {"$ref": "#/$defs/uuid"},
+        "record": {"type": "string", "description": "The register record's id, raw."},
+        "kind": {
+          "type": ["string", "null"],
+          "enum": ["overclaim", "underclaim", "omission", "contradiction", "stale", null],
+          "description": "The doc-variance-kind registry's kind; null when the record states none."
+        },
+        "disposition": {"type": "string", "enum": ["open"], "description": "Always open: the register lists open variances only."},
+        "product_slug": {"type": "string"},
+        "version": {"type": "string"},
+        "claim": {"type": "string"},
+        "verified_at": {"type": "string", "format": "date-time"},
+        "artifact": {
+          "description": "The doc-variance register artifact the record is in.",
+          "type": "object",
+          "required": ["id", "name", "digest"],
+          "additionalProperties": false,
+          "properties": {
+            "id": {"$ref": "#/$defs/uuid"},
+            "name": {"type": "string"},
+            "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$", "not": {"type": "string", "pattern": "\\s"}, "description": "The artifact's SHA-256, lowercase hex."}
+          }
+        }
+      }
+    }
+  }
+}

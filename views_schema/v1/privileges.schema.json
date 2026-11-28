@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/privileges.schema.json",
+  "title": "Operator least-privilege view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's privileges view: each repository's latest operator priv-profile as of as_of, as one row of declared-privilege posture (never finding counts), ranked by tier-2 surplus, then wildcard rules, then privileged workloads, then repository URL. Rows are Core's projection of the operator-priv-profile artifacts. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "as_of",
+    "rows"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time",
+      "description": "The filter's point in time; null reads the latest profiles."
+    },
+    "rows": {
+      "description": "One row per repository in scope with a completed priv-profile.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    }
+  },
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "row": {
+      "description": "One repository's latest priv-profile as the least-privilege rollup reads it.",
+      "type": "object",
+      "required": [
+        "repository",
+        "assessment_id",
+        "workloads",
+        "privileged_workloads",
+        "rbac_rules",
+        "wildcard_rules",
+        "scc_requests",
+        "no_scc_request_recorded",
+        "flags",
+        "containers",
+        "privileged_containers",
+        "run_as_non_root_containers",
+        "namespaces",
+        "install_modes",
+        "kubebuilder_markers",
+        "surplus",
+        "distinct_rule_triples",
+        "distinct_cluster_triples"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Raw registered URL."
+        },
+        "assessment_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "The priv-profile's assessment."
+        },
+        "workloads": {
+          "$ref": "#/$defs/count",
+          "description": "Workloads the profile lists (its summary)."
+        },
+        "privileged_workloads": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Workloads asking for privileged mode or a host namespace, the headline; null when the profile does not say."
+        },
+        "rbac_rules": {
+          "$ref": "#/$defs/count",
+          "description": "RBAC rules the bundle ships."
+        },
+        "wildcard_rules": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Rules with a wildcard; null when the profile does not say."
+        },
+        "scc_requests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Security context constraints the operator requests, raw names as the profile lists them (a name may repeat)."
+        },
+        "no_scc_request_recorded": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "The profile's own flag: true when no SCC request was found, which is not the same as asking for none (an empty scc_requests list does not say which); null when the profile does not state it."
+        },
+        "flags": {
+          "description": "High-privilege rule pattern (raw) to how many rules match it; a pattern is present only when it matched.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "containers": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Containers across the listed workloads; null when the profile lists no workloads."
+        },
+        "privileged_containers": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Of those, the privileged ones; null with containers."
+        },
+        "run_as_non_root_containers": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Of those, the ones running as non-root (a container unset inherits its pod's); null with containers."
+        },
+        "namespaces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Namespaces the profile names, raw."
+        },
+        "install_modes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The names of the OperatorGroup install modes the profile marks supported (the artifact's install_modes object, its true entries), names raw."
+        },
+        "kubebuilder_markers": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Kubebuilder RBAC markers in source, raw from the profile's tier-2 comparison; null when not derivable."
+        },
+        "surplus": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Privilege shipped with no marker asking for it (tier-2), raw from the profile; null when not derivable."
+        },
+        "distinct_rule_triples": {
+          "$ref": "#/$defs/count",
+          "description": "Distinct (API group, resource, verb) grants the RBAC rules expand to."
+        },
+        "distinct_cluster_triples": {
+          "$ref": "#/$defs/count",
+          "description": "Of those, the cluster-scoped ones."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "Container posture is listed with the workloads, or not at all.",
+          "if": {
+            "properties": {
+              "containers": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "containers"
+            ]
+          },
+          "then": {
+            "properties": {
+              "privileged_containers": {
+                "type": "null"
+              },
+              "run_as_non_root_containers": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "privileged_containers": {
+                "type": "integer"
+              },
+              "run_as_non_root_containers": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

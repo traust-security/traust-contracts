@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/census.schema.json",
+  "title": "Census view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's census view, the denominator authority: for a scope (named products and teams, else every repository) as of as_of, the secure-code work done and the distinct vulnerabilities per corpus ownership class, with declared-IaC and container findings counted apart. Not a persisted artifact or SQL projection. Every serialized field is present. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "as_of",
+    "repositories",
+    "reported",
+    "dispositioned",
+    "never_assessed",
+    "cuts",
+    "products",
+    "cloud_config",
+    "container",
+    "unregistered"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The point in time the census is read at: the filter's, else when the view was built."
+    },
+    "repositories": {"$ref": "#/$defs/count", "description": "Repositories in scope."},
+    "reported": {"$ref": "#/$defs/count", "description": "Repositories in scope with at least one finding (false positives included)."},
+    "dispositioned": {"$ref": "#/$defs/count", "description": "Repositories in scope with at least one recorded decision."},
+    "never_assessed": {"$ref": "#/$defs/count", "description": "Repositories in scope with no assessment of any kind by as_of."},
+    "cuts": {
+      "description": "One cut per corpus ownership class present, in the ownership registry's order (owned, upstream, external-bu, harness-qa), then the cut whose ownership is null: the repositories no product with a registered ownership ships. A repository shipped by products of several classes counts in each.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/cut"},
+      "allOf": [
+        {"contains": {"$ref": "#/$defs/ownership_is/owned"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/ownership_is/upstream"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/ownership_is/external-bu"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/ownership_is/harness-qa"}, "minContains": 0, "maxContains": 1},
+        {"contains": {"$ref": "#/$defs/ownership_is/none"}, "minContains": 0, "maxContains": 1}
+      ]
+    },
+    "products": {
+      "description": "The scope's products by slug (the filter's named products, else every product); with a team filter, only those shipping a repository in scope.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/product"}
+    },
+    "cloud_config": {"$ref": "#/$defs/layer", "description": "Findings only a declared-IaC (cloud-config) assessment reported: counted, never folded into the cuts."},
+    "container": {"$ref": "#/$defs/layer", "description": "Findings only a container-image assessment reported: counted, never folded into the cuts."},
+    "unregistered": {
+      "description": "URLs of the repositories in scope that no product with a registered ownership ships, by URL.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string"}
+    }
+  },
+  "$defs": {
+    "count": {"type": "integer", "minimum": 0},
+    "ownership": {
+      "type": "string",
+      "enum": ["owned", "upstream", "external-bu", "harness-qa"],
+      "description": "The corpus ownership class, from the ownership registry."
+    },
+    "ownership_is": {
+      "owned": {"type": "object", "required": ["ownership"], "properties": {"ownership": {"const": "owned"}}},
+      "upstream": {"type": "object", "required": ["ownership"], "properties": {"ownership": {"const": "upstream"}}},
+      "external-bu": {"type": "object", "required": ["ownership"], "properties": {"ownership": {"const": "external-bu"}}},
+      "harness-qa": {"type": "object", "required": ["ownership"], "properties": {"ownership": {"const": "harness-qa"}}},
+      "none": {"type": "object", "required": ["ownership"], "properties": {"ownership": {"type": "null"}}}
+    },
+    "severity_counts": {
+      "description": "Counts by effective severity; unrated counts findings with no severity. Every key is always present.",
+      "type": "object",
+      "required": ["critical", "high", "medium", "low", "informational", "unrated"],
+      "additionalProperties": false,
+      "properties": {
+        "critical": {"$ref": "#/$defs/count"},
+        "high": {"$ref": "#/$defs/count"},
+        "medium": {"$ref": "#/$defs/count"},
+        "low": {"$ref": "#/$defs/count"},
+        "informational": {"$ref": "#/$defs/count"},
+        "unrated": {"$ref": "#/$defs/count"}
+      }
+    },
+    "cut": {
+      "description": "One ownership class's work and distinct vulnerabilities. A distinct vulnerability is one finding reported on its repository's default line, neither a false positive nor hardening.",
+      "type": "object",
+      "required": [
+        "ownership",
+        "products",
+        "repositories",
+        "audited",
+        "audits",
+        "branch_audits",
+        "distinct",
+        "open",
+        "occurrences",
+        "hardening",
+        "false_positives",
+        "dispositioned",
+        "branch_confirmed",
+        "branch_only"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ownership": {
+          "oneOf": [{"$ref": "#/$defs/ownership"}, {"type": "null"}],
+          "description": "The class; null for the repositories no product with a registered ownership ships."
+        },
+        "products": {"$ref": "#/$defs/count", "description": "Listed products of this class."},
+        "repositories": {"$ref": "#/$defs/count", "description": "Repositories in this class."},
+        "audited": {"$ref": "#/$defs/count", "description": "Of those, the repositories with a default-line secure-code audit."},
+        "audits": {"$ref": "#/$defs/count", "description": "Default-line secure-code audits."},
+        "branch_audits": {"$ref": "#/$defs/count", "description": "Secure-code audits on other branches (re-audits)."},
+        "distinct": {"$ref": "#/$defs/severity_counts", "description": "Distinct vulnerabilities by severity."},
+        "open": {"$ref": "#/$defs/severity_counts", "description": "Of those, the open ones by severity."},
+        "occurrences": {"$ref": "#/$defs/count", "description": "Default-line reports of the distinct vulnerabilities (a restated finding counts each time)."},
+        "hardening": {"$ref": "#/$defs/count", "description": "Default-line hardening findings, reported apart."},
+        "false_positives": {"$ref": "#/$defs/count", "description": "Default-line false positives."},
+        "dispositioned": {"$ref": "#/$defs/count", "description": "Distinct vulnerabilities with a recorded disposition."},
+        "branch_confirmed": {"$ref": "#/$defs/count", "description": "Distinct vulnerabilities also reported on another branch."},
+        "branch_only": {"$ref": "#/$defs/count", "description": "Findings reported only off the default line, not folded into distinct."}
+      }
+    },
+    "product": {
+      "type": "object",
+      "required": ["product_id", "slug", "name", "ownership", "business_unit", "repositories"],
+      "additionalProperties": false,
+      "properties": {
+        "product_id": {"type": "string", "format": "uuid"},
+        "slug": {"type": "string"},
+        "name": {"type": "string", "description": "Raw product name, preserved as data."},
+        "ownership": {
+          "oneOf": [{"$ref": "#/$defs/ownership"}, {"type": "null"}],
+          "description": "The corpus registry's ownership class for the product; null when unregistered."
+        },
+        "business_unit": {"type": ["string", "null"], "description": "The registry's business unit, raw; null when unregistered."},
+        "repositories": {"$ref": "#/$defs/count", "description": "Repositories in scope the product ships."}
+      }
+    },
+    "layer": {
+      "type": "object",
+      "required": ["findings", "false_positives"],
+      "additionalProperties": false,
+      "properties": {
+        "findings": {"$ref": "#/$defs/severity_counts", "description": "The layer's findings that are not false positives, by severity."},
+        "false_positives": {"$ref": "#/$defs/count"}
+      }
+    }
+  }
+}

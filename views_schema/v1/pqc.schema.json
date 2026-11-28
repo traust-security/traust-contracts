@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/traust-contracts/views_schema/v1/pqc.schema.json",
+  "title": "PQC readiness view",
+  "description": "Ephemeral derived Insight ViewModel from traust-core's pqc view: the latest PQC readiness of each commit, per named product (else every commit), rolled up by readiness bucket and by dominant provenance. It reads readiness as it stands, so Core refuses an as_of, and a team scope. Not a persisted artifact or SQL projection. Every serialized field is present, nullable ones included; lists are never null. JSON Schema checks structure and ranges, not arithmetic across fields.",
+  "type": "object",
+  "required": [
+    "scopes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "scopes": {
+      "description": "One scope per product the filter names, in the filter's order; one scope with product_id null when none is named.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/scope"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "$comment": "Named products: every scope is a product's.",
+      "if": {
+        "properties": {
+          "scopes": {
+            "contains": {
+              "properties": {
+                "product_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "product_id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "scopes"
+        ]
+      },
+      "then": {
+        "properties": {
+          "scopes": {
+            "items": {
+              "properties": {
+                "product_id": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "$comment": "No product named: the single scope covers every commit.",
+      "if": {
+        "properties": {
+          "scopes": {
+            "contains": {
+              "properties": {
+                "product_id": {
+                  "type": "null"
+                }
+              },
+              "required": [
+                "product_id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "scopes"
+        ]
+      },
+      "then": {
+        "properties": {
+          "scopes": {
+            "maxItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "product_id",
+        "by_bucket",
+        "by_provenance"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "product_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "description": "The scoped product; null for every commit."
+        },
+        "by_bucket": {
+          "description": "One row per readiness bucket the commits fall in (unbucketed for readiness that predates buckets), by key.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rollup"
+          }
+        },
+        "by_provenance": {
+          "description": "One row per dominant provenance, by key.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rollup"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "Each cut keys its rows by its own vocabulary.",
+          "if": {
+            "required": [
+              "by_bucket",
+              "by_provenance"
+            ]
+          },
+          "then": {
+            "properties": {
+              "by_bucket": {
+                "items": {
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "enum": [
+                        "ready",
+                        "partial",
+                        "not-ready",
+                        "blocked-external",
+                        "not-applicable",
+                        "unbucketed"
+                      ]
+                    }
+                  }
+                }
+              },
+              "by_provenance": {
+                "items": {
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "enum": [
+                        "inherited-platform",
+                        "inherited-constrained",
+                        "delegated-dependency",
+                        "native-first-party",
+                        "vendored",
+                        "externalized",
+                        "not-assessable-from-source",
+                        "none"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "rollup": {
+      "description": "One group of commits' latest readiness: how many, how ready, and what is left to do.",
+      "type": "object",
+      "required": [
+        "key",
+        "repositories",
+        "mean_overall",
+        "clock_2030",
+        "hndl_priority",
+        "blocked",
+        "remediations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "The group: a pqc-readiness-bucket value or unbucketed (by_bucket), a pqc-dominant-provenance value (by_provenance)."
+        },
+        "repositories": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Commits in the group, each at its latest readiness."
+        },
+        "mean_overall": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Their mean overall score (0-100), to one decimal."
+        },
+        "clock_2030": {
+          "$ref": "#/$defs/count",
+          "description": "Of those, the ones with NIST 2030 clock items."
+        },
+        "hndl_priority": {
+          "$ref": "#/$defs/count",
+          "description": "Of those, the ones flagged harvest-now-decrypt-later priority."
+        },
+        "blocked": {
+          "$ref": "#/$defs/count",
+          "description": "Of those, the ones blocked on something outside the repository."
+        },
+        "remediations": {
+          "description": "Remediation category to how many remediations the group's readiness lists; only categories seen appear.",
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "fix-now",
+              "upgrade",
+              "waiting-on-upstream",
+              "deadline"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}

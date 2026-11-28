@@ -4,11 +4,13 @@
   "description": "Why the SBOM tool could not resolve a dependency manifest. An unresolved manifest makes a package missing from the SBOM unknown, never absent.",
   "values": [
     "no-lockfile",
-    "unpinned"
+    "unpinned",
+    "unsupported-manifest"
   ],
   "definitions": {
     "no-lockfile": "A manifest whose versions only a lockfile pins, with none beside it or above it in the tree.",
-    "unpinned": "A manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which the tool drops."
+    "unpinned": "A manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which the tool drops.",
+    "unsupported-manifest": "The tool does not catalog the declarations in this manifest, even when pinned. traust-core's containerfile manifest scanner emits it for external FROM and COPY --from bases."
   },
   "used_in_schemas": [
     "manifest-coverage.schema.json"

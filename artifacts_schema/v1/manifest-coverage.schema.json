@@ -48,9 +48,9 @@
       "pattern": "^(?![A-Za-z]:)(?![\\s\\S]*(?:^|/)\\.{1,2}(?:/|$))[^/\\\\\u0000]+(?:/[^/\\\\\u0000]+)*$"
     },
     "reason": {
-      "description": "no-lockfile: a manifest whose versions only a lockfile pins, with none beside it or above it in the tree. unpinned: a manifest the tool reads directly that declares requirements without an exact version (a requirements file's ranges), which it drops.",
+      "description": "Why the SBOM tool could not resolve a dependency manifest; canonical definitions live in enums/v1/manifest-coverage-reason.json.",
       "type": "string",
-      "enum": ["no-lockfile", "unpinned"]
+      "enum": ["no-lockfile", "unpinned", "unsupported-manifest"]
     }
   }
 }

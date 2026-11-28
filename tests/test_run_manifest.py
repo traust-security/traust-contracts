@@ -94,3 +94,15 @@ def test_an_invalid_manifest_is_rejected(
 ) -> None:
     with pytest.raises(ValidationError):
         validator.validate(_with(**fields))
+
+
+def test_a_manifest_records_the_outputs_its_run_produced(
+    validator: Draft202012Validator,
+) -> None:
+    """A run's assessment-less outputs (a report's file) are artifact ids, once each."""
+    built = "11111111-1111-4111-8111-111111111111"
+    validator.validate(_with(outputs=[built]))
+    with pytest.raises(ValidationError):
+        validator.validate(_with(outputs=[built, built]))
+    with pytest.raises(ValidationError):
+        validator.validate(_with(outputs=["not-an-id"]))
