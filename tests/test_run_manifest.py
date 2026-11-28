@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
+from referencing import Registry, Resource
 
 SCHEMA = Path(__file__).parents[1] / "artifacts_schema/v1/run-manifest.schema.json"
 DIGEST = "a" * 64
@@ -32,9 +33,13 @@ FULL = {
 
 @pytest.fixture
 def validator() -> Draft202012Validator:
+    # Cross-file $refs (session-task, report's component_target) resolve through a registry of
+    # the artifact schemas, as traust-core's contracts validator does; never a network fetch.
+    schemas = [json.loads(p.read_text()) for p in SCHEMA.parent.glob("*.schema.json")]
+    registry = Registry().with_resources((s["$id"], Resource.from_contents(s)) for s in schemas)
     schema = json.loads(SCHEMA.read_text())
     Draft202012Validator.check_schema(schema)
-    return Draft202012Validator(schema, format_checker=FormatChecker())
+    return Draft202012Validator(schema, registry=registry, format_checker=FormatChecker())
 
 
 def _with(**fields: Any) -> dict[str, Any]:
@@ -106,3 +111,20 @@ def test_a_manifest_records_the_outputs_its_run_produced(
         validator.validate(_with(outputs=[built, built]))
     with pytest.raises(ValidationError):
         validator.validate(_with(outputs=["not-an-id"]))
+
+
+COMPONENT_TARGET = {
+    "purl": "pkg:maven/org.example/beans@7.1.0",
+    "repository": "https://forge.example.invalid/example/mono",
+    "commit": "f" * 40,
+    "module_path": "beans",
+    "verification": {"strategy": "shared_release", "manifest_paths": ["beans/pom.xml"]},
+}
+
+
+def test_a_component_scoped_manifest_resolves_its_target_offline(
+    validator: Draft202012Validator,
+) -> None:
+    validator.validate(_with(component_target=COMPONENT_TARGET))
+    with pytest.raises(ValidationError):
+        validator.validate(_with(component_target={**COMPONENT_TARGET, "commit": "f" * 39}))

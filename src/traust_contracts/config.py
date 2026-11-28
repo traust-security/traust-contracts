@@ -179,6 +179,7 @@ class Locations(_Section):
     product_definitions: str | None = None
     sarif_tool_uri: str | None = None
     mirror_cache: str | None = None
+    provenance_trust: str | None = None
 
 
 class TraustConfig(_Section):
@@ -249,6 +250,7 @@ _LOCATION_PATH_FIELDS = (
     "opengrep_rules",
     "opengrep_adopter_rules",
     "mirror_cache",
+    "provenance_trust",
 )
 
 

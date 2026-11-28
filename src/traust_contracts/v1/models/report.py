@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from traust_contracts.v1.enums import RefKind, Severity
+from traust_contracts.v1.enums import ComponentTargetStrategy, RefKind, Severity
 from traust_contracts.v1.models._base import ContractModel
 from traust_contracts.v1.models.finding import DependencyProvenance, Finding
 from traust_contracts.v1.timestamps import IsoTimestamp
@@ -17,6 +17,75 @@ class LocBreakdown(ContractModel):
     by_language: dict[str, int] | None = None
     tool: str | None = None
     excludes: list[str] | None = None
+
+
+COMPONENT_PURL_PATTERN = (
+    r"^pkg:[a-z][a-z0-9.+-]*/(@[^?#@/\s]+/)?([^?#@/\s]+/)*[^?#@/\s]+@[^?#@\s]+(\?[^#\s]*)?(#\S*)?$"
+)
+COMPONENT_COMMIT_PATTERN = r"^([0-9a-f]{40}|[0-9a-f]{64})$"
+
+
+class ComponentTargetProvenance(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source: Annotated[str, Field(min_length=1)]
+    ref: Annotated[str, Field(min_length=1)]
+    digest: Annotated[str, Field(min_length=1)]
+    manifest_version: Annotated[str, Field(min_length=1)] | None = None
+
+    @field_validator("manifest_version", mode="before")
+    @classmethod
+    def _reject_explicit_null_manifest_version(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("manifest_version must be a non-empty string when present, not null")
+        return value
+
+
+class ComponentTargetVerification(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    strategy: ComponentTargetStrategy
+    manifest_paths: Annotated[tuple[Annotated[str, Field(min_length=1)], ...], Field(min_length=1)]
+    provenance: ComponentTargetProvenance | None = None
+
+    @field_validator("provenance", mode="before")
+    @classmethod
+    def _reject_explicit_null_provenance(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("provenance must be an object when present, not null")
+        return value
+
+    @model_validator(mode="after")
+    def _check_provenance_strategy_consistency(self) -> ComponentTargetVerification:
+        is_external = self.strategy == ComponentTargetStrategy.EXTERNAL_PROVENANCE
+        has_provenance = self.provenance is not None
+        if is_external and not has_provenance:
+            raise ValueError(
+                "verification.provenance is required when strategy is 'external_provenance'"
+            )
+        if not is_external and has_provenance:
+            raise ValueError(
+                f"verification.provenance must be omitted when strategy is '{self.strategy}'"
+            )
+        return self
+
+
+class ComponentTarget(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    purl: Annotated[str, Field(pattern=COMPONENT_PURL_PATTERN)]
+    repository: Annotated[str, Field(min_length=1)]
+    commit: Annotated[str, Field(pattern=COMPONENT_COMMIT_PATTERN)]
+    module_path: Annotated[str, Field(min_length=1)]
+    release_ref: Annotated[str, Field(min_length=1)] | None = None
+    verification: ComponentTargetVerification
+
+    @field_validator("release_ref", mode="before")
+    @classmethod
+    def _reject_explicit_null_release_ref(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("release_ref must be a non-empty string when present, not null")
+        return value
 
 
 class ReportMetadata(ContractModel):
@@ -34,6 +103,38 @@ class ReportMetadata(ContractModel):
     tools: list[str] = Field(default_factory=list)
     additional: dict[str, Any] | None = None
     audit_profile: str | None = None
+    target: ComponentTarget | None = None
+
+    @field_validator("target", mode="before")
+    @classmethod
+    def _reject_explicit_null_target(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError("metadata.target must be an object when present, not null")
+        return value
+
+    @model_validator(mode="after")
+    def _check_target_consistency(self) -> ReportMetadata:
+        if self.target is None:
+            return self
+        if (
+            self.commit
+            and self.commit.strip()
+            and self.target.commit != self.commit.strip().lower()
+        ):
+            raise ValueError(
+                f"metadata.target.commit ({self.target.commit}) does not match "
+                f"metadata.commit ({self.commit})"
+            )
+        if (
+            self.repository
+            and self.repository.strip()
+            and self.target.repository.strip().rstrip("/") != self.repository.strip().rstrip("/")
+        ):
+            raise ValueError(
+                f"metadata.target.repository ({self.target.repository}) does not match "
+                f"metadata.repository ({self.repository})"
+            )
+        return self
 
 
 class SeverityCounts(ContractModel):

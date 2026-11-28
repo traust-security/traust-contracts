@@ -480,6 +480,143 @@
             "container"
           ],
           "description": "Report profile discriminator: 'code' = secure-code-audit (source/manifest audit), 'rpm' = secure-rpm-audit (dist-git packaging audit), 'container' = secure-container-audit (registry image audit via skopeo/syft/grype). Shared finding/severity/ID vocabulary; framework sections differ by profile."
+        },
+        "target": {
+          "$ref": "#/$defs/component_target",
+          "$comment": "When present alongside metadata.commit or metadata.repository, target.commit and target.repository must match them (enforced by ReportMetadata and traust-core's record gate)."
+        }
+      }
+    },
+    "component_target": {
+      "type": "object",
+      "description": "Verified component target for a versioned PURL audit within a pinned repository tree. Absent on whole-repository audits.",
+      "required": [
+        "purl",
+        "repository",
+        "commit",
+        "module_path",
+        "verification"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "purl": {
+          "type": "string",
+          "pattern": "^pkg:[a-z][a-z0-9.+-]*/(@[^?#@/\\s]+/)?([^?#@/\\s]+/)*[^?#@/\\s]+@[^?#@\\s]+(\\?[^#\\s]*)?(#\\S*)?$",
+          "not": {"type": "string", "pattern": "\\s"},
+          "description": "A versioned package URL (purl-spec): the type is ASCII letters, digits, '.', '+' or '-' and starts with a letter; components carry no unencoded whitespace."
+        },
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+          "not": {"type": "string", "pattern": "\\s"},
+          "description": "The pinned commit: a full SHA-1 (40) or SHA-256 (64) object id, lowercase hex. The whitespace guard stops Python validators, where $ matches before a final newline, accepting a trailing newline."
+        },
+        "module_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "release_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verification": {
+          "type": "object",
+          "required": [
+            "strategy",
+            "manifest_paths"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "strategy": {
+              "type": "string",
+              "enum": [
+                "shared_release",
+                "package_release",
+                "workspace_package",
+                "external_provenance"
+              ]
+            },
+            "manifest_paths": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "provenance": {
+              "type": "object",
+              "description": "Verifier-authenticated external build or release provenance summary establishing the package/version-to-commit binding when strategy is 'external_provenance'.",
+              "required": [
+                "source",
+                "ref",
+                "digest"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "digest": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "manifest_version": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "const": "external_provenance"
+                  }
+                },
+                "required": [
+                  "strategy"
+                ]
+              },
+              "then": {
+                "required": [
+                  "provenance"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "not": {
+                      "const": "external_provenance"
+                    }
+                  }
+                },
+                "required": [
+                  "strategy"
+                ]
+              },
+              "then": {
+                "not": {
+                  "required": [
+                    "provenance"
+                  ]
+                }
+              }
+            }
+          ]
         }
       }
     },

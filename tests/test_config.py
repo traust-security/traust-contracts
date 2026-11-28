@@ -84,6 +84,18 @@ def test_load_context_resolves_relative_locations(tmp_path):
     assert ctx.traust.locations.analysis_results == str(ar.resolve())
 
 
+def test_a_relative_provenance_trust_policy_resolves_under_the_config_home(tmp_path):
+    home = tmp_path / "cfg"
+    _write_minimal_config(home)
+    (home / "traust.yaml").write_text(
+        yaml.safe_dump({"locations": {"provenance_trust": "trust/policy.json"}}),
+        encoding="utf-8",
+    )
+    ctx = load_context(config_home=home)
+    assert ctx.traust.locations is not None
+    assert ctx.traust.locations.provenance_trust == str((home / "trust/policy.json").resolve())
+
+
 def test_config_path_and_optional(tmp_path, monkeypatch):
     home = tmp_path / "cfg"
     _write_minimal_config(home)
